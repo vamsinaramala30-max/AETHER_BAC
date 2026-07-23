@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: ankane/pgvector:v0.5.1
+    container_name: aether-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: aether_user
+      POSTGRES_PASSWORD: aether_password_secure_123
+      POSTGRES_DB: aether_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aether-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aether_user -d aether_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: aether-redis
+    restart: always
+    command: redis-server --requirepass aether_redis_secure_123
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - aether-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aether-backend
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://aether_user:aether_password_secure_123@postgres:5432/aether_db?schema=public
+      DIRECT_URL: postgresql://aether_user:aether_password_secure_123@postgres:5432/aether_db?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: aether_redis_secure_123
+      JWT_SECRET: super_secret_aether_jwt_key_change_me_in_production_32bytes
+      JWT_REFRESH_SECRET: super_secret_aether_refresh_jwt_key_change_me_in_production_32bytes
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aether-network
+    volumes:
+      - app_logs:/app/logs
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_logs:
+
+networks:
+  aether-network:
+    driver: bridge
