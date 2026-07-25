@@ -6,13 +6,23 @@ export interface AuthenticatedUser {
   id: string;
   email: string;
   role: string;
+  fullName?: string | null;
+  avatarUrl?: string | null;
   workspaceId?: string;
 }
 
 declare global {
   namespace Express {
+    interface User {
+      id: string;
+      email: string;
+      role: string;
+      fullName?: string | null;
+      avatarUrl?: string | null;
+      workspaceId?: string;
+    }
     interface Request {
-      user?: AuthenticatedUser;
+      user?: User;
     }
   }
 }

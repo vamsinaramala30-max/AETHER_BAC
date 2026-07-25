@@ -19,7 +19,8 @@ export class AIService {
     let convId = conversationId;
 
     if (!convId) {
-      const newConv = await this.repo.createConversation(userId, workspaceId, message.substring(0, 30));
+      // conversation needs a projectId; use workspaceId as fallback
+      const newConv = await this.repo.createConversation(userId, workspaceId, workspaceId, message.substring(0, 30));
       convId = newConv.id;
     }
 

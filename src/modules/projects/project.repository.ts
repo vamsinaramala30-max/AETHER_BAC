@@ -1,9 +1,9 @@
 import { PrismaService } from '../../database/prisma';
 
 export class ProjectRepository extends PrismaService {
-  public async create(workspaceId: string, name: string, description?: string) {
+  public async create(workspaceId: string, ownerId: string, name: string, description?: string) {
     return this.prisma.project.create({
-      data: { workspaceId, name, description },
+      data: { workspaceId, ownerId, name, description },
     });
   }
 

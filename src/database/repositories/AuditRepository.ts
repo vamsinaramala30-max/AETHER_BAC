@@ -9,19 +9,17 @@ export class AuditRepository extends PrismaService {
     });
   }
 
-  public async findByWorkspace(
-    workspaceId: string,
-    limit: number = 50,
-    skip: number = 0
+  public async findPaginated(
+    skip: number = 0,
+    limit: number = 50
   ): Promise<{ logs: AuditLog[]; total: number }> {
     const [logs, total] = await Promise.all([
       this.prisma.auditLog.findMany({
-        where: { workspaceId },
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip,
       }),
-      this.prisma.auditLog.count({ where: { workspaceId } }),
+      this.prisma.auditLog.count(),
     ]);
 
     return { logs, total };

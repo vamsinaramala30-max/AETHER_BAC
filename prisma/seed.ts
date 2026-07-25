@@ -13,7 +13,7 @@ async function main() {
       fullName: 'AETHER Master Admin',
       role: Role.SUPERADMIN,
       isEmailVerified: true,
-      passwordHash: '$2a$12$eImiTXuWVxfM37uY4JANjO.gL.37T6jYjTqO./q2I84GfP0eYf0yC', // bcrypt hash
+      passwordHash: '$2a$12$eImiTXuWVxfM37uY4JANjO.gL.37T6jYjTqO./q2I84GfP0eYf0yC', // bcrypt hash of "admin123"
     },
   });
 
@@ -33,7 +33,7 @@ async function main() {
     },
   });
 
-  await prisma.project.upsert({
+  const defaultProject = await prisma.project.upsert({
     where: { id: '00000000-0000-0000-0000-000000000001' },
     update: {},
     create: {
@@ -46,6 +46,9 @@ async function main() {
   });
 
   console.log('Seeding completed successfully.');
+  console.log(`  System User: ${systemUser.email} (${systemUser.id})`);
+  console.log(`  Workspace: ${defaultWorkspace.name} (${defaultWorkspace.id})`);
+  console.log(`  Project: ${defaultProject.name} (${defaultProject.id})`);
 }
 
 main()
@@ -56,3 +59,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

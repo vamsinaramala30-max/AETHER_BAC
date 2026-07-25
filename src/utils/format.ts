@@ -1,10 +1,10 @@
 /**
  * Capitalizes the first letter of a string.
  */
-public static capitalize(text: string): string {
+export const capitalize = (text: string): string => {
   if (!text) return '';
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-}
+};
 
 /**
  * Truncates string length with ellipsis.

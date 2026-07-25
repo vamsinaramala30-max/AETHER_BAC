@@ -35,6 +35,9 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_CALLBACK_URL: z.string().url().optional(),
 
+  // Frontend URL for OAuth redirects
+  FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+
   // Supabase
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_ANON_KEY: z.string().optional(),
@@ -73,3 +76,4 @@ const parseEnv = (): EnvConfig => {
 };
 
 export const env: EnvConfig = parseEnv();
+

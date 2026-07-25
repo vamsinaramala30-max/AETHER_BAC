@@ -13,4 +13,8 @@ router.post('/refresh', validate(refreshTokenSchema), authController.refreshToke
 router.post('/logout', authenticate, authController.logout);
 router.get('/me', authenticate, authController.getProfile);
 
+// Google OAuth routes
+router.get('/google', authController.googleAuth);
+router.get('/google/callback', authController.googleCallback);
+
 export const authModuleRoutes = router;

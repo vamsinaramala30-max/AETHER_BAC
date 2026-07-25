@@ -11,6 +11,7 @@ import {
 
 const router = Router();
 
+// Standard auth routes
 router.post(
   '/register',
   strictRateLimiter,
@@ -42,5 +43,9 @@ router.get(
   authenticate,
   authController.getProfile
 );
+
+// Google OAuth routes
+router.get('/google', authController.googleAuth);
+router.get('/google/callback', authController.googleCallback);
 
 export const authRoutes = router;

@@ -1,4 +1,4 @@
-import { User, Session, Prisma } from '@prisma/client';
+import { User, Session, OAuthAccount, Prisma } from '@prisma/client';
 import { PrismaService, TransactionClient } from '../../database/prisma';
 
 export class AuthRepository extends PrismaService {
@@ -6,6 +6,13 @@ export class AuthRepository extends PrismaService {
     const client = tx || this.prisma;
     return client.user.findUnique({
       where: { email: email.toLowerCase() },
+    });
+  }
+
+  public async findUserById(id: string, tx?: TransactionClient): Promise<User | null> {
+    const client = tx || this.prisma;
+    return client.user.findUnique({
+      where: { id },
     });
   }
 
@@ -36,4 +43,30 @@ export class AuthRepository extends PrismaService {
       where: { refreshToken },
     });
   }
+
+  public async findOAuthAccount(
+    provider: string,
+    providerAccountId: string,
+    tx?: TransactionClient
+  ): Promise<OAuthAccount | null> {
+    const client = tx || this.prisma;
+    return client.oAuthAccount.findUnique({
+      where: {
+        provider_providerAccountId: {
+          provider,
+          providerAccountId,
+        },
+      },
+      include: { user: true },
+    });
+  }
+
+  public async createOAuthAccount(
+    data: Prisma.OAuthAccountCreateInput,
+    tx?: TransactionClient
+  ): Promise<OAuthAccount> {
+    const client = tx || this.prisma;
+    return client.oAuthAccount.create({ data });
+  }
 }
+

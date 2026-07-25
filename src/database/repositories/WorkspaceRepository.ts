@@ -1,4 +1,4 @@
-import { Workspace, WorkspaceMember, Prisma } from '@prisma/client';
+import { Workspace, WorkspaceMember, WorkspaceRole, Prisma } from '@prisma/client';
 import { PrismaService, TransactionClient } from '../prisma';
 
 export class WorkspaceRepository extends PrismaService {
@@ -54,7 +54,7 @@ export class WorkspaceRepository extends PrismaService {
   public async addMember(
     workspaceId: string,
     userId: string,
-    role: string,
+    role: WorkspaceRole,
     tx?: TransactionClient
   ): Promise<WorkspaceMember> {
     const client = tx || this.prisma;
@@ -83,3 +83,4 @@ export class WorkspaceRepository extends PrismaService {
     });
   }
 }
+

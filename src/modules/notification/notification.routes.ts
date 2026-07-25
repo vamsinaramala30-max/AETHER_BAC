@@ -1,12 +1,22 @@
 import { Router } from 'express';
-import { notificationController } from './notification.controller';
-import { authenticate } from '../../middleware/auth.middleware';
+import { NotificationController } from './notification.controller';
+import { validatePreferences } from './notification.validation';
 
-const router = Router();
+export function createNotificationRouter(controller: NotificationController, authMiddleware: any): Router {
+  const router = Router();
 
-router.use(authenticate);
-router.get('/', notificationController.getUserNotifications);
-router.patch('/:id/read', notificationController.markAsRead);
-router.patch('/read-all', notificationController.markAllAsRead);
+  router.use(authMiddleware);
 
-export const notificationModuleRoutes = router;
+  // Exact endpoints targeted by frontend notificationService.ts
+  router.get('/user/settings/notifications', controller.getPreferences);
+  router.put('/user/settings/notifications', validatePreferences, controller.updatePreferences);
+
+  // Additional In-App notification management
+  router.get('/notifications', controller.getHistory);
+  router.patch('/notifications/read-all', controller.markAllRead);
+  router.patch('/notifications/:id/read', controller.markRead);
+  router.delete('/notifications/:id', controller.delete);
+  router.post('/notifications/push/subscribe', controller.subscribePush);
+
+  return router;
+}

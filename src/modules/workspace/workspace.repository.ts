@@ -1,4 +1,5 @@
 import { PrismaService } from '../../database/prisma';
+import { WorkspaceRole } from '@prisma/client';
 
 export class WorkspaceRepository extends PrismaService {
   public async createWorkspace(userId: string, name: string, slug: string, description?: string) {
@@ -10,7 +11,7 @@ export class WorkspaceRepository extends PrismaService {
         members: {
           create: {
             userId,
-            role: 'OWNER',
+            role: WorkspaceRole.OWNER,
           },
         },
       },
@@ -43,7 +44,7 @@ export class WorkspaceRepository extends PrismaService {
 
   public async addMember(workspaceId: string, userId: string, role: string) {
     return this.prisma.workspaceMember.create({
-      data: { workspaceId, userId, role },
+      data: { workspaceId, userId, role: role as any },
     });
   }
 }

@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { securityConfig } from '../config';
 
 export class PasswordService {

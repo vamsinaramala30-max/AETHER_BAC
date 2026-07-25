@@ -11,6 +11,7 @@ export interface LoginResponse {
     firstName: string;
     lastName: string;
     role: string;
+    avatarUrl?: string | null;
   };
   tokens: {
     accessToken: string;
@@ -18,3 +19,19 @@ export interface LoginResponse {
     expiresIn: string;
   };
 }
+
+export interface OAuthUserPayload {
+  provider: string;
+  providerAccountId: string;
+  email: string;
+  fullName: string;
+  avatarUrl?: string | null;
+}
+
+export interface GoogleUserPayload {
+  googleId: string;
+  email: string;
+  fullName: string;
+  avatarUrl?: string | null;
+}
+

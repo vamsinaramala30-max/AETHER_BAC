@@ -1,3 +1,4 @@
+import { beforeAll, afterAll } from 'vitest';
 import { db } from '../database/client';
 
 beforeAll(async () => {

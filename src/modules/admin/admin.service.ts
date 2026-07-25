@@ -7,7 +7,7 @@ export class AdminService {
       db.user.count(),
     ]);
 
-    const sanitized = users.map(({ password, ...u }) => u);
+    const sanitized = users.map(({ passwordHash, ...u }) => ({ ...u }));
     return { users: sanitized, total };
   }
 

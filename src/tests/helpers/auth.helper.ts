@@ -1,5 +1,5 @@
 import { JWTService } from '../../auth/jwt';
-import { Role } from '../../auth/roles';
+import { Role } from '../../auth/role';
 
 export const generateTestToken = (
   userId: string = 'test-user-id',

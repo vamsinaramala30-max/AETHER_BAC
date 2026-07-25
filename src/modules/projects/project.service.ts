@@ -8,8 +8,8 @@ export class ProjectService {
     this.repo = new ProjectRepository();
   }
 
-  public async createProject(workspaceId: string, name: string, description?: string) {
-    return this.repo.create(workspaceId, name, description);
+  public async createProject(workspaceId: string, ownerId: string, name: string, description?: string) {
+    return this.repo.create(workspaceId, ownerId, name, description || '');
   }
 
   public async getProjectsByWorkspace(workspaceId: string) {

@@ -156,3 +156,63 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model NotificationPreference {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  emailAlerts    Boolean  @default(true) @map("email_alerts")
+  securityAlerts Boolean  @default(true) @map("security_alerts")
+  systemUpdates Boolean  @default(false) @map("system_updates")
+  weeklyDigest   Boolean  @default(false) @map("weekly_digest")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("notification_preferences")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  message   String
+  category  String   // emailAlerts | securityAlerts | systemUpdates | weeklyDigest
+  channel   String   // IN_APP | EMAIL | PUSH
+  isRead    Boolean  @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("push_subscriptions")
+}
+
+model NotificationDeliveryLog {
+  id             String   @id @default(uuid())
+  notificationId String   @map("notification_id")
+  channel        String
+  status         String   // PENDING | DELIVERED | FAILED
+  attempts       Int      @default(0)
+  error          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("notification_delivery_logs")
+}

@@ -1,4 +1,5 @@
-import { RoleService, Role } from '../../auth/roles';
+import { describe, it, expect } from 'vitest';
+import { RoleService, Role } from '../../auth/role';
 import { PermissionService, Permission } from '../../auth/permissions';
 
 describe('Role and Permission Verification', () => {

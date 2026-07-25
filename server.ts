@@ -5,6 +5,10 @@ import path from 'node:path';
 import fs from 'node:fs';
 import winston from 'winston';
 import 'winston-daily-rotate-file';
+import cors from 'cors';
+import helmet from 'helmet';
+import session from 'express-session';
+import passport from 'passport';
 
 dotenv.config();
 
@@ -58,11 +62,62 @@ export const auditLogger = winston.createLogger({
   ],
 });
 
-const app = express();
+const app: express.Express = express();
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// ============================================================================
+// Security & Parsing Middleware
+// ============================================================================
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  crossOriginEmbedderPolicy: process.env.NODE_ENV === 'production',
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
+// CORS configuration
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map((o) => o.trim());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin '${origin}' is not allowed by CORS`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Workspace-ID', 'Accept'],
+  exposedHeaders: ['Content-Range', 'X-Total-Count', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
+  maxAge: 86400,
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// ============================================================================
+// Session Configuration (required by Passport)
+// ============================================================================
+app.use(session({
+  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'aether-session-secret-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: 'lax',
+  },
+}));
+
+// ============================================================================
+// Passport Initialization
+// ============================================================================
+import './src/auth/passport';
+app.use(passport.initialize());
+app.use(passport.session());
+
+// ============================================================================
+// Request Logging Middleware
+// ============================================================================
 app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -78,6 +133,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// ============================================================================
+// Health Check Endpoint
+// ============================================================================
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'UP',
@@ -86,10 +144,33 @@ app.get('/health', (_req: Request, res: Response) => {
   });
 });
 
+// ============================================================================
+// API Routes
+// ============================================================================
+import { apiRoutes } from './src/routes/Index';
+import { authModuleRoutes } from './src/modules/auth/auth.routes';
+
+// Mount module routes directly at /api/auth for OAuth
+app.use('/api/auth', authModuleRoutes);
+
+// Mount all other API routes under /api/v1 prefix
+app.use('/api/v1', apiRoutes);
+
+// Also mount auth at /api/v1/auth for backwards compatibility
+app.use('/api/v1/auth', authModuleRoutes);
+
+// ============================================================================
+// Error Handling Middleware
+// ============================================================================
+import { errorHandler } from './src/middleware/error.middleware';
+app.use(errorHandler);
+
+// 404 handler (after all routes)
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'Endpoint not found or module uninitialized' });
 });
 
+// Global error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   logger.error('Unhandled Exception:', err);
   res.status(500).json({
@@ -98,10 +179,15 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   });
 });
 
+// ============================================================================
+// Server Initialization
+// ============================================================================
 const server = http.createServer(app);
 
 server.listen(PORT, HOST, () => {
   logger.info(`AETHER Backend Server successfully initialized and running at http://${HOST}:${PORT}`);
+  logger.info(`API available at http://${HOST}:${PORT}/api/v1`);
+  logger.info(`OAuth routes available at http://${HOST}:${PORT}/api/auth`);
 });
 
 const gracefulShutdown = (signal: string) => {

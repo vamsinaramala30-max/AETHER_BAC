@@ -1,4 +1,4 @@
-import { Role } from './roles';
+import { Role } from './role';
 
 export enum Permission {
   // Workspace permissions

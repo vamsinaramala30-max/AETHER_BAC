@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { PasswordService } from '../../auth/password';
 
 describe('PasswordService', () => {

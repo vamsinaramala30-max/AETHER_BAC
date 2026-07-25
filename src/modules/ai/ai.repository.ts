@@ -1,9 +1,9 @@
 import { PrismaService } from '../../database/prisma';
 
 export class AIRepository extends PrismaService {
-  public async createConversation(userId: string, workspaceId: string, title: string) {
+  public async createConversation(userId: string, workspaceId: string, projectId: string, title: string) {
     return this.prisma.conversation.create({
-      data: { userId, workspaceId, title },
+      data: { userId, workspaceId, projectId, title },
     });
   }
 

@@ -1,0 +1,16 @@
+src/modules/ai/providers/gemini.provider.ts(13,19): error TS2749: 'GoogleGenerativeAI' refers to a value, but is being used as a type here. Did you mean 'typeof GoogleGenerativeAI'?
+src/modules/notification/notification.service.ts(16,20): error TS18047: 'pref' is possibly 'null'.
+src/modules/notification/notification.service.ts(16,25): error TS2339: Property 'emailAlerts' does not exist on type '{ id: string; createdAt: Date; userId: string; isRead: boolean; }'.
+src/modules/notification/notification.service.ts(17,23): error TS18047: 'pref' is possibly 'null'.
+src/modules/notification/notification.service.ts(17,28): error TS2339: Property 'securityAlerts' does not exist on type '{ id: string; createdAt: Date; userId: string; isRead: boolean; }'.
+src/modules/notification/notification.service.ts(18,22): error TS18047: 'pref' is possibly 'null'.
+src/modules/notification/notification.service.ts(18,27): error TS2339: Property 'systemUpdates' does not exist on type '{ id: string; createdAt: Date; userId: string; isRead: boolean; }'.
+src/modules/notification/notification.service.ts(19,21): error TS18047: 'pref' is possibly 'null'.
+src/modules/notification/notification.service.ts(19,26): error TS2339: Property 'weeklyDigest' does not exist on type '{ id: string; createdAt: Date; userId: string; isRead: boolean; }'.
+src/modules/notification/notification.service.ts(42,92): error TS2554: Expected 3 arguments, but got 5.
+src/modules/notification/notification.service.ts(48,92): error TS2554: Expected 3 arguments, but got 5.
+src/modules/notification/notification.service.ts(57,94): error TS2554: Expected 3 arguments, but got 5.
+src/modules/notification/notification.service.ts(59,27): error TS2339: Property 'endpoint' does not exist on type 'never'.
+src/modules/notification/notification.service.ts(59,57): error TS2339: Property 'p256dh' does not exist on type 'never'.
+src/modules/notification/notification.service.ts(59,75): error TS2339: Property 'auth' does not exist on type 'never'.
+src/routes/notification.routes.ts(8,59): error TS2554: Expected 3 arguments, but got 0.

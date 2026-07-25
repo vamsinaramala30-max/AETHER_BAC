@@ -2,25 +2,26 @@ import { Queue, Job } from 'bullmq';
 import { QueueFactory } from './queue';
 import { logger } from '../config';
 
-export interface EmailJobData {
-  to: string;
-  subject: string;
-  template: string;
-  context: Record<string, unknown>;
+export interface NotificationJobData {
+  userId: string;
+  title: string;
+  message: string;
+  channel: 'IN_APP' | 'EMAIL' | 'PUSH';
 }
 
-export const EMAIL_QUEUE_NAME = 'email-dispatch';
+export const NOTIFICATION_QUEUE_NAME = 'notification-dispatch';
 
-export const emailQueue: Queue<EmailJobData> = QueueFactory.createQueue<EmailJobData>(EMAIL_QUEUE_NAME);
+export const notificationQueue: Queue<NotificationJobData> = QueueFactory.createQueue<NotificationJobData>(NOTIFICATION_QUEUE_NAME);
 
-export const emailWorker = QueueFactory.createWorker<EmailJobData, boolean>(
-  EMAIL_QUEUE_NAME,
-  async (job: Job<EmailJobData>): Promise<boolean> => {
-    logger.info(`Processing Email Job ${job.id} to recipient ${job.data.to}`);
-    
-    // Email transmission adapter simulation
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    
+export const notificationWorker = QueueFactory.createWorker<NotificationJobData, boolean>(
+  NOTIFICATION_QUEUE_NAME,
+  async (job: Job<NotificationJobData>): Promise<boolean> => {
+    logger.info(`Processing Notification Job ${job.id} for user ${job.data.userId}`);
+
+    // Notification dispatch logic here
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     return true;
   }
 );
+
