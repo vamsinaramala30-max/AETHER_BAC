@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "nodemon",
     "build": "tsc",
-    "start": "node dist/server.js",
-    "start:prod": "node dist/server.js",
+    "start": "npm run build && node dist/server.js",
+    "start:prod": "npm run build && node dist/server.js",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"**/*.{ts,js,json,md,yml,yaml}\"",
