@@ -21,9 +21,9 @@ export class AIService {
     message: string,
     conversationId?: string,
   ) {
-    let convId = conversationId;
+    let activeConvId = conversationId;
 
-    if (!convId) {
+    if (!activeConvId) {
       // conversation needs a projectId; use workspaceId as fallback
       const newConv = await this.repo.createConversation(
         userId,
@@ -31,10 +31,10 @@ export class AIService {
         workspaceId,
         message.substring(0, 30),
       );
-      convId = newConv.id;
+      activeConvId = newConv.id;
     }
 
-    await this.repo.addMessage(convId, 'user', message);
+    await this.repo.addMessage(activeConvId, 'user', message);
 
     const context = await this.rag.retrieval.retrieveContext(message);
     const formattedPrompt = buildChatPrompt(context, message);
@@ -43,9 +43,9 @@ export class AIService {
       systemInstruction: SYSTEM_PROMPT,
     });
 
-    await this.repo.addMessage(convId, 'assistant', reply);
+    await this.repo.addMessage(activeConvId, 'assistant', reply);
 
-    return { conversationId: convId, reply };
+    return { conversationId: activeConvId, reply };
   }
 
   public async getConversations(userId: string, workspaceId: string) {

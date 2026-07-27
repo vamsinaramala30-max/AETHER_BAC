@@ -138,7 +138,7 @@ app.get('/health', (_req: Request, res: Response) => {
 // ============================================================================
 // API Routes
 // ============================================================================
-import { apiRoutes } from './src/routes/Index';
+import { apiRoutes } from './src/routes/index';
 import { authModuleRoutes } from './src/modules/auth/auth.routes';
 
 // Mount module routes directly at /api/auth for OAuth

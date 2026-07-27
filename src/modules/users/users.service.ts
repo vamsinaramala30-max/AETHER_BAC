@@ -35,7 +35,7 @@ export class UsersService {
   public async listUsers(page: number = 1, limit: number = 20) {
     const skip = (page - 1) * limit;
     const { users, total } = await this.repo.findAllPaginated(skip, limit);
-    const sanitized = users.map(({ passwordHash: _passwordHash, ...rest }) => rest);
+    const sanitized = users.map(({ passwordHash: _passwordHash, ...rest }: Record<string, any>) => rest);
     return { users: sanitized, total, page, limit };
   }
 }
