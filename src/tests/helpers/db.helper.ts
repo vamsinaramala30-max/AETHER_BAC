@@ -1,7 +1,17 @@
 import { db } from '../../database/client';
 
 export const clearDatabase = async (): Promise<void> => {
-  const tablenames = ['Session', 'Message', 'Conversation', 'Document', 'KnowledgeBase', 'Project', 'WorkspaceMember', 'Workspace', 'User'];
+  const tablenames = [
+    'Session',
+    'Message',
+    'Conversation',
+    'Document',
+    'KnowledgeBase',
+    'Project',
+    'WorkspaceMember',
+    'Workspace',
+    'User',
+  ];
 
   for (const table of tablenames) {
     try {

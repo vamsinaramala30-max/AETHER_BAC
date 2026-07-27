@@ -10,13 +10,13 @@ services:
       POSTGRES_PASSWORD: aether_password_secure_123
       POSTGRES_DB: aether_db
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - aether-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aether_user -d aether_db"]
+      test: ['CMD-SHELL', 'pg_isready -U aether_user -d aether_db']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,13 +27,13 @@ services:
     restart: always
     command: redis-server --requirepass aether_redis_secure_123
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
     networks:
       - aether-network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -45,10 +45,10 @@ services:
     container_name: aether-backend
     restart: always
     ports:
-      - "5000:5000"
+      - '5001:5001'
     environment:
       NODE_ENV: production
-      PORT: 5000
+      PORT: 5001
       HOST: 0.0.0.0
       DATABASE_URL: postgresql://aether_user:aether_password_secure_123@postgres:5432/aether_db?schema=public
       DIRECT_URL: postgresql://aether_user:aether_password_secure_123@postgres:5432/aether_db?schema=public

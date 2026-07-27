@@ -23,7 +23,10 @@ export class QueueFactory {
   /**
    * Instantiates a standardized BullMQ Queue instance.
    */
-  public static createQueue<T = unknown>(name: string, customOptions?: Partial<QueueOptions>): Queue<T> {
+  public static createQueue<T = unknown>(
+    name: string,
+    customOptions?: Partial<QueueOptions>,
+  ): Queue<T> {
     const queue = new Queue<T>(name, {
       ...QueueFactory.defaultQueueOptions,
       ...customOptions,
@@ -42,7 +45,7 @@ export class QueueFactory {
   public static createWorker<T = unknown, R = unknown>(
     name: string,
     processor: Processor<T, R>,
-    customOptions?: Partial<WorkerOptions>
+    customOptions?: Partial<WorkerOptions>,
   ): Worker<T, R> {
     const worker = new Worker<T, R>(name, processor, {
       connection: redisConfig.options,
@@ -55,7 +58,9 @@ export class QueueFactory {
     });
 
     worker.on('failed', (job, err) => {
-      logger.error(`[Queue: ${name}] Job ${job?.id} failed with error: ${err.message}`, { stack: err.stack });
+      logger.error(`[Queue: ${name}] Job ${job?.id} failed with error: ${err.message}`, {
+        stack: err.stack,
+      });
     });
 
     worker.on('error', (err) => {

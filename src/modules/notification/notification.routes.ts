@@ -2,7 +2,10 @@ import { Router } from 'express';
 import { NotificationController } from './notification.controller';
 import { validatePreferences } from './notification.validation';
 
-export function createNotificationRouter(controller: NotificationController, authMiddleware: any): Router {
+export function createNotificationRouter(
+  controller: NotificationController,
+  authMiddleware: any,
+): Router {
   const router = Router();
 
   router.use(authMiddleware);

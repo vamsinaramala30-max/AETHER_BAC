@@ -38,7 +38,11 @@ export class UserRepository extends PrismaService {
   /**
    * Update an existing user record.
    */
-  public async update(id: string, data: Prisma.UserUpdateInput, tx?: TransactionClient): Promise<User> {
+  public async update(
+    id: string,
+    data: Prisma.UserUpdateInput,
+    tx?: TransactionClient,
+  ): Promise<User> {
     const client = tx || this.prisma;
     return client.user.update({
       where: { id },

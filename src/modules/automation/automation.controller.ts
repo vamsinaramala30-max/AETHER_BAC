@@ -12,7 +12,7 @@ export class AutomationController {
         workspaceId,
         name,
         trigger,
-        actions as Prisma.InputJsonValue
+        actions as Prisma.InputJsonValue,
       );
       res.status(201).json({ success: true, data: auto });
     } catch (err) {
@@ -43,7 +43,7 @@ export class AutomationController {
     try {
       const updated = await automationService.updateAutomation(
         req.params.id,
-        req.body as { name?: string; isEnabled?: boolean; actions?: Prisma.InputJsonValue }
+        req.body as { name?: string; isEnabled?: boolean; actions?: Prisma.InputJsonValue },
       );
       res.status(200).json({ success: true, data: updated });
     } catch (err) {

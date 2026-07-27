@@ -23,7 +23,7 @@ export class StorageService {
     fileBuffer: Buffer,
     filePath: string,
     mimeType: string,
-    bucket?: string
+    bucket?: string,
   ): Promise<StorageUploadResult> {
     if (this.primaryDriver === 'supabase') {
       const result = await this.supabaseStorage.upload(fileBuffer, filePath, mimeType, bucket);

@@ -17,7 +17,10 @@ export class UsersService {
     return userWithoutPassword;
   }
 
-  public async updateUser(id: string, data: { firstName?: string; lastName?: string; avatarUrl?: string }) {
+  public async updateUser(
+    id: string,
+    data: { firstName?: string; lastName?: string; avatarUrl?: string },
+  ) {
     await this.getUserById(id);
     const updated = await this.repo.update(id, data);
     const { passwordHash, ...userWithoutPassword } = updated;
@@ -32,7 +35,7 @@ export class UsersService {
   public async listUsers(page: number = 1, limit: number = 20) {
     const skip = (page - 1) * limit;
     const { users, total } = await this.repo.findAllPaginated(skip, limit);
-    const sanitized = users.map(({ passwordHash, ...rest }) => rest);
+    const sanitized = users.map(({ passwordHash: _passwordHash, ...rest }) => rest);
     return { users: sanitized, total, page, limit };
   }
 }

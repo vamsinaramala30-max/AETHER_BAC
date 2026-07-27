@@ -21,7 +21,9 @@ export class AIGateway {
           return;
         }
 
-        logger.info(`Streaming AI response for user ${socket.user?.id} in conversation ${payload.conversationId}`);
+        logger.info(
+          `Streaming AI response for user ${socket.user?.id} in conversation ${payload.conversationId}`,
+        );
 
         // Generate response using provider
         const fullText = await this.aiProvider.generateText(payload.prompt, {

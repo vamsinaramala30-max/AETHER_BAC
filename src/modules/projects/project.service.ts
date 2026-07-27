@@ -8,7 +8,12 @@ export class ProjectService {
     this.repo = new ProjectRepository();
   }
 
-  public async createProject(workspaceId: string, ownerId: string, name: string, description?: string) {
+  public async createProject(
+    workspaceId: string,
+    ownerId: string,
+    name: string,
+    description?: string,
+  ) {
     return this.repo.create(workspaceId, ownerId, name, description || '');
   }
 
@@ -18,7 +23,9 @@ export class ProjectService {
 
   public async getProjectById(id: string) {
     const proj = await this.repo.findById(id);
-    if (!proj) throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    if (!proj) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
     return proj;
   }
 

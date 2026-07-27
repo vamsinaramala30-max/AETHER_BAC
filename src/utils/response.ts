@@ -9,7 +9,7 @@ export class ResponseUtils {
     res: Response,
     data: T,
     message?: string,
-    statusCode: number = 200
+    statusCode: number = 200,
   ): Response {
     const payload: IApiResponse<T> = {
       success: true,
@@ -27,7 +27,7 @@ export class ResponseUtils {
     message: string,
     statusCode: number = 400,
     code: string = 'BAD_REQUEST',
-    details?: unknown
+    details?: unknown,
   ): Response {
     const payload: IApiResponse = {
       success: false,

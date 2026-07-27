@@ -1,4 +1,4 @@
-import cron from 'node-cron';
+import cron, { ScheduledTask } from 'node-cron';
 import { logger } from '../config';
 
 export interface ScheduledJob {
@@ -10,7 +10,7 @@ export interface ScheduledJob {
 
 export class JobScheduler {
   private static instance: JobScheduler;
-  private tasks: Map<string, cron.ScheduledTask> = new Map();
+  private tasks: Map<string, ScheduledTask> = new Map();
 
   private constructor() {}
 
@@ -48,7 +48,9 @@ export class JobScheduler {
     });
 
     this.tasks.set(job.name, scheduledTask);
-    logger.info(`[JobScheduler] Scheduled job '${job.name}' with schedule '${job.cronExpression}'.`);
+    logger.info(
+      `[JobScheduler] Scheduled job '${job.name}' with schedule '${job.cronExpression}'.`,
+    );
   }
 
   /**

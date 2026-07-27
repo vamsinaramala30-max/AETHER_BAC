@@ -6,7 +6,9 @@ import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
-const notificationController = new NotificationController(new NotificationService(new NotificationRepository()));
+const notificationController = new NotificationController(
+  new NotificationService(new NotificationRepository()),
+);
 
 router.use(authenticate);
 
@@ -14,4 +16,4 @@ router.get('/', (req, res, next) => notificationController.getHistory(req, res, 
 router.patch('/:id/read', (req, res, next) => notificationController.markRead(req, res, next));
 router.patch('/read-all', (req, res, next) => notificationController.markAllRead(req, res, next));
 
-export const notificationRoutes = router;
+export const notificationRoutes: Router = router;

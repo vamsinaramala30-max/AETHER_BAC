@@ -24,7 +24,11 @@ export class KnowledgeController {
     }
   }
 
-  public async getKnowledgeBaseById(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public async getKnowledgeBaseById(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const kb = await knowledgeService.getKnowledgeBaseById(req.params.id);
       res.status(200).json({ success: true, data: kb });

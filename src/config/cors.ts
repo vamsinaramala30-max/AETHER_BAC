@@ -8,18 +8,12 @@ export const corsConfig: CorsOptions = {
     if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`Origin '${origin}' is not allowed by CORS security policies.`));
+      callback(null, false);
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type',
-    'Authorization',
-    'X-Requested-With',
-    'X-Workspace-ID',
-    'Accept',
-  ],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Workspace-ID', 'Accept'],
   exposedHeaders: ['Content-Range', 'X-Total-Count', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
   maxAge: 86400, // 24 hours
 };

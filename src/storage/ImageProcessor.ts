@@ -14,7 +14,7 @@ export class ImageProcessor {
    */
   public static async processBuffer(
     buffer: Buffer,
-    options: ImageProcessingOptions = {}
+    options: ImageProcessingOptions = {},
   ): Promise<{ buffer: Buffer; format: string; mimetype: string }> {
     try {
       let pipeline = sharp(buffer);

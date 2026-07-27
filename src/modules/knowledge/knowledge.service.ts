@@ -18,7 +18,9 @@ export class KnowledgeService {
 
   public async getKnowledgeBaseById(id: string) {
     const kb = await this.repo.findById(id);
-    if (!kb) throw new AppError('Knowledge Base not found', 404, 'KB_NOT_FOUND');
+    if (!kb) {
+      throw new AppError('Knowledge Base not found', 404, 'KB_NOT_FOUND');
+    }
     return kb;
   }
 

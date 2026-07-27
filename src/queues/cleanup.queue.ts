@@ -9,9 +9,13 @@ export interface CleanupJobData {
 
 export const CLEANUP_QUEUE_NAME = 'system-cleanup';
 
-export const cleanupQueue: Queue<CleanupJobData> = QueueFactory.createQueue<CleanupJobData>(CLEANUP_QUEUE_NAME);
+export const cleanupQueue: Queue<CleanupJobData> =
+  QueueFactory.createQueue<CleanupJobData>(CLEANUP_QUEUE_NAME);
 
-export const cleanupWorker = QueueFactory.createWorker<CleanupJobData, { deletedSessionsCount: number }>(
+export const cleanupWorker = QueueFactory.createWorker<
+  CleanupJobData,
+  { deletedSessionsCount: number }
+>(
   CLEANUP_QUEUE_NAME,
   async (job: Job<CleanupJobData>): Promise<{ deletedSessionsCount: number }> => {
     logger.info(`Running scheduled system cleanup job ${job.id}`);
@@ -28,5 +32,5 @@ export const cleanupWorker = QueueFactory.createWorker<CleanupJobData, { deleted
     });
 
     return { deletedSessionsCount: result.count };
-  }
+  },
 );

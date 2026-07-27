@@ -5,14 +5,14 @@ import path from 'node:path';
 import fs from 'node:fs';
 import winston from 'winston';
 import 'winston-daily-rotate-file';
-import cors from 'cors';
 import helmet from 'helmet';
 import session from 'express-session';
 import passport from 'passport';
 
+dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 dotenv.config();
 
-const PORT = parseInt(process.env.PORT || '5000', 10);
+const PORT = parseInt(process.env.PORT || '5001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const LOG_DIR = path.join(process.cwd(), 'logs');
 
@@ -23,7 +23,7 @@ if (!fs.existsSync(LOG_DIR)) {
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
-  winston.format.json()
+  winston.format.json(),
 );
 
 export const logger = winston.createLogger({
@@ -31,10 +31,7 @@ export const logger = winston.createLogger({
   format: logFormat,
   transports: [
     new winston.transports.Console({
-      format: winston.format.combine(
-        winston.format.colorize(),
-        winston.format.simple()
-      ),
+      format: winston.format.combine(winston.format.colorize(), winston.format.simple()),
     }),
     new winston.transports.DailyRotateFile({
       filename: path.join(LOG_DIR, 'app-%DATE%.log'),
@@ -67,28 +64,17 @@ const app: express.Express = express();
 // ============================================================================
 // Security & Parsing Middleware
 // ============================================================================
-app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
-  crossOriginEmbedderPolicy: process.env.NODE_ENV === 'production',
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
-}));
+app.use(
+  helmet({
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+    crossOriginEmbedderPolicy: process.env.NODE_ENV === 'production',
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }),
+);
 
 // CORS configuration
-const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map((o) => o.trim());
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error(`Origin '${origin}' is not allowed by CORS`));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Workspace-ID', 'Accept'],
-  exposedHeaders: ['Content-Range', 'X-Total-Count', 'X-RateLimit-Limit', 'X-RateLimit-Remaining'],
-  maxAge: 86400,
-}));
+import { corsMiddleware } from './src/middleware/cors.middleware';
+app.use(corsMiddleware);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -96,17 +82,22 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ============================================================================
 // Session Configuration (required by Passport)
 // ============================================================================
-app.use(session({
-  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'aether-session-secret-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    sameSite: 'lax',
-  },
-}));
+app.use(
+  session({
+    secret:
+      process.env.SESSION_SECRET ||
+      process.env.JWT_SECRET ||
+      'aether-session-secret-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: 'lax',
+    },
+  }),
+);
 
 // ============================================================================
 // Passport Initialization
@@ -185,14 +176,16 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 const server = http.createServer(app);
 
 server.listen(PORT, HOST, () => {
-  logger.info(`AETHER Backend Server successfully initialized and running at http://${HOST}:${PORT}`);
+  logger.info(
+    `AETHER Backend Server successfully initialized and running at http://${HOST}:${PORT}`,
+  );
   logger.info(`API available at http://${HOST}:${PORT}/api/v1`);
   logger.info(`OAuth routes available at http://${HOST}:${PORT}/api/auth`);
 });
 
 const gracefulShutdown = (signal: string) => {
   logger.warn(`Received ${signal}. Starting graceful shutdown...`);
-  
+
   server.close(() => {
     logger.info('HTTP server closed. Cleaning up background resources...');
     process.exit(0);

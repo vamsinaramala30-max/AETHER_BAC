@@ -31,7 +31,9 @@ export class CronScheduler {
     }
 
     if (!cron.validate(taskDef.expression)) {
-      throw new Error(`[CronScheduler] Invalid cron expression '${taskDef.expression}' for task '${taskDef.name}'`);
+      throw new Error(
+        `[CronScheduler] Invalid cron expression '${taskDef.expression}' for task '${taskDef.name}'`,
+      );
     }
 
     if (this.tasks.has(taskDef.name)) {

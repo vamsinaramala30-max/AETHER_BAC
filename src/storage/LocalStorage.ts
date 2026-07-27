@@ -21,7 +21,7 @@ export class LocalStorage {
   public async upload(
     fileBuffer: Buffer,
     filePath: string,
-    bucket: string = 'default'
+    bucket: string = 'default',
   ): Promise<{ path: string; url: string }> {
     const targetDir = path.join(this.baseDir, bucket, path.dirname(filePath));
     const fullPath = path.join(this.baseDir, bucket, filePath);
@@ -40,7 +40,10 @@ export class LocalStorage {
     try {
       await fs.unlink(fullPath);
     } catch (error) {
-      logger.warn(`LocalStorage file deletion failed or file not found at path ${fullPath}:`, error);
+      logger.warn(
+        `LocalStorage file deletion failed or file not found at path ${fullPath}:`,
+        error,
+      );
     }
   }
 

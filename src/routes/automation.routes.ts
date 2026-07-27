@@ -14,4 +14,4 @@ router.get('/:id', automationController.getAutomationById);
 router.put('/:id', validate(updateAutomationSchema), automationController.updateAutomation);
 router.delete('/:id', automationController.deleteAutomation);
 
-export const automationRoutes = router;
+export const automationRoutes: Router = router;

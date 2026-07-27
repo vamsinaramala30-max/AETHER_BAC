@@ -17,14 +17,21 @@ export class ConversationRepository extends PrismaService {
     });
   }
 
-  public async create(data: Prisma.ConversationCreateInput, tx?: TransactionClient): Promise<Conversation> {
+  public async create(
+    data: Prisma.ConversationCreateInput,
+    tx?: TransactionClient,
+  ): Promise<Conversation> {
     const client = tx || this.prisma;
     return client.conversation.create({
       data,
     });
   }
 
-  public async updateTitle(id: string, title: string, tx?: TransactionClient): Promise<Conversation> {
+  public async updateTitle(
+    id: string,
+    title: string,
+    tx?: TransactionClient,
+  ): Promise<Conversation> {
     const client = tx || this.prisma;
     return client.conversation.update({
       where: { id },

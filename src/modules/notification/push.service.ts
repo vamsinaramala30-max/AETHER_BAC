@@ -6,7 +6,7 @@ export class PushService {
       webpush.setVapidDetails(
         process.env.VAPID_SUBJECT || 'mailto:support@aether.io',
         process.env.VAPID_PUBLIC_KEY,
-        process.env.VAPID_PRIVATE_KEY
+        process.env.VAPID_PRIVATE_KEY,
       );
     }
   }
@@ -14,7 +14,7 @@ export class PushService {
   async sendPushNotification(
     subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
     payload: { title: string; message: string },
-    retries = 3
+    retries = 3,
   ): Promise<boolean> {
     let attempt = 0;
     while (attempt < retries) {
@@ -25,7 +25,7 @@ export class PushService {
             endpoint: subscription.endpoint,
             keys: subscription.keys,
           },
-          JSON.stringify(payload)
+          JSON.stringify(payload),
         );
         return true;
       } catch (error) {

@@ -18,7 +18,7 @@ export class MessageRepository extends PrismaService {
 
   public async getRecentByConversationId(
     conversationId: string,
-    limit: number = 50
+    limit: number = 50,
   ): Promise<Message[]> {
     return this.prisma.message.findMany({
       where: { conversationId },

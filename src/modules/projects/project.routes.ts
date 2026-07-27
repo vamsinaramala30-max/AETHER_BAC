@@ -13,4 +13,4 @@ router.get('/:id', projectController.getProjectById);
 router.put('/:id', validate(updateProjectSchema), projectController.updateProject);
 router.delete('/:id', projectController.deleteProject);
 
-export const projectModuleRoutes = router;
+export const projectModuleRoutes: Router = router;

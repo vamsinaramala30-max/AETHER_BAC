@@ -18,7 +18,9 @@ export class WorkspaceService {
 
   public async getWorkspaceById(id: string) {
     const ws = await this.repo.findById(id);
-    if (!ws) throw new AppError('Workspace not found', 404, 'WORKSPACE_NOT_FOUND');
+    if (!ws) {
+      throw new AppError('Workspace not found', 404, 'WORKSPACE_NOT_FOUND');
+    }
     return ws;
   }
 

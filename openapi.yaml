@@ -4,7 +4,7 @@ info:
   description: Official OpenAPI documentation for the AETHER platform backend.
   version: 1.0.0
 servers:
-  - url: http://localhost:5000/api/v1
+  - url: http://localhost:5001/api/v1
     description: Local Development Server
 paths:
   /health:
@@ -20,7 +20,7 @@ paths:
                 properties:
                   status:
                     type: string
-                    example: "UP"
+                    example: 'UP'
                   timestamp:
                     type: string
                     format: date-time

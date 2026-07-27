@@ -17,4 +17,4 @@ router.get('/me', authenticate, authController.getProfile);
 router.get('/google', authController.googleAuth);
 router.get('/google/callback', authController.googleCallback);
 
-export const authModuleRoutes = router;
+export const authModuleRoutes: Router = router;

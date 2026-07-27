@@ -18,7 +18,7 @@ export class PrismaService {
       maxWait?: number;
       timeout?: number;
       isolationLevel?: Prisma.TransactionIsolationLevel;
-    }
+    },
   ): Promise<T> {
     return this.prisma.$transaction(fn, options);
   }

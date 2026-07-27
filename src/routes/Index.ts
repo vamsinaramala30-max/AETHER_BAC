@@ -29,4 +29,4 @@ router.use('/analytics', analyticsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/admin', adminRoutes);
 
-export const apiRoutes = router;
+export const apiRoutes: Router = router;

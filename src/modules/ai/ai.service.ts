@@ -15,12 +15,22 @@ export class AIService {
     this.rag = new RAGService();
   }
 
-  public async processChat(userId: string, workspaceId: string, message: string, conversationId?: string) {
+  public async processChat(
+    userId: string,
+    workspaceId: string,
+    message: string,
+    conversationId?: string,
+  ) {
     let convId = conversationId;
 
     if (!convId) {
       // conversation needs a projectId; use workspaceId as fallback
-      const newConv = await this.repo.createConversation(userId, workspaceId, workspaceId, message.substring(0, 30));
+      const newConv = await this.repo.createConversation(
+        userId,
+        workspaceId,
+        workspaceId,
+        message.substring(0, 30),
+      );
       convId = newConv.id;
     }
 
@@ -29,7 +39,9 @@ export class AIService {
     const context = await this.rag.retrieval.retrieveContext(message);
     const formattedPrompt = buildChatPrompt(context, message);
 
-    const reply = await this.provider.generateText(formattedPrompt, { systemInstruction: SYSTEM_PROMPT });
+    const reply = await this.provider.generateText(formattedPrompt, {
+      systemInstruction: SYSTEM_PROMPT,
+    });
 
     await this.repo.addMessage(convId, 'assistant', reply);
 

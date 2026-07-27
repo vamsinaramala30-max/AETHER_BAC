@@ -11,7 +11,7 @@ export class SupabaseStorage {
     if (env.SUPABASE_URL && (env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY)) {
       this.client = createClient(
         env.SUPABASE_URL,
-        env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY!
+        env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY!,
       );
     } else {
       logger.warn('Supabase storage credentials missing. Cloud operations will be disabled.');
@@ -22,18 +22,16 @@ export class SupabaseStorage {
     fileBuffer: Buffer,
     filePath: string,
     mimeType: string,
-    bucket: string = this.defaultBucket
+    bucket: string = this.defaultBucket,
   ): Promise<{ path: string; url: string }> {
     if (!this.client) {
       throw new Error('Supabase client is not initialized.');
     }
 
-    const { data, error } = await this.client.storage
-      .from(bucket)
-      .upload(filePath, fileBuffer, {
-        contentType: mimeType,
-        upsert: true,
-      });
+    const { data, error } = await this.client.storage.from(bucket).upload(filePath, fileBuffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
 
     if (error) {
       logger.error(`Supabase upload error for path '${filePath}':`, error);
@@ -49,7 +47,9 @@ export class SupabaseStorage {
   }
 
   public async delete(filePath: string, bucket: string = this.defaultBucket): Promise<void> {
-    if (!this.client) throw new Error('Supabase client is not initialized.');
+    if (!this.client) {
+      throw new Error('Supabase client is not initialized.');
+    }
 
     const { error } = await this.client.storage.from(bucket).remove([filePath]);
     if (error) {
@@ -59,7 +59,9 @@ export class SupabaseStorage {
   }
 
   public async download(filePath: string, bucket: string = this.defaultBucket): Promise<Buffer> {
-    if (!this.client) throw new Error('Supabase client is not initialized.');
+    if (!this.client) {
+      throw new Error('Supabase client is not initialized.');
+    }
 
     const { data, error } = await this.client.storage.from(bucket).download(filePath);
     if (error || !data) {

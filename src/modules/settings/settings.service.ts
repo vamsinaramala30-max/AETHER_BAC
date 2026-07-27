@@ -13,7 +13,10 @@ export class SettingsService {
     );
   }
 
-  public async updateSettings(userId: string, settings: Partial<SystemSettingsDTO>): Promise<SystemSettingsDTO> {
+  public async updateSettings(
+    userId: string,
+    settings: Partial<SystemSettingsDTO>,
+  ): Promise<SystemSettingsDTO> {
     const current = await this.getSettings(userId);
     const updated = { ...current, ...settings };
     this.userSettings.set(userId, updated);

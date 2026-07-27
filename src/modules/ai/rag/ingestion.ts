@@ -18,7 +18,7 @@ export class RAGIngestion {
         `INSERT INTO "DocumentChunk" ("id", "documentId", "content", "embedding") VALUES (gen_random_uuid(), $1, $2, $3::vector)`,
         documentId,
         chunk,
-        vectorString
+        vectorString,
       );
     }
   }

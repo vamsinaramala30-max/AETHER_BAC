@@ -11,7 +11,9 @@ export class BucketManager {
   /**
    * Ensures necessary operational buckets exist across configured cloud providers.
    */
-  public async initializeBuckets(buckets: string[] = ['aether-assets', 'user-uploads', 'documents']): Promise<void> {
+  public async initializeBuckets(
+    buckets: string[] = ['aether-assets', 'user-uploads', 'documents'],
+  ): Promise<void> {
     if (env.STORAGE_DRIVER === 'supabase') {
       logger.info(`Validating cloud storage buckets: ${buckets.join(', ')}`);
       // Bucket existence verification handled natively via Supabase client policies

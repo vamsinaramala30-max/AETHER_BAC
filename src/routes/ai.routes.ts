@@ -13,4 +13,4 @@ router.post('/prompt', validate(generatePromptSchema), aiController.generateProm
 router.get('/conversations', aiController.getConversations);
 router.get('/conversations/:id', aiController.getConversationById);
 
-export const aiRoutes = router;
+export const aiRoutes: Router = router;

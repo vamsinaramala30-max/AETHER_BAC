@@ -6,7 +6,12 @@ export class AppError extends Error {
   public readonly errorCode: string;
   public readonly details?: unknown;
 
-  constructor(message: string, statusCode: number = 500, errorCode: string = 'INTERNAL_ERROR', details?: unknown) {
+  constructor(
+    message: string,
+    statusCode: number = 500,
+    errorCode: string = 'INTERNAL_ERROR',
+    details?: unknown,
+  ) {
     super(message);
     this.statusCode = statusCode;
     this.errorCode = errorCode;
@@ -24,8 +29,8 @@ export const errorHandler = (
   err: Error | AppError,
   req: Request,
   res: Response,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _next: NextFunction
+
+  _next: NextFunction,
 ): void => {
   const isAppError = err instanceof AppError;
   const statusCode = isAppError ? err.statusCode : 500;

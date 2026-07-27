@@ -13,4 +13,4 @@ router.get('/:id', usersController.getUserById);
 router.put('/:id', validate(updateUserSchema), usersController.updateUser);
 router.delete('/:id', usersController.deleteUser);
 
-export const usersRoutes = router;
+export const usersRoutes: Router = router;

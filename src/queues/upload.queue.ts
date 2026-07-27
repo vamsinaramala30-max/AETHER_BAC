@@ -12,7 +12,8 @@ export interface UploadJobData {
 
 export const UPLOAD_QUEUE_NAME = 'file-processing';
 
-export const uploadQueue: Queue<UploadJobData> = QueueFactory.createQueue<UploadJobData>(UPLOAD_QUEUE_NAME);
+export const uploadQueue: Queue<UploadJobData> =
+  QueueFactory.createQueue<UploadJobData>(UPLOAD_QUEUE_NAME);
 
 export const uploadWorker = QueueFactory.createWorker<UploadJobData, void>(
   UPLOAD_QUEUE_NAME,
@@ -23,5 +24,5 @@ export const uploadWorker = QueueFactory.createWorker<UploadJobData, void>(
       const buffer = Buffer.from(job.data.bufferBase64, 'base64');
       await ImageProcessor.processBuffer(buffer, { quality: 75, format: 'webp' });
     }
-  }
+  },
 );

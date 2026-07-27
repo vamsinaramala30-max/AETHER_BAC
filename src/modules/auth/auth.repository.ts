@@ -26,7 +26,10 @@ export class AuthRepository extends PrismaService {
     });
   }
 
-  public async createSession(data: Prisma.SessionCreateInput, tx?: TransactionClient): Promise<Session> {
+  public async createSession(
+    data: Prisma.SessionCreateInput,
+    tx?: TransactionClient,
+  ): Promise<Session> {
     const client = tx || this.prisma;
     return client.session.create({ data });
   }
@@ -47,7 +50,7 @@ export class AuthRepository extends PrismaService {
   public async findOAuthAccount(
     provider: string,
     providerAccountId: string,
-    tx?: TransactionClient
+    tx?: TransactionClient,
   ): Promise<OAuthAccount | null> {
     const client = tx || this.prisma;
     return client.oAuthAccount.findUnique({
@@ -63,10 +66,9 @@ export class AuthRepository extends PrismaService {
 
   public async createOAuthAccount(
     data: Prisma.OAuthAccountCreateInput,
-    tx?: TransactionClient
+    tx?: TransactionClient,
   ): Promise<OAuthAccount> {
     const client = tx || this.prisma;
     return client.oAuthAccount.create({ data });
   }
 }
-

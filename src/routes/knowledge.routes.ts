@@ -13,4 +13,4 @@ router.post('/', validate(createKnowledgeBaseSchema), knowledgeController.create
 router.get('/:id', knowledgeController.getKnowledgeBaseById);
 router.delete('/:id', knowledgeController.deleteKnowledgeBase);
 
-export const knowledgeRoutes = router;
+export const knowledgeRoutes: Router = router;

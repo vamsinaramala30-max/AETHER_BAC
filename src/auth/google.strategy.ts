@@ -11,7 +11,7 @@ export const createGoogleStrategy = (): GoogleStrategy => {
     {
       clientID: env.GOOGLE_CLIENT_ID || '',
       clientSecret: env.GOOGLE_CLIENT_SECRET || '',
-      callbackURL: env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback',
+      callbackURL: env.GOOGLE_CALLBACK_URL || 'http://localhost:5001/api/auth/google/callback',
       scope: ['profile', 'email'],
       passReqToCallback: true,
     },
@@ -20,7 +20,7 @@ export const createGoogleStrategy = (): GoogleStrategy => {
       _accessToken: string,
       _refreshToken: string,
       profile: Profile,
-      done: VerifyCallback
+      done: VerifyCallback,
     ) => {
       try {
         if (!profile.emails || profile.emails.length === 0) {
@@ -29,7 +29,8 @@ export const createGoogleStrategy = (): GoogleStrategy => {
 
         const authService = new AuthService();
         const email = profile.emails[0].value;
-        const fullName = profile.displayName || 
+        const fullName =
+          profile.displayName ||
           `${profile.name?.givenName || ''} ${profile.name?.familyName || ''}`.trim();
         const avatarUrl = profile.photos?.[0]?.value || null;
         const googleId = profile.id;
@@ -44,9 +45,8 @@ export const createGoogleStrategy = (): GoogleStrategy => {
         return done(null, result as any);
       } catch (err) {
         logger.error('Google OAuth Strategy Error:', err);
-        return done(err as Error, undefined);
+        return done(err, undefined);
       }
-    }
+    },
   );
 };
-

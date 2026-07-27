@@ -34,4 +34,3 @@ export interface GoogleUserPayload {
   fullName: string;
   avatarUrl?: string | null;
 }
-

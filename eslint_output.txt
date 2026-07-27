@@ -1,0 +1,939 @@
+
+/Users/karthiknaramala/AETHER_BAC/prisma/seed.ts
+   5:1  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+   6:3  warning  Unexpected console statement     no-console
+  48:3  warning  Unexpected console statement     no-console
+  49:3  warning  Unexpected console statement     no-console
+  50:3  warning  Unexpected console statement     no-console
+  51:3  warning  Unexpected console statement     no-console
+  56:5  warning  Unexpected console statement     no-console
+
+/Users/karthiknaramala/AETHER_BAC/server.ts
+    8:8   error    'cors' is defined but never used  @typescript-eslint/no-unused-vars
+  187:43  warning  Missing return type on function   @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/auth/google.strategy.ts
+  18:5   error  Promise returned in function argument where a void return was expected                    @typescript-eslint/no-misused-promises
+  45:27  error  Unsafe argument of type `any` assigned to a parameter of type `false | User | undefined`  @typescript-eslint/no-unsafe-argument
+  45:37  error  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+
+/Users/karthiknaramala/AETHER_BAC/src/auth/passport.ts
+  16:31  error  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+  17:19  error  Unsafe member access .user on an `any` value                                              @typescript-eslint/no-unsafe-member-access
+  17:36  error  Unsafe member access .id on an `any` value                                                @typescript-eslint/no-unsafe-member-access
+  21:26  error  Promise returned in function argument where a void return was expected                    @typescript-eslint/no-misused-promises
+  41:5   error  Promise returned in function argument where a void return was expected                    @typescript-eslint/no-misused-promises
+  71:27  error  Unsafe argument of type `any` assigned to a parameter of type `false | User | undefined`  @typescript-eslint/no-unsafe-argument
+  71:37  error  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+
+/Users/karthiknaramala/AETHER_BAC/src/auth/sessions.ts
+  15:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  29:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/config/env.ts
+  92:5  warning  Unexpected console statement  no-console
+  93:5  warning  Unexpected console statement  no-console
+
+/Users/karthiknaramala/AETHER_BAC/src/config/logger.ts
+  25:39  error  Invalid type "unknown" of template literal expression  @typescript-eslint/restrict-template-expressions
+  25:75  error  Invalid type "unknown" of template literal expression  @typescript-eslint/restrict-template-expressions
+
+/Users/karthiknaramala/AETHER_BAC/src/cron/scheduler.ts
+  65:7  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  78:7  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/karthiknaramala/AETHER_BAC/src/database/client.ts
+  86:32  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  87:35  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IAI.ts
+   1:18  error  Interface name `IAIPromptOptions` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+   6:18  error  Interface name `IAIProvider` must not match the RegExp: /^I[A-Z]/u       @typescript-eslint/naming-convention
+  11:18  error  Interface name `IAIChatResponse` must not match the RegExp: /^I[A-Z]/u   @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IAutomation.ts
+  1:18  error  Interface name `IAutomation` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IConversation.ts
+  3:18  error  Interface name `IConversation` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IKnowledge.ts
+   1:18  error  Interface name `IDocument` must not match the RegExp: /^I[A-Z]/u       @typescript-eslint/naming-convention
+  11:18  error  Interface name `IKnowledgeBase` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IMessage.ts
+  1:18  error  Interface name `IMessage` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/INotification.ts
+  1:18  error  Interface name `INotification` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IProject.ts
+  1:18  error  Interface name `IProject` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IRequest.ts
+  10:18  error  Interface name `IRequest` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IResponse.ts
+  1:18  error  Interface name `IApiResponse` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/ISettings.ts
+  1:18  error  Interface name `ISettings` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IUser.ts
+  1:18  error  Interface name `IUser` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/interfaces/IWorkspace.ts
+  1:18  error  Interface name `IWorkspaceMember` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+  9:18  error  Interface name `IWorkspace` must not match the RegExp: /^I[A-Z]/u        @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/jobs/jobScheduler.ts
+  62:7  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  75:7  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/karthiknaramala/AETHER_BAC/src/middleware/auth.middleware.ts
+  15:3  error  ES2015 module syntax is preferred over namespaces  @typescript-eslint/no-namespace
+
+/Users/karthiknaramala/AETHER_BAC/src/middleware/upload.middleware.ts
+  18:87  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/middleware/validation.middleware.ts
+  11:9  error  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+  17:7  error  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+  18:7  error  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+  19:7  error  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/admin/admin.routes.ts
+   9:22  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+   9:22  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  10:27  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:27  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:31  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:31  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/admin/admin.service.ts
+   4:3   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
+  10:36  error    'passwordHash' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  14:3   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
+  22:3   error    Async method 'getSystemMetrics' has no 'await' expression                       @typescript-eslint/require-await
+  22:3   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/ai.controller.ts
+  10:13  error  Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  11:58  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+  11:71  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+  11:80  error  Unsafe argument of type `any` assigned to a parameter of type `string | undefined`  @typescript-eslint/no-unsafe-argument
+  18:3   error  Async method 'generatePrompt' has no 'await' expression                             @typescript-eslint/require-await
+  20:53  error  Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  20:70  error  Unsafe member access .prompt on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/ai.repository.ts
+   4:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  15:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  22:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  28:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/ai.routes.ts
+  10:22  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:44  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:44  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:24  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:56  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:56  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:30  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:30  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:34  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:34  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/ai.service.ts
+  18:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  51:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  55:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/memory/conversation.memory.ts
+  10:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/memory/semantic.memory.ts
+  2:3  error  Async method 'getFacts' has no 'await' expression  @typescript-eslint/require-await
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/providers/gemini.provider.ts
+  14:3   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  17:7   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  30:13  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  34:7   warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/providers/openai.provider.ts
+   5:3  error  Async method 'generateText' has no 'await' expression        @typescript-eslint/require-await
+  10:3  error  Async method 'generateEmbeddings' has no 'await' expression  @typescript-eslint/require-await
+  12:5  error  Unsafe return of a value of type `any[]`                     @typescript-eslint/no-unsafe-return
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/tools/toolRegistry.ts
+  2:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/ai/vector/vector.service.ts
+  4:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/analytics/analytics.routes.ts
+  8:25  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  8:25  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  9:22  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  9:22  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/analytics/analytics.service.ts
+   4:3  warning  Missing return type on function                           @typescript-eslint/explicit-function-return-type
+  18:3  error    Async method 'getUsageMetrics' has no 'await' expression  @typescript-eslint/require-await
+  18:3  warning  Missing return type on function                           @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/auth/auth.controller.ts
+  11:49  error  Unsafe argument of type `any` assigned to a parameter of type `{ email: string; password: string; firstName: string; lastName: string; }`  @typescript-eslint/no-unsafe-argument
+  20:46  error  Unsafe argument of type `any` assigned to a parameter of type `{ email: string; password: string; }`                                       @typescript-eslint/no-unsafe-argument
+  29:48  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                     @typescript-eslint/no-unsafe-argument
+  29:57  error  Unsafe member access .refreshToken on an `any` value                                                                                       @typescript-eslint/no-unsafe-member-access
+  38:20  error  Unsafe member access .refreshToken on an `any` value                                                                                       @typescript-eslint/no-unsafe-member-access
+  39:34  error  Unsafe argument of type `any` assigned to a parameter of type `string`                                                                     @typescript-eslint/no-unsafe-argument
+  39:43  error  Unsafe member access .refreshToken on an `any` value                                                                                       @typescript-eslint/no-unsafe-member-access
+  47:3   error  Async method 'getProfile' has no 'await' expression                                                                                        @typescript-eslint/require-await
+  56:5   error  Unsafe call of an `any` typed value                                                                                                        @typescript-eslint/no-unsafe-call
+  68:5   error  Unsafe call of an `any` typed value                                                                                                        @typescript-eslint/no-unsafe-call
+  74:39  error  Unexpected any. Specify a different type                                                                                                   @typescript-eslint/no-explicit-any
+  81:17  error  Unsafe assignment of an `any` value                                                                                                        @typescript-eslint/no-unsafe-assignment
+  82:19  error  Unsafe member access .tokens on an `any` value                                                                                             @typescript-eslint/no-unsafe-member-access
+  85:17  error  Unsafe assignment of an `any` value                                                                                                        @typescript-eslint/no-unsafe-assignment
+  85:26  error  Unsafe member access .id on an `any` value                                                                                                 @typescript-eslint/no-unsafe-member-access
+  85:37  error  Unsafe member access .user on an `any` value                                                                                               @typescript-eslint/no-unsafe-member-access
+  86:17  error  Unsafe assignment of an `any` value                                                                                                        @typescript-eslint/no-unsafe-assignment
+  86:29  error  Unsafe member access .email on an `any` value                                                                                              @typescript-eslint/no-unsafe-member-access
+  86:43  error  Unsafe member access .user on an `any` value                                                                                               @typescript-eslint/no-unsafe-member-access
+  87:17  error  Unsafe assignment of an `any` value                                                                                                        @typescript-eslint/no-unsafe-assignment
+  87:28  error  Unsafe member access .role on an `any` value                                                                                               @typescript-eslint/no-unsafe-member-access
+  87:41  error  Unsafe member access .user on an `any` value                                                                                               @typescript-eslint/no-unsafe-member-access
+  88:17  error  Unsafe assignment of an `any` value                                                                                                        @typescript-eslint/no-unsafe-assignment
+  89:24  error  Unsafe member access .fullName on an `any` value                                                                                           @typescript-eslint/no-unsafe-member-access
+  90:27  error  Unsafe member access .user on an `any` value                                                                                               @typescript-eslint/no-unsafe-member-access
+  90:57  error  Unsafe member access .user on an `any` value                                                                                               @typescript-eslint/no-unsafe-member-access
+  91:17  error  Unsafe assignment of an `any` value                                                                                                        @typescript-eslint/no-unsafe-assignment
+  91:33  error  Unsafe member access .avatarUrl on an `any` value                                                                                          @typescript-eslint/no-unsafe-member-access
+  91:51  error  Unsafe member access .user on an `any` value                                                                                               @typescript-eslint/no-unsafe-member-access
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/auth/auth.routes.ts
+  10:45  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:71  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:71  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:42  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:65  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:65  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:25  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:55  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:55  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:38  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:38  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  14:33  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:33  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  17:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  18:32  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/auth/auth.service.ts
+  73:50  error    Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  73:66  error    Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+  73:71  error    Unsafe member access .user on an `any` value                            @typescript-eslint/no-unsafe-member-access
+  88:3   warning  Missing return type on function                                         @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/automation/automation.controller.ts
+  10:13  error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  12:9   error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  13:9   error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  14:9   error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/automation/automation.repository.ts
+   5:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  16:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  20:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  24:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  31:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/automation/automation.routes.ts
+  10:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:18  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:52  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:52  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:54  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:54  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  14:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/automation/automation.service.ts
+  12:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  21:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  25:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  33:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  41:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/health/health.routes.ts
+  6:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  6:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/knowledge/knowledge.controller.ts
+   9:13  error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  10:61  error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+  10:74  error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/knowledge/knowledge.repository.ts
+   4:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  10:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  17:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  21:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/knowledge/knowledge.routes.ts
+  10:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:18  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:55  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:55  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/knowledge/knowledge.service.ts
+  11:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  15:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  19:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  27:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/Index.ts
+  10:57  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/email.service.ts
+   4:3   error    Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+   4:12  error    A `require()` style import is forbidden                                             @typescript-eslint/no-require-imports
+   4:30  error    Unsafe member access .Resend on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+  10:7   error    Async method 'send' has no 'await' expression                                       @typescript-eslint/require-await
+  10:7   warning  Missing return type on function                                                     @typescript-eslint/explicit-function-return-type
+  19:5   error    Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  19:19  error    Unsafe construction of an `any` typed value                                         @typescript-eslint/no-unsafe-call
+  27:15  error    Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  27:32  error    Unsafe call of an `any` typed value                                                 @typescript-eslint/no-unsafe-call
+  27:44  error    Unsafe member access .emails on an `any` value                                      @typescript-eslint/no-unsafe-member-access
+  33:22  error    Unsafe member access .error on an `any` value                                       @typescript-eslint/no-unsafe-member-access
+  34:27  error    Unsafe argument of type `any` assigned to a parameter of type `string | undefined`  @typescript-eslint/no-unsafe-argument
+  34:36  error    Unsafe member access .error on an `any` value                                       @typescript-eslint/no-unsafe-member-access
+  39:11  warning  Unexpected console statement                                                        no-console
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/notification.controller.ts
+   7:3   warning  Missing return type on function                                                              @typescript-eslint/explicit-function-return-type
+   9:13  error    Unsafe assignment of an `any` value                                                          @typescript-eslint/no-unsafe-assignment
+   9:30  error    Unexpected any. Specify a different type                                                     @typescript-eslint/no-explicit-any
+   9:35  error    Unsafe member access .user on an `any` value                                                 @typescript-eslint/no-unsafe-member-access
+  10:54  error    Unsafe argument of type `any` assigned to a parameter of type `string`                       @typescript-eslint/no-unsafe-argument
+  17:3   warning  Missing return type on function                                                              @typescript-eslint/explicit-function-return-type
+  19:13  error    Unsafe assignment of an `any` value                                                          @typescript-eslint/no-unsafe-assignment
+  19:30  error    Unexpected any. Specify a different type                                                     @typescript-eslint/no-explicit-any
+  19:35  error    Unsafe member access .user on an `any` value                                                 @typescript-eslint/no-unsafe-member-access
+  20:57  error    Unsafe argument of type `any` assigned to a parameter of type `string`                       @typescript-eslint/no-unsafe-argument
+  20:65  error    Unsafe argument of type `any` assigned to a parameter of type `NotificationPreferencesData`  @typescript-eslint/no-unsafe-argument
+  27:3   warning  Missing return type on function                                                              @typescript-eslint/explicit-function-return-type
+  29:13  error    Unsafe assignment of an `any` value                                                          @typescript-eslint/no-unsafe-assignment
+  29:30  error    Unexpected any. Specify a different type                                                     @typescript-eslint/no-explicit-any
+  29:35  error    Unsafe member access .user on an `any` value                                                 @typescript-eslint/no-unsafe-member-access
+  32:50  error    Unsafe argument of type `any` assigned to a parameter of type `string`                       @typescript-eslint/no-unsafe-argument
+  39:3   warning  Missing return type on function                                                              @typescript-eslint/explicit-function-return-type
+  41:13  error    Unsafe assignment of an `any` value                                                          @typescript-eslint/no-unsafe-assignment
+  41:30  error    Unexpected any. Specify a different type                                                     @typescript-eslint/no-explicit-any
+  41:35  error    Unsafe member access .user on an `any` value                                                 @typescript-eslint/no-unsafe-member-access
+  43:41  error    Unsafe argument of type `any` assigned to a parameter of type `string`                       @typescript-eslint/no-unsafe-argument
+  50:3   warning  Missing return type on function                                                              @typescript-eslint/explicit-function-return-type
+  52:13  error    Unsafe assignment of an `any` value                                                          @typescript-eslint/no-unsafe-assignment
+  52:30  error    Unexpected any. Specify a different type                                                     @typescript-eslint/no-explicit-any
+  52:35  error    Unsafe member access .user on an `any` value                                                 @typescript-eslint/no-unsafe-member-access
+  53:40  error    Unsafe argument of type `any` assigned to a parameter of type `string`                       @typescript-eslint/no-unsafe-argument
+  60:3   warning  Missing return type on function                                                              @typescript-eslint/explicit-function-return-type
+  62:13  error    Unsafe assignment of an `any` value                                                          @typescript-eslint/no-unsafe-assignment
+  62:30  error    Unexpected any. Specify a different type                                                     @typescript-eslint/no-explicit-any
+  62:35  error    Unsafe member access .user on an `any` value                                                 @typescript-eslint/no-unsafe-member-access
+  64:49  error    Unsafe argument of type `any` assigned to a parameter of type `string`                       @typescript-eslint/no-unsafe-argument
+  71:3   warning  Missing return type on function                                                              @typescript-eslint/explicit-function-return-type
+  73:13  error    Unsafe assignment of an `any` value                                                          @typescript-eslint/no-unsafe-assignment
+  73:30  error    Unexpected any. Specify a different type                                                     @typescript-eslint/no-explicit-any
+  73:35  error    Unsafe member access .user on an `any` value                                                 @typescript-eslint/no-unsafe-member-access
+  74:39  error    Unsafe argument of type `any` assigned to a parameter of type `string`                       @typescript-eslint/no-unsafe-argument
+  74:47  error    Unsafe argument of type `any` assigned to a parameter of type `PushSubscriptionDTO`          @typescript-eslint/no-unsafe-argument
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/notification.repository.ts
+   1:24  error    'Prisma' is defined but never used                             @typescript-eslint/no-unused-vars
+   7:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  14:3   error    Async method 'updatePreferences' has no 'await' expression     @typescript-eslint/require-await
+  14:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  19:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  25:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  39:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  46:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  53:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  59:3   error    Async method 'savePushSubscription' has no 'await' expression  @typescript-eslint/require-await
+  59:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  74:3   error    Async method 'getPushSubscriptions' has no 'await' expression  @typescript-eslint/require-await
+  74:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+  78:3   error    Async method 'logDelivery' has no 'await' expression           @typescript-eslint/require-await
+  78:3   warning  Missing return type on function                                @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/notification.routes.ts
+   7:19  error  Unexpected any. Specify a different type                                @typescript-eslint/no-explicit-any
+  14:46  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  15:67  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  18:32  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  19:43  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  20:43  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  21:39  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  22:48  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/notification.scheduler.ts
+  4:8   warning  Missing return type on function                                            @typescript-eslint/explicit-function-return-type
+  4:44  error    'service' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  6:39  error    Async arrow function has no 'await' expression                             @typescript-eslint/require-await
+  7:5   warning  Unexpected console statement                                               no-console
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/notification.service.ts
+   24:7   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   24:29  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   24:35  error    Unsafe member access .emailAlerts on an `any` value     @typescript-eslint/no-unsafe-member-access
+   25:7   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   25:32  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   25:38  error    Unsafe member access .securityAlerts on an `any` value  @typescript-eslint/no-unsafe-member-access
+   26:7   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   26:31  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   26:37  error    Unsafe member access .systemUpdates on an `any` value   @typescript-eslint/no-unsafe-member-access
+   27:7   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   27:30  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   27:36  error    Unsafe member access .weeklyDigest on an `any` value    @typescript-eslint/no-unsafe-member-access
+   37:7   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   37:32  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   37:37  error    Unsafe member access .emailAlerts on an `any` value     @typescript-eslint/no-unsafe-member-access
+   38:7   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   38:35  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   38:40  error    Unsafe member access .securityAlerts on an `any` value  @typescript-eslint/no-unsafe-member-access
+   39:7   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   39:34  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   39:39  error    Unsafe member access .systemUpdates on an `any` value   @typescript-eslint/no-unsafe-member-access
+   40:7   error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   40:33  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   40:38  error    Unsafe member access .weeklyDigest on an `any` value    @typescript-eslint/no-unsafe-member-access
+   44:3   warning  Missing return type on function                         @typescript-eslint/explicit-function-return-type
+   46:20  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   46:25  error    Unsafe member access [dto.category] on an `any` value   @typescript-eslint/no-unsafe-member-access
+   53:13  error    'notif' is assigned a value but never used              @typescript-eslint/no-unused-vars
+   58:13  error    'notif' is assigned a value but never used              @typescript-eslint/no-unused-vars
+   66:15  error    'notif' is assigned a value but never used              @typescript-eslint/no-unused-vars
+   69:13  error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   69:31  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   69:36  error    Unsafe member access .endpoint on an `any` value        @typescript-eslint/no-unsafe-member-access
+   70:21  error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   70:37  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   70:42  error    Unsafe member access .p256dh on an `any` value          @typescript-eslint/no-unsafe-member-access
+   70:50  error    Unsafe assignment of an `any` value                     @typescript-eslint/no-unsafe-assignment
+   70:64  error    Unexpected any. Specify a different type                @typescript-eslint/no-explicit-any
+   70:69  error    Unsafe member access .auth on an `any` value            @typescript-eslint/no-unsafe-member-access
+   81:3   warning  Missing return type on function                         @typescript-eslint/explicit-function-return-type
+   89:3   warning  Missing return type on function                         @typescript-eslint/explicit-function-return-type
+   93:3   warning  Missing return type on function                         @typescript-eslint/explicit-function-return-type
+   97:3   warning  Missing return type on function                         @typescript-eslint/explicit-function-return-type
+  101:3   warning  Missing return type on function                         @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/notification.validation.ts
+  4:9  error  Unsafe assignment of an `any` value  @typescript-eslint/no-unsafe-assignment
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/notification/push.service.ts
+  33:11  warning  Unexpected console statement  no-console
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/projects/project.controller.ts
+   9:13  error  Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  10:55  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+  10:68  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+  10:74  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+  38:13  error  Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  39:73  error  Unsafe argument of type `any` assigned to a parameter of type `string | undefined`  @typescript-eslint/no-unsafe-argument
+  39:79  error  Unsafe argument of type `any` assigned to a parameter of type `string | undefined`  @typescript-eslint/no-unsafe-argument
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/projects/project.repository.ts
+   4:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  10:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  14:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  21:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  28:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/projects/project.routes.ts
+  10:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:18  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:49  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:49  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:51  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:51  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  14:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/projects/project.service.ts
+  11:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  20:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  24:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  32:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  37:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/settings/settings.controller.ts
+  18:74  error  Unsafe argument of type `any` assigned to a parameter of type `Partial<SystemSettingsDTO>`  @typescript-eslint/no-unsafe-argument
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/settings/settings.routes.ts
+  10:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:49  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:49  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/settings/settings.service.ts
+  6:3  error  Async method 'getSettings' has no 'await' expression  @typescript-eslint/require-await
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/upload/upload.routes.ts
+   9:47  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+   9:47  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  10:52  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:52  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/upload/upload.service.ts
+   4:3  error    Async method 'handleSingleUpload' has no 'await' expression  @typescript-eslint/require-await
+  17:3  warning  Missing return type on function                              @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/users/users.controller.ts
+  29:68  error  Unsafe argument of type `any` assigned to a parameter of type `{ firstName?: string | undefined; lastName?: string | undefined; avatarUrl?: string | undefined; }`  @typescript-eslint/no-unsafe-argument
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/users/users.repository.ts
+  17:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/users/users.routes.ts
+  10:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:48  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:48  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/users/users.service.ts
+  11:3   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
+  16:13  error    'passwordHash' is assigned a value but never used                               @typescript-eslint/no-unused-vars
+  20:3   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
+  26:13  error    'passwordHash' is assigned a value but never used                               @typescript-eslint/no-unused-vars
+  30:3   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
+  35:3   warning  Missing return type on function                                                 @typescript-eslint/explicit-function-return-type
+  38:36  error    'passwordHash' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/workspace/workspace.controller.ts
+  10:13  error  Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  11:65  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+  11:71  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+  11:77  error  Unsafe argument of type `any` assigned to a parameter of type `string | undefined`  @typescript-eslint/no-unsafe-argument
+  38:13  error  Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  39:77  error  Unsafe argument of type `any` assigned to a parameter of type `string | undefined`  @typescript-eslint/no-unsafe-argument
+  39:83  error  Unsafe argument of type `any` assigned to a parameter of type `string | undefined`  @typescript-eslint/no-unsafe-argument
+  57:13  error  Unsafe assignment of an `any` value                                                 @typescript-eslint/no-unsafe-assignment
+  58:70  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+  58:78  error  Unsafe argument of type `any` assigned to a parameter of type `string`              @typescript-eslint/no-unsafe-argument
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/workspace/workspace.repository.ts
+   5:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  21:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  28:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  34:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  41:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  45:3   warning  Missing return type on function           @typescript-eslint/explicit-function-return-type
+  47:36  error    Unsafe assignment of an `any` value       @typescript-eslint/no-unsafe-assignment
+  47:50  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/workspace/workspace.routes.ts
+  14:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  15:18  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  15:51  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  15:51  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  16:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  16:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  17:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  17:53  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  17:53  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  18:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  18:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  19:29  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  19:65  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  19:65  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/modules/workspace/workspace.service.ts
+  11:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  15:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  19:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  27:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  32:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  37:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/admin.routes.ts
+  11:22  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:22  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:27  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:27  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:31  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:31  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/ai.routes.ts
+  11:22  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:44  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:44  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:24  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:56  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:56  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:30  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:30  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  14:34  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:34  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/analytics.routes.ts
+   9:25  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+   9:25  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  10:22  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:22  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/auth.routes.ts
+  11:45  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:71  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:71  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:42  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:65  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:65  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  15:25  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  15:55  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  15:55  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  17:38  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  17:38  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  19:33  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  19:33  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  22:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  23:32  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/automation.routes.ts
+  11:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:18  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:52  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:52  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  14:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:54  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:54  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  15:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  15:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/health.routes.ts
+  20:17  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/knowledge.routes.ts
+  11:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:18  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:55  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:55  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  14:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/notification.routes.ts
+  15:17  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  16:27  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+  17:27  error  Promise returned in function argument where a void return was expected  @typescript-eslint/no-misused-promises
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/project.routes.ts
+  11:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:18  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:49  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:49  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  14:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:51  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:51  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  15:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  15:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/settings.routes.ts
+  11:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:49  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:49  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/upload.routes.ts
+  10:47  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  10:47  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  11:52  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:52  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/users.routes.ts
+  11:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  11:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  12:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  12:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  13:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:48  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  13:48  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  14:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  14:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/routes/workspace.routes.ts
+  15:17  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  15:17  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  16:18  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  16:51  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  16:51  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  17:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  17:20  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  18:20  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  18:53  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  18:53  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  19:23  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  19:23  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+  20:29  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  20:65  error  Promise returned in function argument where a void return was expected                                                                                                                                                                                                                                                                      @typescript-eslint/no-misused-promises
+  20:65  error  A method that is not declared with `this: void` may cause unintentional scoping of `this` when separated from its object.
+Consider using an arrow function or explicitly `.bind()`ing the method to avoid calling the method with an unintended `this` value. 
+If a function does not access `this`, it can be annotated with `this: void`  @typescript-eslint/unbound-method
+
+/Users/karthiknaramala/AETHER_BAC/src/storage/BucketManager.ts
+  14:3  error  Async method 'initializeBuckets' has no 'await' expression  @typescript-eslint/require-await
+
+/Users/karthiknaramala/AETHER_BAC/src/storage/FileManager.ts
+  24:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/storage/LocalStorage.ts
+  10:5  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/karthiknaramala/AETHER_BAC/src/storage/UploadManager.ts
+  19:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/tests/integration/auth.routes.test.ts
+  4:90  error  Async arrow function has no 'await' expression  @typescript-eslint/require-await
+
+/Users/karthiknaramala/AETHER_BAC/src/tests/integration/workspace.routes.test.ts
+  4:84  error  Async arrow function has no 'await' expression  @typescript-eslint/require-await
+  9:64  error  Async arrow function has no 'await' expression  @typescript-eslint/require-await
+
+/Users/karthiknaramala/AETHER_BAC/src/types/pagination.types.ts
+   3:18  error  Interface name `IPaginationParams` must not match the RegExp: /^I[A-Z]/u  @typescript-eslint/naming-convention
+  11:18  error  Interface name `IPaginatedResult` must not match the RegExp: /^I[A-Z]/u   @typescript-eslint/naming-convention
+
+/Users/karthiknaramala/AETHER_BAC/src/websocket/project.gateway.ts
+  13:7  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  22:7  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/karthiknaramala/AETHER_BAC/src/websocket/socketAuth.ts
+  10:11  error  Unsafe assignment of an `any` value                                     @typescript-eslint/no-unsafe-assignment
+  19:32  error  Unsafe argument of type `any` assigned to a parameter of type `string`  @typescript-eslint/no-unsafe-argument
+
+/Users/karthiknaramala/AETHER_BAC/src/websocket/socketEvents.ts
+  2:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  3:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+  4:3  warning  Missing return type on function  @typescript-eslint/explicit-function-return-type
+
+/Users/karthiknaramala/AETHER_BAC/src/websocket/socketServer.ts
+  49:9  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+/Users/karthiknaramala/AETHER_BAC/src/websocket/workspace.gateway.ts
+  13:7  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  22:7  error  Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+
+✖ 550 problems (438 errors, 112 warnings)
+

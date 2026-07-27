@@ -23,7 +23,10 @@ export class SessionRepository extends PrismaService {
     });
   }
 
-  public async deleteAllUserSessions(userId: string, tx?: TransactionClient): Promise<Prisma.BatchPayload> {
+  public async deleteAllUserSessions(
+    userId: string,
+    tx?: TransactionClient,
+  ): Promise<Prisma.BatchPayload> {
     const client = tx || this.prisma;
     return client.session.deleteMany({
       where: { userId },

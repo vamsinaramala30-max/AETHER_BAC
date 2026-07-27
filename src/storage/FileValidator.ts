@@ -24,7 +24,7 @@ export class FileValidator {
    */
   public static validate(
     file: { originalname: string; mimetype: string; size: number },
-    options: FileValidationOptions = {}
+    options: FileValidationOptions = {},
   ): { valid: boolean; error?: string } {
     const maxSize = options.maxSizeBytes || FileValidator.DEFAULT_MAX_SIZE;
     const allowedMimes = options.allowedMimeTypes || FileValidator.DEFAULT_ALLOWED_MIMES;

@@ -47,7 +47,10 @@ export class JWTService {
   /**
    * Verifies and decodes a Refresh Token.
    */
-  public static verifyRefreshToken<T = { id: string }>(token: string, options?: jwt.VerifyOptions): T {
+  public static verifyRefreshToken<T = { id: string }>(
+    token: string,
+    options?: jwt.VerifyOptions,
+  ): T {
     try {
       return jwt.verify(token, securityConfig.jwt.refreshSecret, options) as T;
     } catch (error) {

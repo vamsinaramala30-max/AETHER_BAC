@@ -16,14 +16,21 @@ export class AutomationRepository extends PrismaService {
     });
   }
 
-  public async create(data: Prisma.AutomationCreateInput, tx?: TransactionClient): Promise<Automation> {
+  public async create(
+    data: Prisma.AutomationCreateInput,
+    tx?: TransactionClient,
+  ): Promise<Automation> {
     const client = tx || this.prisma;
     return client.automation.create({
       data,
     });
   }
 
-  public async update(id: string, data: Prisma.AutomationUpdateInput, tx?: TransactionClient): Promise<Automation> {
+  public async update(
+    id: string,
+    data: Prisma.AutomationUpdateInput,
+    tx?: TransactionClient,
+  ): Promise<Automation> {
     const client = tx || this.prisma;
     return client.automation.update({
       where: { id },

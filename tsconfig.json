@@ -36,15 +36,6 @@
     "sourceMap": true,
     "resolveJsonModule": true
   },
-  "include": [
-    "server.ts",
-    "src/**/*.ts",
-    "prisma/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "coverage"
-  ]
+  "include": ["server.ts", "src/**/*.ts", "prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
 }
-

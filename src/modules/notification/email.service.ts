@@ -30,7 +30,9 @@ export class EmailService {
           subject,
           html: `<div style="font-family: sans-serif; padding: 20px;"><h2>${subject}</h2><p>${body}</p></div>`,
         });
-        if (response.error) throw new Error(response.error.message);
+        if (response.error) {
+          throw new Error(response.error.message);
+        }
         return true;
       } catch (error) {
         if (attempt >= retries) {

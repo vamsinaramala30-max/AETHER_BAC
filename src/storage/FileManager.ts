@@ -24,7 +24,7 @@ export class FileManager {
   public async storeFile(
     workspaceId: string,
     file: { buffer: Buffer; originalname: string; mimetype: string },
-    bucket?: string
+    bucket?: string,
   ) {
     const key = this.generateUniquePath(workspaceId, file.originalname);
     const uploadResult = await this.storageService.upload(file.buffer, key, file.mimetype, bucket);

@@ -34,9 +34,5 @@ export const swaggerConfig: Options = {
       },
     ],
   },
-  apis: [
-    './src/routes/*.ts',
-    './src/modules/**/*.routes.ts',
-    './src/modules/**/*.types.ts',
-  ],
+  apis: ['./src/routes/*.ts', './src/modules/**/*.routes.ts', './src/modules/**/*.types.ts'],
 };

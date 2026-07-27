@@ -55,7 +55,7 @@ export class GeminiProvider implements AIProvider {
 
   public async generateText(
     prompt: string,
-    options?: { systemInstruction?: string; temperature?: number }
+    options?: { systemInstruction?: string; temperature?: number },
   ): Promise<string> {
     try {
       const model = this.client.getGenerativeModel({

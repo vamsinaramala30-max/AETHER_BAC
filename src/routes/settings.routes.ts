@@ -11,4 +11,4 @@ router.use(authenticate);
 router.get('/', settingsController.getSettings);
 router.put('/', validate(updateSettingsSchema), settingsController.updateSettings);
 
-export const settingsRoutes = router;
+export const settingsRoutes: Router = router;

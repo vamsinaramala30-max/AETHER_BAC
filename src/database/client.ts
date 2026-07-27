@@ -3,7 +3,7 @@ import { databaseConfig, logger } from '../config';
 
 declare global {
   // Prevent multiple instances of Prisma Client in development/HMR
-  // eslint-disable-next-line no-var
+
   var __prismaClientInstance: PrismaClient | undefined;
 }
 

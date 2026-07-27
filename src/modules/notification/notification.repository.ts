@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { NotificationPreferencesData } from './notification.types';
 
 const prisma = new PrismaClient();
@@ -56,16 +56,40 @@ export class NotificationRepository {
     });
   }
 
-  async savePushSubscription(_userId: string, _sub: { endpoint: string; p256dh: string; auth: string }) {
+  async savePushSubscription(
+    _userId: string,
+    _sub: { endpoint: string; p256dh: string; auth: string },
+  ) {
     // Push subscriptions not in schema; store as stub
-    return { id: 'stub', userId: _userId, endpoint: _sub.endpoint, p256dh: _sub.p256dh, auth: _sub.auth, createdAt: new Date() };
+    return {
+      id: 'stub',
+      userId: _userId,
+      endpoint: _sub.endpoint,
+      p256dh: _sub.p256dh,
+      auth: _sub.auth,
+      createdAt: new Date(),
+    };
   }
 
   async getPushSubscriptions(_userId: string) {
     return [];
   }
 
-  async logDelivery(_notificationId: string, _channel: string, _status: string, _attempts = 1, _error?: string) {
-    return { id: 'stub', notificationId: _notificationId, channel: _channel, status: _status, attempts: _attempts, error: _error || null, createdAt: new Date() };
+  async logDelivery(
+    _notificationId: string,
+    _channel: string,
+    _status: string,
+    _attempts = 1,
+    _error?: string,
+  ) {
+    return {
+      id: 'stub',
+      notificationId: _notificationId,
+      channel: _channel,
+      status: _status,
+      attempts: _attempts,
+      error: _error || null,
+      createdAt: new Date(),
+    };
   }
 }

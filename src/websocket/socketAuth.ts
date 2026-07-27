@@ -4,7 +4,7 @@ import { AuthenticatedSocket, AuthenticatedSocketUser } from './socketTypes';
 
 export const socketAuthMiddleware = (
   socket: AuthenticatedSocket,
-  next: (err?: Error) => void
+  next: (err?: Error) => void,
 ): void => {
   try {
     const token =
@@ -16,10 +16,7 @@ export const socketAuthMiddleware = (
       return next(new Error('Authentication error: Missing authorization token'));
     }
 
-    const decoded = jwt.verify(
-      token,
-      securityConfig.jwt.secret
-    ) as AuthenticatedSocketUser;
+    const decoded = jwt.verify(token, securityConfig.jwt.secret) as AuthenticatedSocketUser;
 
     const workspaceId = socket.handshake.query?.workspaceId as string | undefined;
 
@@ -30,7 +27,9 @@ export const socketAuthMiddleware = (
 
     next();
   } catch (error) {
-    logger.warn(`WebSocket authentication failed for socket ${socket.id}: ${(error as Error).message}`);
+    logger.warn(
+      `WebSocket authentication failed for socket ${socket.id}: ${(error as Error).message}`,
+    );
     next(new Error('Authentication error: Invalid authorization token'));
   }
 };

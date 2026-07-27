@@ -17,14 +17,20 @@ export class KnowledgeRepository extends PrismaService {
     });
   }
 
-  public async createBase(data: Prisma.KnowledgeBaseCreateInput, tx?: TransactionClient): Promise<KnowledgeBase> {
+  public async createBase(
+    data: Prisma.KnowledgeBaseCreateInput,
+    tx?: TransactionClient,
+  ): Promise<KnowledgeBase> {
     const client = tx || this.prisma;
     return client.knowledgeBase.create({
       data,
     });
   }
 
-  public async addDocument(data: Prisma.DocumentCreateInput, tx?: TransactionClient): Promise<Document> {
+  public async addDocument(
+    data: Prisma.DocumentCreateInput,
+    tx?: TransactionClient,
+  ): Promise<Document> {
     const client = tx || this.prisma;
     return client.document.create({
       data,
@@ -34,7 +40,7 @@ export class KnowledgeRepository extends PrismaService {
   public async updateDocumentStatus(
     documentId: string,
     status: string,
-    tx?: TransactionClient
+    tx?: TransactionClient,
   ): Promise<Document> {
     const client = tx || this.prisma;
     return client.document.update({

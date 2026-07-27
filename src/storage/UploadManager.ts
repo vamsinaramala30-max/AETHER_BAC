@@ -20,7 +20,7 @@ export class UploadManager {
     workspaceId: string,
     file: FileUploadPayload,
     validationOpts?: FileValidationOptions,
-    imageOpts?: ImageProcessingOptions
+    imageOpts?: ImageProcessingOptions,
   ) {
     const validation = FileValidator.validate(file, validationOpts);
     if (!validation.valid) {

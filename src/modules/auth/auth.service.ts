@@ -55,7 +55,9 @@ export class AuthService {
   public async refresh(refreshToken: string): Promise<LoginResponse> {
     const session = await this.repo.findSessionByToken(refreshToken);
     if (!session || session.expiresAt < new Date()) {
-      if (session) await this.repo.deleteSessionByToken(refreshToken);
+      if (session) {
+        await this.repo.deleteSessionByToken(refreshToken);
+      }
       throw new AppError('Refresh token is expired or invalid', 401, 'INVALID_REFRESH_TOKEN');
     }
 
@@ -101,7 +103,7 @@ export class AuthService {
     // Check if OAuth account already exists
     const existingOAuth = await this.repo.findOAuthAccount(
       payload.provider,
-      payload.providerAccountId
+      payload.providerAccountId,
     );
 
     if (existingOAuth) {
@@ -190,4 +192,3 @@ export class AuthService {
     };
   }
 }
-

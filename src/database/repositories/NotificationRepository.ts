@@ -9,7 +9,10 @@ export class NotificationRepository extends PrismaService {
     });
   }
 
-  public async create(data: Prisma.NotificationCreateInput, tx?: TransactionClient): Promise<Notification> {
+  public async create(
+    data: Prisma.NotificationCreateInput,
+    tx?: TransactionClient,
+  ): Promise<Notification> {
     const client = tx || this.prisma;
     return client.notification.create({
       data,
@@ -19,7 +22,7 @@ export class NotificationRepository extends PrismaService {
   public async getUserNotifications(
     userId: string,
     limit: number = 20,
-    skip: number = 0
+    skip: number = 0,
   ): Promise<{ notifications: Notification[]; total: number; unreadCount: number }> {
     const [notifications, total, unreadCount] = await Promise.all([
       this.prisma.notification.findMany({

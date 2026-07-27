@@ -10,4 +10,4 @@ router.use(authenticate);
 router.get('/', settingsController.getSettings);
 router.put('/', validate(updateSettingsSchema), settingsController.updateSettings);
 
-export const settingsModuleRoutes = router;
+export const settingsModuleRoutes: Router = router;

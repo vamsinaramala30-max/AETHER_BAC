@@ -19,4 +19,4 @@ router.put('/:id', validate(updateWorkspaceSchema), workspaceController.updateWo
 router.delete('/:id', workspaceController.deleteWorkspace);
 router.post('/:id/members', validate(addWorkspaceMemberSchema), workspaceController.addMember);
 
-export const workspaceRoutes = router;
+export const workspaceRoutes: Router = router;

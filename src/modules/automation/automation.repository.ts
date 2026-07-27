@@ -2,7 +2,12 @@ import { PrismaService } from '../../database/prisma';
 import { Prisma } from '@prisma/client';
 
 export class AutomationRepository extends PrismaService {
-  public async create(workspaceId: string, name: string, trigger: string, actions: Prisma.InputJsonValue) {
+  public async create(
+    workspaceId: string,
+    name: string,
+    trigger: string,
+    actions: Prisma.InputJsonValue,
+  ) {
     return this.prisma.automation.create({
       data: { workspaceId, name, trigger, actions },
     });
@@ -16,7 +21,10 @@ export class AutomationRepository extends PrismaService {
     return this.prisma.automation.findMany({ where: { workspaceId } });
   }
 
-  public async update(id: string, data: { name?: string; isEnabled?: boolean; actions?: Prisma.InputJsonValue }) {
+  public async update(
+    id: string,
+    data: { name?: string; isEnabled?: boolean; actions?: Prisma.InputJsonValue },
+  ) {
     return this.prisma.automation.update({ where: { id }, data });
   }
 

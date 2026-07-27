@@ -11,7 +11,8 @@ export interface NotificationJobData {
 
 export const NOTIFICATION_QUEUE_NAME = 'notification-dispatch';
 
-export const notificationQueue: Queue<NotificationJobData> = QueueFactory.createQueue<NotificationJobData>(NOTIFICATION_QUEUE_NAME);
+export const notificationQueue: Queue<NotificationJobData> =
+  QueueFactory.createQueue<NotificationJobData>(NOTIFICATION_QUEUE_NAME);
 
 export const notificationWorker = QueueFactory.createWorker<NotificationJobData, boolean>(
   NOTIFICATION_QUEUE_NAME,
@@ -22,6 +23,5 @@ export const notificationWorker = QueueFactory.createWorker<NotificationJobData,
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     return true;
-  }
+  },
 );
-

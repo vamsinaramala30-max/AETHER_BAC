@@ -45,10 +45,7 @@ const RolePermissionsMap: Record<Role, Permission[]> = {
     Permission.AI_EXECUTE,
     Permission.KNOWLEDGE_MANAGE,
   ],
-  [Role.VIEWER]: [
-    Permission.WORKSPACE_READ,
-    Permission.PROJECT_READ,
-  ],
+  [Role.VIEWER]: [Permission.WORKSPACE_READ, Permission.PROJECT_READ],
 };
 
 export class PermissionService {

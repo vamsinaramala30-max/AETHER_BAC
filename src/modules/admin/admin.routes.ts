@@ -10,4 +10,4 @@ router.get('/users', adminController.getSystemUsers);
 router.get('/audit-logs', adminController.getAuditLogs);
 router.get('/system-metrics', adminController.getSystemMetrics);
 
-export const adminModuleRoutes = router;
+export const adminModuleRoutes: Router = router;

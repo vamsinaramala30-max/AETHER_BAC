@@ -10,4 +10,4 @@ router.use(authenticate);
 router.post('/single', upload.single('file'), uploadController.uploadSingle);
 router.post('/multiple', upload.array('files', 5), uploadController.uploadMultiple);
 
-export const uploadRoutes = router;
+export const uploadRoutes: Router = router;

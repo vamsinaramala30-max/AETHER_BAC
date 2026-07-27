@@ -24,7 +24,11 @@ export class ProjectRepository extends PrismaService {
     });
   }
 
-  public async update(id: string, data: Prisma.ProjectUpdateInput, tx?: TransactionClient): Promise<Project> {
+  public async update(
+    id: string,
+    data: Prisma.ProjectUpdateInput,
+    tx?: TransactionClient,
+  ): Promise<Project> {
     const client = tx || this.prisma;
     return client.project.update({
       where: { id },

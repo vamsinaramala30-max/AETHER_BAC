@@ -1,13 +1,17 @@
 import { NotificationRepository } from './notification.repository';
 import { EmailService } from './email.service';
 import { PushService } from './push.service';
-import { NotificationPreferencesData, SendNotificationDTO, PushSubscriptionDTO } from './notification.types';
+import {
+  NotificationPreferencesData,
+  SendNotificationDTO,
+  PushSubscriptionDTO,
+} from './notification.types';
 
 export class NotificationService {
   constructor(
     private repo: NotificationRepository,
     private emailService?: EmailService,
-    private pushService?: PushService
+    private pushService?: PushService,
   ) {
     this.repo = repo;
     this.emailService = emailService || new EmailService();
@@ -24,7 +28,10 @@ export class NotificationService {
     };
   }
 
-  async updatePreferences(userId: string, data: NotificationPreferencesData): Promise<NotificationPreferencesData> {
+  async updatePreferences(
+    userId: string,
+    data: NotificationPreferencesData,
+  ): Promise<NotificationPreferencesData> {
     const updated = await this.repo.updatePreferences(userId, data);
     return {
       emailAlerts: (updated as any).emailAlerts ?? true,
@@ -43,12 +50,12 @@ export class NotificationService {
     const results: Record<string, boolean> = {};
 
     if (dto.channels.includes('IN_APP')) {
-      const notif = await this.repo.createNotification(dto.userId, dto.title, dto.message);
+      await this.repo.createNotification(dto.userId, dto.title, dto.message);
       results.IN_APP = true;
     }
 
     if (dto.channels.includes('EMAIL') && dto.email) {
-      const notif = await this.repo.createNotification(dto.userId, dto.title, dto.message);
+      await this.repo.createNotification(dto.userId, dto.title, dto.message);
       const sent = await this.emailService!.sendEmail(dto.email, dto.title, dto.message);
       results.EMAIL = sent;
     }
@@ -56,10 +63,13 @@ export class NotificationService {
     if (dto.channels.includes('PUSH')) {
       const subs = await this.repo.getPushSubscriptions(dto.userId);
       for (const sub of subs) {
-        const notif = await this.repo.createNotification(dto.userId, dto.title, dto.message);
+        await this.repo.createNotification(dto.userId, dto.title, dto.message);
         const sent = await this.pushService!.sendPushNotification(
-          { endpoint: (sub as any).endpoint, keys: { p256dh: (sub as any).p256dh, auth: (sub as any).auth } },
-          { title: dto.title, message: dto.message }
+          {
+            endpoint: (sub as any).endpoint,
+            keys: { p256dh: (sub as any).p256dh, auth: (sub as any).auth },
+          },
+          { title: dto.title, message: dto.message },
         );
         results.PUSH = sent;
       }

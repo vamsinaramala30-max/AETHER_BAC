@@ -65,36 +65,40 @@ export class AuthController {
    * On success, redirects to frontend with JWT token.
    */
   public googleCallback(req: Request, res: Response, next: NextFunction): void {
-    passport.authenticate('google', {
-      session: false,
-      failureRedirect: `${env.FRONTEND_URL}/login?error=oauth_failed`,
-    }, async (err: Error | null, user: any) => {
-      if (err || !user) {
-        logger.error('Google OAuth callback error:', err);
-        return res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
-      }
+    passport.authenticate(
+      'google',
+      {
+        session: false,
+        failureRedirect: `${env.FRONTEND_URL}/login?error=oauth_failed`,
+      },
+      async (err: Error | null, user: any) => {
+        if (err || !user) {
+          logger.error('Google OAuth callback error:', err);
+          return res.redirect(`${env.FRONTEND_URL}/login?error=oauth_failed`);
+        }
 
-      try {
-        const token =
-          user?.tokens?.accessToken ||
-          (
-            await authService.generateAuthResponse({
-              id: user.id || user.user?.id,
-              email: user.email || user.user?.email,
-              role: user.role || user.user?.role || 'USER',
-              fullName:
-                user.fullName ||
-                `${user.user?.firstName || ''} ${user.user?.lastName || ''}`.trim(),
-              avatarUrl: user.avatarUrl || user.user?.avatarUrl,
-            })
-          ).tokens.accessToken;
+        try {
+          const token =
+            user?.tokens?.accessToken ||
+            (
+              await authService.generateAuthResponse({
+                id: user.id || user.user?.id,
+                email: user.email || user.user?.email,
+                role: user.role || user.user?.role || 'USER',
+                fullName:
+                  user.fullName ||
+                  `${user.user?.firstName || ''} ${user.user?.lastName || ''}`.trim(),
+                avatarUrl: user.avatarUrl || user.user?.avatarUrl,
+              })
+            ).tokens.accessToken;
 
-        return res.redirect(`${env.FRONTEND_URL}/auth/success?token=${token}`);
-      } catch (error) {
-        logger.error('Failed to generate auth response after Google callback:', error);
-        return res.redirect(`${env.FRONTEND_URL}/login?error=token_generation_failed`);
-      }
-    })(req, res, next);
+          return res.redirect(`${env.FRONTEND_URL}/auth/success?token=${token}`);
+        } catch (error) {
+          logger.error('Failed to generate auth response after Google callback:', error);
+          return res.redirect(`${env.FRONTEND_URL}/login?error=token_generation_failed`);
+        }
+      },
+    )(req, res, next);
   }
 }
 

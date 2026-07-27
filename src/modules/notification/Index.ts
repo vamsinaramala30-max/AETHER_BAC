@@ -7,7 +7,10 @@ import { NotificationController } from './notification.controller';
 import { createNotificationRouter } from './notification.routes';
 import { setupNotificationScheduler } from './notification.scheduler';
 
-export function buildNotificationModule(authMiddleware: any): { router: Router; service: NotificationService } {
+export function buildNotificationModule(authMiddleware: any): {
+  router: Router;
+  service: NotificationService;
+} {
   const repo = new NotificationRepository();
   const emailService = new EmailService();
   const pushService = new PushService();

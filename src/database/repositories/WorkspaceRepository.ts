@@ -16,14 +16,21 @@ export class WorkspaceRepository extends PrismaService {
     });
   }
 
-  public async create(data: Prisma.WorkspaceCreateInput, tx?: TransactionClient): Promise<Workspace> {
+  public async create(
+    data: Prisma.WorkspaceCreateInput,
+    tx?: TransactionClient,
+  ): Promise<Workspace> {
     const client = tx || this.prisma;
     return client.workspace.create({
       data,
     });
   }
 
-  public async update(id: string, data: Prisma.WorkspaceUpdateInput, tx?: TransactionClient): Promise<Workspace> {
+  public async update(
+    id: string,
+    data: Prisma.WorkspaceUpdateInput,
+    tx?: TransactionClient,
+  ): Promise<Workspace> {
     const client = tx || this.prisma;
     return client.workspace.update({
       where: { id },
@@ -55,7 +62,7 @@ export class WorkspaceRepository extends PrismaService {
     workspaceId: string,
     userId: string,
     role: WorkspaceRole,
-    tx?: TransactionClient
+    tx?: TransactionClient,
   ): Promise<WorkspaceMember> {
     const client = tx || this.prisma;
     return client.workspaceMember.create({
@@ -70,7 +77,7 @@ export class WorkspaceRepository extends PrismaService {
   public async getMember(
     workspaceId: string,
     userId: string,
-    tx?: TransactionClient
+    tx?: TransactionClient,
   ): Promise<WorkspaceMember | null> {
     const client = tx || this.prisma;
     return client.workspaceMember.findUnique({
@@ -83,4 +90,3 @@ export class WorkspaceRepository extends PrismaService {
     });
   }
 }
-

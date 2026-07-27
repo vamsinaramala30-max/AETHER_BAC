@@ -9,7 +9,12 @@ export class AutomationService {
     this.repo = new AutomationRepository();
   }
 
-  public async createAutomation(workspaceId: string, name: string, trigger: string, actions: Prisma.InputJsonValue) {
+  public async createAutomation(
+    workspaceId: string,
+    name: string,
+    trigger: string,
+    actions: Prisma.InputJsonValue,
+  ) {
     return this.repo.create(workspaceId, name, trigger, actions);
   }
 
@@ -19,11 +24,16 @@ export class AutomationService {
 
   public async getAutomationById(id: string) {
     const auto = await this.repo.findById(id);
-    if (!auto) throw new AppError('Automation rule not found', 404, 'AUTOMATION_NOT_FOUND');
+    if (!auto) {
+      throw new AppError('Automation rule not found', 404, 'AUTOMATION_NOT_FOUND');
+    }
     return auto;
   }
 
-  public async updateAutomation(id: string, data: { name?: string; isEnabled?: boolean; actions?: Prisma.InputJsonValue }) {
+  public async updateAutomation(
+    id: string,
+    data: { name?: string; isEnabled?: boolean; actions?: Prisma.InputJsonValue },
+  ) {
     await this.getAutomationById(id);
     return this.repo.update(id, data);
   }

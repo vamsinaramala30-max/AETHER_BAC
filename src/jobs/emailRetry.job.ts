@@ -8,10 +8,12 @@ export const emailRetryJob: ScheduledJob = {
   task: async (): Promise<void> => {
     logger.info('[EmailRetryJob] Inspecting failed email queue jobs for retry eligibility...');
     const failedJobs = await emailQueue.getFailed();
-    
+
     for (const job of failedJobs) {
       if (job.attemptsMade < 5) {
-        logger.info(`[EmailRetryJob] Retrying failed email job ${job.id} (Attempt ${job.attemptsMade + 1})`);
+        logger.info(
+          `[EmailRetryJob] Retrying failed email job ${job.id} (Attempt ${job.attemptsMade + 1})`,
+        );
         await job.retry();
       }
     }

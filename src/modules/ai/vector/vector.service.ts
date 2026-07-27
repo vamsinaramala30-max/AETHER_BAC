@@ -6,7 +6,7 @@ export class VectorService {
     const results = await db.$queryRawUnsafe<Array<{ id: string; content: string; score: number }>>(
       `SELECT id, content, 1 - (embedding <=> $1::vector) as score FROM "DocumentChunk" ORDER BY embedding <=> $1::vector LIMIT $2`,
       vectorString,
-      topK
+      topK,
     );
     return results;
   }
