@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Enterprise-grade backend service for the AETHER platform",
   "main": "dist/server.js",
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "dev": "nodemon",
     "build": "tsc",
