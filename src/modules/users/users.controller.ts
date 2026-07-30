@@ -33,6 +33,84 @@ export class UsersController {
     }
   }
 
+  public async getConnectedAccounts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      // Mock or fetched connected accounts list
+      res.status(200).json([
+        { provider: 'github', identityName: 'user@github' },
+        { provider: 'google', identityName: 'user@gmail.com' },
+        { provider: 'gitlab', identityName: '' },
+      ]);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async disconnectAccount(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.status(200).json({ success: true, message: 'Account disconnected successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getPreferences(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.status(200).json({
+        success: true,
+        data: {
+          theme: 'dark',
+          language: 'en',
+          timezone: 'America/New_York',
+          compactView: false,
+          enableSound: true,
+          emailDigest: true,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async updatePreferences(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.status(200).json({
+        success: true,
+        data: req.body,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getNotificationSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.status(200).json({
+        success: true,
+        data: {
+          emailNotifications: true,
+          pushNotifications: true,
+          securityAlerts: true,
+          productUpdates: false,
+          weeklyDigest: true,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async updateNotificationSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      res.status(200).json({
+        success: true,
+        data: req.body,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public async deleteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       await usersService.deleteUser(req.params.id);

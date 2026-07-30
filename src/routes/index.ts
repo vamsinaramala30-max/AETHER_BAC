@@ -18,6 +18,7 @@ const router = Router();
 router.use('/health', healthRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
+router.use('/user', usersRoutes);
 router.use('/ai', aiRoutes);
 router.use('/workspaces', workspaceRoutes);
 router.use('/projects', projectRoutes);

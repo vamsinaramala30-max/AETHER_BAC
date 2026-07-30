@@ -48,6 +48,20 @@ export class AuthController {
     res.status(200).json({ success: true, data: req.user });
   }
 
+  public async updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req.user as any)?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Unauthorized' });
+        return;
+      }
+      const updated = await authService.updateUserProfile(userId, req.body);
+      res.status(200).json({ success: true, data: updated });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   /**
    * Initiates Google OAuth login flow.
    * Redirects user to Google's consent screen.
