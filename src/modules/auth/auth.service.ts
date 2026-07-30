@@ -191,4 +191,24 @@ export class AuthService {
       },
     };
   }
+
+  public async updateUserProfile(userId: string, data: any) {
+    const updateData: any = {};
+    if (data.fullName) {
+      updateData.fullName = data.fullName;
+    } else if (data.firstName !== undefined || data.lastName !== undefined) {
+      const first = data.firstName || '';
+      const last = data.lastName || '';
+      updateData.fullName = `${first} ${last}`.trim();
+    }
+    if (data.email) updateData.email = data.email.toLowerCase();
+    if (data.avatarUrl || data.avatar) updateData.avatarUrl = data.avatarUrl || data.avatar;
+    if (data.bio !== undefined) updateData.bio = data.bio;
+    if (data.company !== undefined) updateData.company = data.company;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.timezone !== undefined) updateData.timezone = data.timezone;
+    if (data.language !== undefined) updateData.language = data.language;
+
+    return this.repo.updateUser(userId, updateData);
+  }
 }

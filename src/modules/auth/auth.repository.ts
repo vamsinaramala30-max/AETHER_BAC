@@ -71,4 +71,12 @@ export class AuthRepository extends PrismaService {
     const client = tx || this.prisma;
     return client.oAuthAccount.create({ data });
   }
+
+  public async updateUser(id: string, data: Prisma.UserUpdateInput, tx?: TransactionClient): Promise<User> {
+    const client = tx || this.prisma;
+    return client.user.update({
+      where: { id },
+      data,
+    });
+  }
 }

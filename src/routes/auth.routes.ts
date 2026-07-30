@@ -17,6 +17,9 @@ router.post('/refresh', validate(refreshTokenSchema), authController.refreshToke
 router.post('/logout', authenticate, authController.logout);
 
 router.get('/me', authenticate, authController.getProfile);
+router.get('/profile', authenticate, authController.getProfile);
+router.put('/profile', authenticate, authController.updateProfile);
+router.patch('/profile', authenticate, authController.updateProfile);
 
 // Google OAuth routes
 router.get('/google', authController.googleAuth);
