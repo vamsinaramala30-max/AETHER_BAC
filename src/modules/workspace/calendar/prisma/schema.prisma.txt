@@ -1,0 +1,280 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native"]
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum AccessRole {
+  OWNER
+  ADMIN
+  WRITER
+  READER
+}
+
+enum CalendarType {
+  PERSONAL
+  SHARED
+  TEAM
+  RESOURCE
+}
+
+enum EventStatus {
+  CONFIRMED
+  TENTATIVE
+  CANCELLED
+}
+
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+  CONFIDENTIAL
+}
+
+enum ParticipantStatus {
+  NEEDS_ACTION
+  ACCEPTED
+  DECLINED
+  TENTATIVE
+}
+
+enum ParticipantRole {
+  ORGANIZER
+  REQUIRED
+  OPTIONAL
+  RESOURCE
+}
+
+enum ReminderMethod {
+  EMAIL
+  PUSH
+  IN_APP
+}
+
+enum SyncProvider {
+  GOOGLE
+  OUTLOOK
+  APPLE
+}
+
+enum SyncStatus {
+  IDLE
+  SYNCING
+  SUCCESS
+  FAILED
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  name            String
+  passwordHash    String
+  role            Role              @default(USER)
+  timeZone        String            @default("UTC")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  memberships     CalendarMember[]
+  participants    EventParticipant[]
+  notifications   EventNotification[]
+  syncAccounts    SyncAccount[]
+  activityLogs    ActivityLog[]
+
+  @@index([email])
+}
+
+model Calendar {
+  id          String           @id @default(uuid())
+  name        String
+  description String?
+  color       String           @default("#039BE5")
+  timeZone    String           @default("UTC")
+  type        CalendarType     @default(PERSONAL)
+  isPrimary   Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  members     CalendarMember[]
+  events      Event[]
+  syncJobs    SyncJob[]
+
+  @@index([type])
+}
+
+model CalendarMember {
+  id         String     @id @default(uuid())
+  calendarId String
+  userId     String
+  accessRole AccessRole @default(READER)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  calendar   Calendar   @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([calendarId, userId])
+  @@index([userId])
+}
+
+model Event {
+  id             String            @id @default(uuid())
+  calendarId     String
+  title          String
+  description    String?
+  location       String?
+  startTime      DateTime
+  endTime        DateTime
+  isAllDay       Boolean           @default(false)
+  status         EventStatus       @default(CONFIRMED)
+  visibility     EventVisibility  @default(PUBLIC)
+  timeZone       String            @default("UTC")
+  sequence       Int               @default(0)
+  recurringEventId String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  calendar       Calendar          @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  recurrence     EventRecurrence?
+  exceptions     EventException[]
+  participants   EventParticipant[]
+  reminders      EventReminder[]
+  attachments    EventAttachment[]
+  notifications  EventNotification[]
+  invitations    Invitation[]
+  activityLogs   ActivityLog[]
+
+  @@index([calendarId, startTime, endTime])
+  @@index([recurringEventId])
+}
+
+model EventRecurrence {
+  id         String   @id @default(uuid())
+  eventId    String   @unique
+  rrule      String
+  dtstart    DateTime
+  until      DateTime?
+  count      Int?
+  interval   Int      @default(1)
+  freq       String
+  byday      String?
+  bymonthday String?
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model EventException {
+  id               String   @id @default(uuid())
+  eventId          String
+  originalInstance DateTime
+  isRescheduled    Boolean  @default(false)
+  isCancelled      Boolean  @default(false)
+  newStartTime     DateTime?
+  newEndTime       DateTime?
+  event            Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId, originalInstance])
+}
+
+model EventParticipant {
+  id        String            @id @default(uuid())
+  eventId   String
+  userId    String
+  role      ParticipantRole   @default(REQUIRED)
+  status    ParticipantStatus @default(NEEDS_ACTION)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([userId])
+}
+
+model EventReminder {
+  id        String         @id @default(uuid())
+  eventId   String
+  minutes   Int
+  method    ReminderMethod @default(IN_APP)
+  createdAt DateTime       @default(now())
+  event     Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+model EventAttachment {
+  id        String   @id @default(uuid())
+  eventId   String
+  fileUrl   String
+  fileName  String
+  fileSize  Int
+  mimeType  String
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model EventNotification {
+  id        String   @id @default(uuid())
+  eventId   String
+  userId    String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model Invitation {
+  id        String            @id @default(uuid())
+  eventId   String
+  email     String
+  token     String            @unique
+  status    ParticipantStatus @default(NEEDS_ACTION)
+  createdAt DateTime          @default(now())
+  event     Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  eventId   String?
+  userId    String
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SyncAccount {
+  id           String       @id @default(uuid())
+  userId       String
+  provider     SyncProvider
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  externalId   String
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncJobs     SyncJob[]
+
+  @@unique([userId, provider])
+}
+
+model SyncJob {
+  id            String       @id @default(uuid())
+  syncAccountId String
+  calendarId    String
+  status        SyncStatus   @default(IDLE)
+  lastSyncedAt  DateTime?
+  errorMessage  String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  syncAccount   SyncAccount  @relation(fields: [syncAccountId], references: [id], onDelete: Cascade)
+  calendar      Calendar     @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+}

@@ -1,58 +1,36 @@
-import { AIRepository } from './ai.repository';
-import { GeminiProvider } from './providers/gemini.provider';
-import { RAGService } from './rag/rag.service';
-import { SYSTEM_PROMPT } from './prompts/system.prompt';
-import { buildChatPrompt } from './prompts/chat.prompt';
+import { AssistantService } from './assistant/assistant.service';
+import { ConversationsService } from './conversations/conversations.service';
+import { MemoryService } from './memory/memory.service';
+import { PromptLibraryService } from './prompt/prompt-library.service';
+import { ModelsService } from './models/models.service';
+import { EmbeddingsService } from './embeddings/embeddings.service';
+import { RagService } from './rag/rag.service';
+import { StreamingService } from './streaming/streaming.service';
+import { ToolsService } from './tools/tools.service';
 
-export class AIService {
-  private repo: AIRepository;
-  private provider: GeminiProvider;
-  private rag: RAGService;
+export class AiService {
+  constructor(
+    public readonly assistant: AssistantService,
+    public readonly conversations: ConversationsService,
+    public readonly memory: MemoryService,
+    public readonly promptLibrary: PromptLibraryService,
+    public readonly models: ModelsService,
+    public readonly embeddings: EmbeddingsService,
+    public readonly rag: RagService,
+    public readonly streaming: StreamingService,
+    public readonly tools: ToolsService
+  ) {}
 
-  constructor() {
-    this.repo = new AIRepository();
-    this.provider = new GeminiProvider();
-    this.rag = new RAGService();
-  }
-
-  public async processChat(
-    userId: string,
-    workspaceId: string,
-    message: string,
-    conversationId?: string,
-  ) {
-    let activeConvId = conversationId;
-
-    if (!activeConvId) {
-      // conversation needs a projectId; use workspaceId as fallback
-      const newConv = await this.repo.createConversation(
-        userId,
-        workspaceId,
-        workspaceId,
-        message.substring(0, 30),
-      );
-      activeConvId = newConv.id;
-    }
-
-    await this.repo.addMessage(activeConvId, 'user', message);
-
-    const context = await this.rag.retrieval.retrieveContext(message);
-    const formattedPrompt = buildChatPrompt(context, message);
-
-    const reply = await this.provider.generateText(formattedPrompt, {
-      systemInstruction: SYSTEM_PROMPT,
-    });
-
-    await this.repo.addMessage(activeConvId, 'assistant', reply);
-
-    return { conversationId: activeConvId, reply };
-  }
-
-  public async getConversations(userId: string, workspaceId: string) {
-    return this.repo.getUserConversations(userId, workspaceId);
-  }
-
-  public async getConversationById(id: string) {
-    return this.repo.findConversationById(id);
+  public async getHealthStatus() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      services: {
+        models: true,
+        embeddings: true,
+        rag: true,
+        memory: true,
+      },
+    };
   }
 }

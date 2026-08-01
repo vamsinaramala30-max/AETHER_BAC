@@ -1,16 +1,40 @@
-import { Router } from 'express';
-import { projectController } from './project.controller';
-import { authenticate } from '../../middleware/auth.middleware';
-import { validate } from '../../middleware/validation.middleware';
-import { createProjectSchema, updateProjectSchema } from './project.validator';
+// ============================================================================
+// File: backend/src/modules/projects/projects.routes.ts
+// ============================================================================
 
-const router = Router();
+export const PROJECTS_ROUTES = {
+  DASHBOARD: '/api/v1/projects/dashboard',
+  OVERVIEW: '/api/v1/projects/overview',
 
-router.use(authenticate);
-router.get('/', projectController.getProjects);
-router.post('/', validate(createProjectSchema), projectController.createProject);
-router.get('/:id', projectController.getProjectById);
-router.put('/:id', validate(updateProjectSchema), projectController.updateProject);
-router.delete('/:id', projectController.deleteProject);
+  PROJECTS: {
+    ROOT: '/api/v1/projects',
+    BY_ID: '/api/v1/projects/:id',
+    ARCHIVE: '/api/v1/projects/:id/archive',
+    RESTORE: '/api/v1/projects/:id/restore',
+    DUPLICATE: '/api/v1/projects/:id/duplicate',
+  },
 
-export const projectModuleRoutes: Router = router;
+  TASKS: {
+    ROOT: '/api/v1/tasks',
+    BY_ID: '/api/v1/tasks/:id',
+    LOG_TIME: '/api/v1/tasks/:id/log-time',
+    BULK: '/api/v1/tasks/bulk',
+  },
+
+  GOALS: {
+    ROOT: '/api/v1/goals',
+    BY_ID: '/api/v1/goals/:id',
+  },
+
+  STUDY_PLANNER: {
+    SUBJECTS: '/api/v1/study-planner/subjects',
+    SESSIONS: '/api/v1/study-planner/sessions',
+    COMPLETE_SESSION: '/api/v1/study-planner/sessions/:id/complete',
+  },
+
+  WEEKLY_REVIEW: {
+    ROOT: '/api/v1/weekly-reviews',
+    BY_ID: '/api/v1/weekly-reviews/:id',
+    AI_INSIGHTS: '/api/v1/weekly-reviews/:id/ai-insights',
+  },
+} as const;

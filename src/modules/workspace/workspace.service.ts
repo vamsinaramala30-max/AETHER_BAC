@@ -1,41 +1,34 @@
+import { CalendarService } from './calendar/calendar.service';
+import { ProductivityService } from './productivity-hub/productivity.service';
+import { FocusService } from './focus/focus.service';
+import { RecentFilesService } from './recent-files/recent-files.service';
+import { FavoritesService } from './favorites/favorites.service';
 import { WorkspaceRepository } from './workspace.repository';
-import { AppError } from '../../middleware/error.middleware';
 
 export class WorkspaceService {
-  private repo: WorkspaceRepository;
+  constructor(
+    private readonly workspaceRepo: WorkspaceRepository,
+    public readonly calendar: CalendarService,
+    public readonly productivity: ProductivityService,
+    public readonly focus: FocusService,
+    public readonly recentFiles: RecentFilesService,
+    public readonly favorites: FavoritesService,
+  ) {}
 
-  constructor() {
-    this.repo = new WorkspaceRepository();
-  }
+  async getOverview(workspaceId: string, userId: string) {
+    const [events, recent, favs, focusAnalytics] = await Promise.all([
+      this.calendar.getEvents({ workspaceId, limit: 5 }),
+      this.recentFiles.getRecentFiles(userId, { workspaceId, limit: 5 }),
+      this.favorites.getFavorites(userId, { workspaceId }),
+      this.focus.getAnalytics({ workspaceId, userId }),
+    ]);
 
-  public async createWorkspace(userId: string, name: string, slug: string, description?: string) {
-    return this.repo.createWorkspace(userId, name, slug, description);
-  }
-
-  public async getUserWorkspaces(userId: string) {
-    return this.repo.findByUserId(userId);
-  }
-
-  public async getWorkspaceById(id: string) {
-    const ws = await this.repo.findById(id);
-    if (!ws) {
-      throw new AppError('Workspace not found', 404, 'WORKSPACE_NOT_FOUND');
-    }
-    return ws;
-  }
-
-  public async updateWorkspace(id: string, name?: string, description?: string) {
-    await this.getWorkspaceById(id);
-    return this.repo.updateWorkspace(id, name, description);
-  }
-
-  public async deleteWorkspace(id: string) {
-    await this.getWorkspaceById(id);
-    return this.repo.deleteWorkspace(id);
-  }
-
-  public async addMember(workspaceId: string, userId: string, role: string) {
-    await this.getWorkspaceById(workspaceId);
-    return this.repo.addMember(workspaceId, userId, role);
+    return {
+      workspaceId,
+      upcomingEvents: events.data,
+      recentFiles: recent.data,
+      favorites: favs,
+      focusSummary: focusAnalytics,
+    };
   }
 }

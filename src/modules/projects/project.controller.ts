@@ -1,56 +1,25 @@
-import { Request, Response, NextFunction } from 'express';
-import { ProjectService } from './project.service';
+// ============================================================================
+// File: backend/src/modules/projects/projects.controller.ts
+// ============================================================================
 
-const projectService = new ProjectService();
+import { ProjectsOrchestrationService } from './project.service';
 
-export class ProjectController {
-  public async createProject(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { workspaceId, name, description } = req.body;
-      const proj = await projectService.createProject(workspaceId, name, description);
-      res.status(201).json({ success: true, data: proj });
-    } catch (err) {
-      next(err);
-    }
+export class ProjectsOrchestrationController {
+  constructor(private readonly orchestrationService: ProjectsOrchestrationService) {}
+
+  async getDashboard(req: { query: { userId: string } }) {
+    const data = await this.orchestrationService.getDashboardData(req.query.userId);
+    return { success: true, data };
   }
 
-  public async getProjects(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const workspaceId = req.headers['x-workspace-id'] as string;
-      const projects = await projectService.getProjectsByWorkspace(workspaceId);
-      res.status(200).json({ success: true, data: projects });
-    } catch (err) {
-      next(err);
-    }
-  }
-
-  public async getProjectById(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const proj = await projectService.getProjectById(req.params.id);
-      res.status(200).json({ success: true, data: proj });
-    } catch (err) {
-      next(err);
-    }
-  }
-
-  public async updateProject(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      const { name, description } = req.body;
-      const updated = await projectService.updateProject(req.params.id, name, description);
-      res.status(200).json({ success: true, data: updated });
-    } catch (err) {
-      next(err);
-    }
-  }
-
-  public async deleteProject(req: Request, res: Response, next: NextFunction): Promise<void> {
-    try {
-      await projectService.deleteProject(req.params.id);
-      res.status(200).json({ success: true, message: 'Project deleted' });
-    } catch (err) {
-      next(err);
-    }
+  async getOverview(req: { query: { userId: string } }) {
+    const dashboard = await this.orchestrationService.getDashboardData(req.query.userId);
+    return {
+      success: true,
+      overview: {
+        summary: 'User performance overview retrieved successfully',
+        ...dashboard,
+      },
+    };
   }
 }
-
-export const projectController = new ProjectController();
