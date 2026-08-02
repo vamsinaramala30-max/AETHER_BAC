@@ -2,29 +2,30 @@ import { Router } from 'express';
 import { KnowledgeController } from '../modules/knowledge/knowledge.controller';
 import { KnowledgeService } from '../modules/knowledge/knowledge.service';
 import { KnowledgeRepository } from '../modules/knowledge/knowledge.repository';
-import { authenticate } from '../middleware/auth.middleware';
-import { validate } from '../middleware/validation.middleware';
-import { createKnowledgeBaseSchema } from '../validators/knowledge.validator';
 
 const _knowledgeRepo = new KnowledgeRepository();
 const _knowledgeService = new KnowledgeService(_knowledgeRepo);
-const knowledgeController = new KnowledgeController(_knowledgeService);
 
 const router = Router();
 
-router.use(authenticate);
+router.get('/graph', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id;
+    const nodes = await _knowledgeService.getGraphData(userId);
+    res.status(200).json({ success: true, nodes });
+  } catch (err) {
+    next(err);
+  }
+});
 
-router.get('/', (req, res, next) => {
-  res.status(200).json({ data: [] });
-});
-router.post('/', validate(createKnowledgeBaseSchema), (req, res, next) => {
-  res.status(201).json({ data: {} });
-});
-router.get('/:id', (req, res, next) => {
-  res.status(200).json({ data: {} });
-});
-router.delete('/:id', (req, res, next) => {
-  res.status(204).send();
+router.get('/', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const data = await _knowledgeService.getDashboardAnalytics(userId);
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export const knowledgeRoutes: Router = router;

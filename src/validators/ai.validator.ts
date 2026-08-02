@@ -1,11 +1,18 @@
 import { z } from 'zod';
 
 export const chatSchema = z.object({
-  body: z.object({
-    message: z.string().min(1, 'Message cannot be empty'),
-    conversationId: z.string().uuid('Invalid conversation ID format').optional(),
-    workspaceId: z.string().uuid('Workspace ID must be a valid UUID'),
-  }),
+  body: z
+    .object({
+      message: z.string().optional(),
+      content: z.string().optional(),
+      conversationId: z.string().optional(),
+      workspaceId: z.string().optional(),
+      model: z.string().optional(),
+      temperature: z.number().optional(),
+    })
+    .refine((data) => !!(data.message || data.content), {
+      message: 'Either message or content must be provided',
+    }),
 });
 
 export const generatePromptSchema = z.object({

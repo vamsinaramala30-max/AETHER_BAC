@@ -83,20 +83,56 @@ export class AiModule {
   public readonly toolsController = new ToolsController(this.toolsService);
 
   public readonly assistantRepository = new AssistantRepository();
-  public readonly assistantService = new AssistantService(this.assistantRepository);
-  public readonly assistantController = new AssistantController(this.assistantService);
+  public readonly assistantService: AssistantService;
+  public readonly assistantController: AssistantController;
 
   public readonly aiRepository = new AiRepository();
-  public readonly aiService = new AiService(
-    this.assistantService,
-    this.conversationsService,
-    this.memoryService,
-    this.promptLibraryService,
-    this.modelsService,
-    this.embeddingsService,
-    this.ragService,
-    this.streamingService,
-    this.toolsService,
-  );
-  public readonly aiController = new AiController(this.aiService);
+  public readonly aiService: AiService;
+  public readonly aiController: AiController;
+
+  constructor() {
+    const gemini = this.providerFactory.getProvider('gemini');
+    const adapter = {
+      async generateCompletion(params: { messages: any[]; model?: string; temperature?: number }) {
+        const chatMsgs = params.messages.map((m) => ({ role: m.role, content: m.content }));
+        const res = await gemini.generateCompletion(chatMsgs, {
+          model: params.model || 'gemini-pro',
+          temperature: params.temperature,
+        });
+        return { content: res.content, metadata: { totalTokens: res.usage.totalTokens } };
+      },
+      async streamCompletion(params: {
+        messages: any[];
+        model?: string;
+        temperature?: number;
+        onToken: (t: string) => void;
+      }) {
+        const chatMsgs = params.messages.map((m) => ({ role: m.role, content: m.content }));
+        const res = await gemini.generateStream(
+          chatMsgs,
+          {
+            model: params.model || 'gemini-pro',
+            temperature: params.temperature,
+          },
+          params.onToken,
+        );
+        return { content: res.content, metadata: { totalTokens: res.usage.totalTokens } };
+      },
+    };
+    this.assistantService = new AssistantService(this.assistantRepository, adapter);
+    this.assistantController = new AssistantController(this.assistantService);
+
+    this.aiService = new AiService(
+      this.assistantService,
+      this.conversationsService,
+      this.memoryService,
+      this.promptLibraryService,
+      this.modelsService,
+      this.embeddingsService,
+      this.ragService,
+      this.streamingService,
+      this.toolsService,
+    );
+    this.aiController = new AiController(this.aiService);
+  }
 }

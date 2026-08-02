@@ -67,6 +67,11 @@ export class AuthController {
    * Redirects user to Google's consent screen.
    */
   public googleAuth(req: Request, res: Response, next: NextFunction): void {
+    if (!env.GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID.trim() === '') {
+      logger.warn('Google OAuth requested but GOOGLE_CLIENT_ID is not configured.');
+      return res.redirect(`${env.FRONTEND_URL}/login?error=google_not_configured`);
+    }
+
     passport.authenticate('google', {
       scope: ['profile', 'email'],
       session: false,

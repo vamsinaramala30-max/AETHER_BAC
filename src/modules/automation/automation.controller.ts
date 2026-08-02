@@ -59,6 +59,20 @@ export class AutomationController {
       next(err);
     }
   }
+
+  public async getLogs(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const search = req.query.search as string;
+      const status = req.query.status as string;
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+
+      const data = await automationService.getLogs({ search, status, page, limit });
+      res.status(200).json({ success: true, ...data });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const automationController = new AutomationController();
