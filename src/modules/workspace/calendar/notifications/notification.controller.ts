@@ -7,12 +7,14 @@ export class NotificationController {
   async getUserNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user.id;
-      const notifications = await this.prisma.eventNotification.findMany({
+      const notifications = await (this.prisma as any).eventNotification.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: 50,
       });
       res.status(200).json({ data: notifications });
-    } catch (err) { next(err); }
+    } catch (err) {
+      next(err);
+    }
   }
 }

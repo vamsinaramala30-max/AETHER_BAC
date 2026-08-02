@@ -50,3 +50,13 @@ export interface CalendarWithRole {
   timeZone: string;
   role: CalendarRole;
 }
+
+export interface ExpandedEvent {
+  id: string;
+  title: string;
+  description?: string;
+  location?: string;
+  start: Date | string;
+  end: Date | string;
+  [key: string]: any;
+}

@@ -4,7 +4,7 @@ export class SearchService {
   constructor(private prisma: PrismaClient) {}
 
   async searchEvents(userId: string, query: string, limit = 20) {
-    return this.prisma.event.findMany({
+    return (this.prisma as any).event.findMany({
       where: {
         calendar: { members: { some: { userId } } },
         OR: [

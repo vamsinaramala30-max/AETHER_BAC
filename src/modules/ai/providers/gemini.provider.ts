@@ -1,10 +1,26 @@
-import { IAiProvider, ChatMessage, CompletionOptions, ProviderResponse } from './provider.interface';
+import {
+  IAiProvider,
+  ChatMessage,
+  CompletionOptions,
+  ProviderResponse,
+} from './provider.interface';
 
 export class GeminiProvider implements IAiProvider {
   public id = 'gemini';
   public name = 'Google Gemini Provider';
 
-  public async generateCompletion(messages: ChatMessage[], options: CompletionOptions): Promise<ProviderResponse> {
+  public async generateText(
+    prompt: string,
+    options?: { systemInstruction?: string; model?: string },
+  ): Promise<string> {
+    const model = options?.model || 'gemini-pro';
+    return `[Gemini ${model}] Response to: ${prompt.slice(0, 80)}...`;
+  }
+
+  public async generateCompletion(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+  ): Promise<ProviderResponse> {
     const content = `[Gemini ${options.model}] Generated multi-modal context response.`;
     return {
       content,
@@ -13,7 +29,11 @@ export class GeminiProvider implements IAiProvider {
     };
   }
 
-  public async generateStream(messages: ChatMessage[], options: CompletionOptions, onChunk: (chunk: string) => void): Promise<ProviderResponse> {
+  public async generateStream(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+    onChunk: (chunk: string) => void,
+  ): Promise<ProviderResponse> {
     const fullText = `[Gemini ${options.model}] Multi-modal streaming response complete.`;
     const chunks = fullText.split(' ');
     for (const chunk of chunks) {

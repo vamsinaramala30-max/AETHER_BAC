@@ -5,7 +5,7 @@ import { GenerateEmbeddingDto, VectorSearchDto } from './embedding.dto';
 export class EmbeddingsService {
   constructor(
     private providerFactory: ProviderFactory,
-    private vectorRepo: VectorRepository
+    private vectorRepo: VectorRepository,
   ) {}
 
   public async createEmbeddings(dto: GenerateEmbeddingDto) {

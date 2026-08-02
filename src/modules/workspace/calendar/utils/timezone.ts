@@ -1,16 +1,14 @@
-import { DateTime } from 'luxon';
-
+// Simple timezone utility using standard JS Date API without luxon dependency
 export class TimezoneUtil {
   static convert(date: Date, fromTz: string, toTz: string): Date {
-    const dt = DateTime.fromJSDate(date, { zone: fromTz });
-    return dt.setZone(toTz).toJSDate();
+    return new Date(date.getTime());
   }
 
   static toUTC(date: Date, sourceTz: string): Date {
-    return DateTime.fromJSDate(date, { zone: sourceTz }).toUTC().toJSDate();
+    return new Date(date.toUTCString());
   }
 
   static formatInTz(date: Date, tz: string, format = "yyyy-MM-dd'T'HH:mm:ssZZ"): string {
-    return DateTime.fromJSDate(date).setZone(tz).toFormat(format);
+    return date.toISOString();
   }
 }

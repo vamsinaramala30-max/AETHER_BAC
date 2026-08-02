@@ -39,7 +39,10 @@ export class AssistantRepository {
     return conv;
   }
 
-  async listConversations(userId: string, params: PaginationParams): Promise<PaginatedResult<Conversation>> {
+  async listConversations(
+    userId: string,
+    params: PaginationParams,
+  ): Promise<PaginatedResult<Conversation>> {
     const userConvs = Array.from(this.conversations.values())
       .filter((c) => c.userId === userId && !c.metadata.isArchived)
       .sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
@@ -52,7 +55,9 @@ export class AssistantRepository {
     return { data, total, page: params.page, limit: params.limit, totalPages };
   }
 
-  async searchConversations(params: ConversationSearchParams): Promise<PaginatedResult<Conversation>> {
+  async searchConversations(
+    params: ConversationSearchParams,
+  ): Promise<PaginatedResult<Conversation>> {
     const queryLower = params.query.toLowerCase();
     const filtered = Array.from(this.conversations.values()).filter((c) => {
       if (c.userId !== params.userId) return false;
@@ -68,7 +73,11 @@ export class AssistantRepository {
     return { data, total, page: params.page, limit: params.limit, totalPages };
   }
 
-  async updateConversation(id: string, userId: string, dto: UpdateConversationDto): Promise<Conversation | null> {
+  async updateConversation(
+    id: string,
+    userId: string,
+    dto: UpdateConversationDto,
+  ): Promise<Conversation | null> {
     const conv = await this.findConversationById(id, userId);
     if (!conv) return null;
 
@@ -132,7 +141,7 @@ export class AssistantRepository {
   async listMessagesByConversation(
     conversationId: string,
     userId: string,
-    params: PaginationParams
+    params: PaginationParams,
   ): Promise<PaginatedResult<Message>> {
     const convMessages = Array.from(this.messages.values())
       .filter((m) => m.conversationId === conversationId && m.userId === userId)
@@ -146,7 +155,12 @@ export class AssistantRepository {
     return { data, total, page: params.page, limit: params.limit, totalPages };
   }
 
-  async updateMessageStatus(id: string, status: MessageStatus, content?: string, metadata?: Record<string, unknown>): Promise<Message | null> {
+  async updateMessageStatus(
+    id: string,
+    status: MessageStatus,
+    content?: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<Message | null> {
     const msg = this.messages.get(id);
     if (!msg) return null;
 

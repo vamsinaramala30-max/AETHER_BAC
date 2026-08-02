@@ -26,7 +26,7 @@ export class AiRepository {
   public async paginate<T>(
     collectionName: string,
     filterFn: (item: T) => boolean = () => true,
-    params: PaginationParams = {}
+    params: PaginationParams = {},
   ): Promise<PaginatedResult<T>> {
     const collection = this.getCollection<T>(collectionName);
     const page = Math.max(1, params.page || 1);
@@ -54,7 +54,9 @@ export class AiRepository {
 
   public async getAnalyticsMetrics(workspaceId?: string): Promise<Record<string, number>> {
     const conversations = Array.from(this.getCollection<any>('conversations').values());
-    const filtered = workspaceId ? conversations.filter((c) => c.workspaceId === workspaceId) : conversations;
+    const filtered = workspaceId
+      ? conversations.filter((c) => c.workspaceId === workspaceId)
+      : conversations;
 
     return {
       totalConversations: filtered.length,

@@ -21,14 +21,30 @@ export const KNOWLEDGE_ROUTES: RouteDefinition[] = [
   { method: 'POST', path: '/knowledge/documents', handler: 'documentsController.create' },
   { method: 'GET', path: '/knowledge/documents', handler: 'documentsController.list' },
   { method: 'GET', path: '/knowledge/documents/:id', handler: 'documentsController.findOne' },
-  { method: 'POST', path: '/knowledge/documents/:id/extract', handler: 'documentsController.extractInfo' },
+  {
+    method: 'POST',
+    path: '/knowledge/documents/:id/extract',
+    handler: 'documentsController.extractInfo',
+  },
 
   // Knowledge Base
-  { method: 'POST', path: '/knowledge/collections', handler: 'knowledgeBaseController.createCollection' },
+  {
+    method: 'POST',
+    path: '/knowledge/collections',
+    handler: 'knowledgeBaseController.createCollection',
+  },
   { method: 'POST', path: '/knowledge/articles', handler: 'knowledgeBaseController.createArticle' },
 
   // Search & Indexing & Uploads
   { method: 'POST', path: '/knowledge/search', handler: 'searchController.executeSearch' },
-  { method: 'POST', path: '/knowledge/uploads/prepare', handler: 'uploadsController.prepareUpload' },
-  { method: 'POST', path: '/knowledge/indexing/trigger', handler: 'indexingController.triggerIndex' },
+  {
+    method: 'POST',
+    path: '/knowledge/uploads/prepare',
+    handler: 'uploadsController.prepareUpload',
+  },
+  {
+    method: 'POST',
+    path: '/knowledge/indexing/trigger',
+    handler: 'indexingController.triggerIndex',
+  },
 ];

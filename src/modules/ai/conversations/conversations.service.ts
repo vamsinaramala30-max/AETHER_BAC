@@ -1,5 +1,9 @@
 import { ConversationsRepository } from './conversations.repository';
-import { CreateConversationDto, UpdateConversationDto, QueryConversationDto } from './conversations.dto';
+import {
+  CreateConversationDto,
+  UpdateConversationDto,
+  QueryConversationDto,
+} from './conversations.dto';
 import { ConversationEntity } from './conversations.entity';
 
 export class ConversationsService {
@@ -22,7 +26,10 @@ export class ConversationsService {
     return conv;
   }
 
-  public async updateConversation(id: string, dto: UpdateConversationDto): Promise<ConversationEntity> {
+  public async updateConversation(
+    id: string,
+    dto: UpdateConversationDto,
+  ): Promise<ConversationEntity> {
     const updated = await this.repository.update(id, dto);
     if (!updated) throw new Error('Conversation not found');
     return updated;
@@ -35,10 +42,11 @@ export class ConversationsService {
         if (item.userId !== userId) return false;
         if (query.isArchived !== undefined && item.isArchived !== query.isArchived) return false;
         if (query.isPinned !== undefined && item.isPinned !== query.isPinned) return false;
-        if (query.search && !item.title.toLowerCase().includes(query.search.toLowerCase())) return false;
+        if (query.search && !item.title.toLowerCase().includes(query.search.toLowerCase()))
+          return false;
         return true;
       },
-      { page: query.page, limit: query.limit, sortBy: 'updatedAt', sortOrder: 'desc' }
+      { page: query.page, limit: query.limit, sortBy: 'updatedAt', sortOrder: 'desc' },
     );
   }
 

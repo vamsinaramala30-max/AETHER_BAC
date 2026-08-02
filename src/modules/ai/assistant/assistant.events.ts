@@ -25,7 +25,11 @@ export class AssistantEventEmitter extends EventEmitter {
   }
 
   emitMessageFailed(messageId: string, error: string): void {
-    this.emit(ASSISTANT_CONSTANTS.EVENTS.MESSAGE_FAILED, { messageId, error, timestamp: new Date() });
+    this.emit(ASSISTANT_CONSTANTS.EVENTS.MESSAGE_FAILED, {
+      messageId,
+      error,
+      timestamp: new Date(),
+    });
   }
 }
 

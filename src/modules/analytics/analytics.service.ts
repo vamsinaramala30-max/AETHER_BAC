@@ -14,19 +14,31 @@ import { DashboardAnalyticsResponse } from './dto/DashboardAnalyticsDto';
 export class AnalyticsService {
   constructor(private readonly repository: AnalyticsRepository) {}
 
-  public resolveDateRange(preset?: AnalyticsPreset, startDate?: string, endDate?: string): DateRangeFilter {
+  public resolveDateRange(
+    preset?: AnalyticsPreset,
+    startDate?: string,
+    endDate?: string,
+  ): DateRangeFilter {
     const end = endDate ? new Date(endDate) : new Date();
     let start = startDate ? new Date(startDate) : new Date();
 
     if (!startDate) {
-      const days = preset === AnalyticsPreset.NINETY_DAYS ? 90 : preset === AnalyticsPreset.THIRTY_DAYS ? 30 : 7;
+      const days =
+        preset === AnalyticsPreset.NINETY_DAYS
+          ? 90
+          : preset === AnalyticsPreset.THIRTY_DAYS
+            ? 30
+            : 7;
       start.setDate(end.getDate() - days);
     }
 
     return { startDate: start, endDate: end, preset: preset || AnalyticsPreset.SEVEN_DAYS };
   }
 
-  public async getDashboardAnalytics(userId: string, rangeFilter: DateRangeFilter): Promise<DashboardAnalyticsResponse> {
+  public async getDashboardAnalytics(
+    userId: string,
+    rangeFilter: DateRangeFilter,
+  ): Promise<DashboardAnalyticsResponse> {
     const rawMetrics = await this.repository.getRawMetrics(userId, rangeFilter);
     const scores = AnalyticsCalculator.calculateScores(rawMetrics);
     const timeDistribution = AnalyticsCalculator.calculateTimeDistribution(rawMetrics);
@@ -66,7 +78,7 @@ export class AnalyticsService {
     userId: string,
     userEmail: string,
     rangeFilter: DateRangeFilter,
-    format: ExportFormat
+    format: ExportFormat,
   ): Promise<string | object> {
     const rawMetrics = await this.repository.getRawMetrics(userId, rangeFilter);
     const scores = AnalyticsCalculator.calculateScores(rawMetrics);

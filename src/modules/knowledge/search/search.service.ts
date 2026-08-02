@@ -6,8 +6,15 @@ import { SearchType } from '../knowledge.constants';
 export class SearchService {
   constructor(private readonly searchRepository: SearchRepository) {}
 
-  async search(dto: GlobalSearchDto, userId: string): Promise<{ results: SearchResultItem[]; aiAnswer?: string }> {
-    await this.searchRepository.recordSearch(userId, dto.query, dto.searchType || SearchType.HYBRID);
+  async search(
+    dto: GlobalSearchDto,
+    userId: string,
+  ): Promise<{ results: SearchResultItem[]; aiAnswer?: string }> {
+    await this.searchRepository.recordSearch(
+      userId,
+      dto.query,
+      dto.searchType || SearchType.HYBRID,
+    );
 
     const mockResults: SearchResultItem[] = [
       {

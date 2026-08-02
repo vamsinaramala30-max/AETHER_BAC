@@ -8,7 +8,16 @@ export class AnalyticsRepository {
     const { startDate, endDate } = range;
     const scopedUserId = this.isUuid(userId) ? userId : undefined;
 
-    const [projects, conversations, messages, notifications, files, auditLogs, sessions, tokenAggregation] = await Promise.all([
+    const [
+      projects,
+      conversations,
+      messages,
+      notifications,
+      files,
+      auditLogs,
+      sessions,
+      tokenAggregation,
+    ] = await Promise.all([
       this.prisma.project.count({
         where: scopedUserId
           ? {
@@ -141,8 +150,11 @@ export class AnalyticsRepository {
 
     return projects.map((project) => {
       const totalMilestones = project.conversations.length;
-      const completedMilestones = project.conversations.filter((conversation) => conversation.deletedAt !== null).length;
-      const progress = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
+      const completedMilestones = project.conversations.filter(
+        (conversation) => conversation.deletedAt !== null,
+      ).length;
+      const progress =
+        totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
 
       return {
         id: project.id,
@@ -156,7 +168,10 @@ export class AnalyticsRepository {
     });
   }
 
-  public async getDailyTaskAggregates(userId: string, days: number): Promise<Array<{ date: string; completed: number; pending: number }>> {
+  public async getDailyTaskAggregates(
+    userId: string,
+    days: number,
+  ): Promise<Array<{ date: string; completed: number; pending: number }>> {
     const result: Array<{ date: string; completed: number; pending: number }> = [];
     const scopedUserId = this.isUuid(userId) ? userId : undefined;
 
@@ -203,7 +218,8 @@ export class AnalyticsRepository {
   }
 
   private isUuid(value: string): boolean {
-    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const uuidPattern =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     return uuidPattern.test(value);
   }
 }

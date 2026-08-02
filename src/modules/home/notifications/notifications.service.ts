@@ -5,7 +5,10 @@ export class NotificationsService {
   constructor(private readonly repository: NotificationsRepository) {}
 
   async getNotifications(userId: string, limit: number): Promise<NotificationsEntity> {
-    const { notifications, unreadCount } = await this.repository.getUserNotifications(userId, limit);
+    const { notifications, unreadCount } = await this.repository.getUserNotifications(
+      userId,
+      limit,
+    );
     return {
       notifications: notifications.map((n) => ({
         id: n.id,

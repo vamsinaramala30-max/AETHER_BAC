@@ -4,7 +4,7 @@
 
 import { TaskEntity } from './tasks.entity';
 import { TaskFilterDTO } from './tasks.dto';
-import { PaginatedResult } from '../projects/projects.repository';
+import { PaginatedResult } from '../projects.repository';
 
 export class TasksRepository {
   private tasks: Map<string, TaskEntity> = new Map();
@@ -34,7 +34,11 @@ export class TasksRepository {
     }
     if (filter.search) {
       const q = filter.search.toLowerCase();
-      items = items.filter((t) => t.title.toLowerCase().includes(q) || (t.description && t.description.toLowerCase().includes(q)));
+      items = items.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          (t.description && t.description.toLowerCase().includes(q)),
+      );
     }
 
     const page = Math.max(1, filter.page || 1);

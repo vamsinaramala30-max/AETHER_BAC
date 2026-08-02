@@ -5,7 +5,9 @@ export class NotesRepository {
   private notesMap = new Map<string, NoteEntity>();
   private versionsMap = new Map<string, NoteVersion[]>();
 
-  async create(note: Omit<NoteEntity, 'id' | 'createdAt' | 'updatedAt' | 'version'>): Promise<NoteEntity> {
+  async create(
+    note: Omit<NoteEntity, 'id' | 'createdAt' | 'updatedAt' | 'version'>,
+  ): Promise<NoteEntity> {
     const id = `note_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const now = new Date();
     const newNote: NoteEntity = {
@@ -24,7 +26,11 @@ export class NotesRepository {
     return this.notesMap.get(id) || null;
   }
 
-  async update(id: string, updates: Partial<NoteEntity>, userId: string): Promise<NoteEntity | null> {
+  async update(
+    id: string,
+    updates: Partial<NoteEntity>,
+    userId: string,
+  ): Promise<NoteEntity | null> {
     const existing = this.notesMap.get(id);
     if (!existing) return null;
 
@@ -45,21 +51,29 @@ export class NotesRepository {
     return this.notesMap.delete(id);
   }
 
-  async findAll(query: QueryNotesDto, userId: string): Promise<{ data: NoteEntity[]; total: number }> {
+  async findAll(
+    query: QueryNotesDto,
+    userId: string,
+  ): Promise<{ data: NoteEntity[]; total: number }> {
     let results = Array.from(this.notesMap.values()).filter(
-      (n) => n.ownerId === userId || n.sharedWithUserIds.includes(userId)
+      (n) => n.ownerId === userId || n.sharedWithUserIds.includes(userId),
     );
 
     if (query.category) results = results.filter((n) => n.category === query.category);
-    if (query.isFavorite !== undefined) results = results.filter((n) => n.isFavorite === query.isFavorite);
-    if (query.isArchived !== undefined) results = results.filter((n) => n.isArchived === query.isArchived);
-    if (query.isPinned !== undefined) results = results.filter((n) => n.isPinned === query.isPinned);
+    if (query.isFavorite !== undefined)
+      results = results.filter((n) => n.isFavorite === query.isFavorite);
+    if (query.isArchived !== undefined)
+      results = results.filter((n) => n.isArchived === query.isArchived);
+    if (query.isPinned !== undefined)
+      results = results.filter((n) => n.isPinned === query.isPinned);
     if (query.tags && query.tags.length > 0) {
       results = results.filter((n) => query.tags!.some((t) => n.tags.includes(t)));
     }
     if (query.search) {
       const q = query.search.toLowerCase();
-      results = results.filter((n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q));
+      results = results.filter(
+        (n) => n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q),
+      );
     }
 
     const total = results.length;

@@ -11,9 +11,17 @@ router.get('/overview', analyticsValidators.getAnalytics, analyticsController.ge
 router.get('/usage', analyticsValidators.getAnalytics, analyticsController.getUsageMetrics);
 router.get('/dashboard', analyticsValidators.getAnalytics, analyticsController.getDashboard);
 router.get('/export', analyticsValidators.exportAnalytics, analyticsController.exportAnalytics);
-router.get('/productivity', analyticsValidators.productivityQuery, analyticsController.getDashboard);
+router.get(
+  '/productivity',
+  analyticsValidators.productivityQuery,
+  analyticsController.getDashboard,
+);
 router.get('/goals', analyticsValidators.goalAnalyticsQuery, analyticsController.getDashboard);
 router.get('/time', analyticsValidators.timeAnalyticsQuery, analyticsController.getDashboard);
-router.get('/ai-recommendations', analyticsValidators.aiRecommendationQuery, analyticsController.getDashboard);
+router.get(
+  '/ai-recommendations',
+  analyticsValidators.aiRecommendationQuery,
+  analyticsController.getDashboard,
+);
 
 export const analyticsRoutes: Router = router;

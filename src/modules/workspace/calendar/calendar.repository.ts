@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
 export class CalendarRepository {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaClient = new PrismaClient()) {}
 
   async create(data: any): Promise<any> {
     return (this.prisma as any).calendar.create({ data, include: { members: true } });
@@ -19,7 +19,11 @@ export class CalendarRepository {
   }
 
   async update(id: string, data: any): Promise<any> {
-    return (this.prisma as any).calendar.update({ where: { id }, data, include: { members: true } });
+    return (this.prisma as any).calendar.update({
+      where: { id },
+      data,
+      include: { members: true },
+    });
   }
 
   async delete(id: string): Promise<any> {

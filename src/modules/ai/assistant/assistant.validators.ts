@@ -3,10 +3,13 @@ import { AttachmentMetadata, MessageRole } from './assistant.types';
 
 export class AssistantValidator {
   static validatePagination(page?: unknown, limit?: unknown): { page: number; limit: number } {
-    const parsedPage = Math.max(1, parseInt(String(page || ASSISTANT_CONSTANTS.PAGINATION.DEFAULT_PAGE), 10));
+    const parsedPage = Math.max(
+      1,
+      parseInt(String(page || ASSISTANT_CONSTANTS.PAGINATION.DEFAULT_PAGE), 10),
+    );
     const parsedLimit = Math.min(
       ASSISTANT_CONSTANTS.PAGINATION.MAX_LIMIT,
-      Math.max(1, parseInt(String(limit || ASSISTANT_CONSTANTS.PAGINATION.DEFAULT_LIMIT), 10))
+      Math.max(1, parseInt(String(limit || ASSISTANT_CONSTANTS.PAGINATION.DEFAULT_LIMIT), 10)),
     );
 
     return { page: parsedPage, limit: parsedLimit };

@@ -9,4 +9,4 @@ export const MarkNotificationReadSchema = z.object({
 });
 
 export type GetNotificationsQueryDto = z.infer<typeof GetNotificationsQuerySchema>;
-export type MarkNotificationReadDto = z.infer<typeof MarkNotificationReadSchema>;notifications.dto.ts
+export type MarkNotificationReadDto = z.infer<typeof MarkNotificationReadSchema>;

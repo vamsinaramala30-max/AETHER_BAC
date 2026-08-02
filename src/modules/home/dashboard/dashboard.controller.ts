@@ -14,7 +14,10 @@ export class DashboardController {
       return;
     }
 
-    const data = await this.dashboardService.getDashboardSummary(userId as string, query.workspaceId);
+    const data = await this.dashboardService.getDashboardSummary(
+      userId as string,
+      query.workspaceId,
+    );
     res.status(200).json({ success: true, data });
   }
 }

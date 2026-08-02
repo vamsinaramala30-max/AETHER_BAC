@@ -3,7 +3,11 @@
 // ============================================================================
 
 import { StudyPlannerService } from './study-planner.service';
-import { CreateSubjectDTO, CreateStudySessionDTO, StudyPlannerFilterDTO } from './study-planner.dto';
+import {
+  CreateSubjectDTO,
+  CreateStudySessionDTO,
+  StudyPlannerFilterDTO,
+} from './study-planner.dto';
 
 export class StudyPlannerController {
   constructor(private readonly service: StudyPlannerService) {}

@@ -5,7 +5,7 @@ import { ModelEntity } from './model.entity';
 export class ModelsService {
   constructor(
     private registry: ModelRegistryService,
-    private router: ModelRouterService
+    private router: ModelRouterService,
   ) {}
 
   public getAllModels(): ModelEntity[] {
@@ -17,7 +17,11 @@ export class ModelsService {
     return model ? model.capabilities : null;
   }
 
-  public calculateEstimate(modelId: string, promptTokens: number, completionTokens: number): number {
+  public calculateEstimate(
+    modelId: string,
+    promptTokens: number,
+    completionTokens: number,
+  ): number {
     return this.router.estimateCost(modelId, promptTokens, completionTokens);
   }
 }

@@ -4,7 +4,7 @@ import { AssistantUtils } from './assistant.utils';
 export class AssistantTitleGenerator {
   static async generateTitle(
     firstMessageContent: string,
-    aiAdapter?: AIProviderAdapter
+    aiAdapter?: AIProviderAdapter,
   ): Promise<string> {
     if (!aiAdapter) {
       return AssistantUtils.generateTitleFromContent(firstMessageContent);
@@ -15,7 +15,8 @@ export class AssistantTitleGenerator {
         messages: [
           {
             role: 'system' as any,
-            content: 'Summarize the user message in 3 to 6 words to use as a conversation title. Return ONLY the title.',
+            content:
+              'Summarize the user message in 3 to 6 words to use as a conversation title. Return ONLY the title.',
           },
           {
             role: 'user' as any,
@@ -25,7 +26,10 @@ export class AssistantTitleGenerator {
         temperature: 0.3,
       });
 
-      return response.content.trim().replace(/^["']|["']$/g, '') || AssistantUtils.generateTitleFromContent(firstMessageContent);
+      return (
+        response.content.trim().replace(/^["']|["']$/g, '') ||
+        AssistantUtils.generateTitleFromContent(firstMessageContent)
+      );
     } catch {
       return AssistantUtils.generateTitleFromContent(firstMessageContent);
     }

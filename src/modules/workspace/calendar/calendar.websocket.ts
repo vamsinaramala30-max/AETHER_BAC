@@ -1,7 +1,4 @@
-// backend/src/modules/calendar/calendar.websocket.ts
-
 import { Server, Socket } from 'socket.io';
-import { AccessRole } from '@prisma/client';
 import { CalendarRepository } from './calendar.repository';
 
 export interface CalendarEventPayloads {
@@ -51,7 +48,7 @@ export type CalendarSocketEventType = keyof CalendarEventPayloads;
 export class CalendarWebSocket {
   constructor(
     private io: Server,
-    private calendarRepository: CalendarRepository
+    private calendarRepository: CalendarRepository,
   ) {
     this.registerSocketHandlers();
   }
@@ -74,37 +71,43 @@ export class CalendarWebSocket {
       /**
        * Room Subscription Handler with RBAC Verification
        */
-      socket.on('subscribe:calendar', async (calendarId: string, ack?: (res: { success: boolean; error?: string }) => void) => {
-        try {
-          if (!calendarId || typeof calendarId !== 'string') {
-            if (ack) ack({ success: false, error: 'INVALID_CALENDAR_ID' });
-            return;
+      socket.on(
+        'subscribe:calendar',
+        async (calendarId: string, ack?: (res: { success: boolean; error?: string }) => void) => {
+          try {
+            if (!calendarId || typeof calendarId !== 'string') {
+              if (ack) ack({ success: false, error: 'INVALID_CALENDAR_ID' });
+              return;
+            }
+
+            const role = await this.calendarRepository.getUserRole(calendarId, user.id);
+            if (!role) {
+              if (ack) ack({ success: false, error: 'UNAUTHORIZED_CALENDAR_ACCESS' });
+              return;
+            }
+
+            const room = `calendar:${calendarId}`;
+            socket.join(room);
+
+            if (ack) ack({ success: true });
+          } catch (error: any) {
+            if (ack) ack({ success: false, error: error.message || 'SUBSCRIPTION_FAILED' });
           }
-
-          const role = await this.calendarRepository.getMemberRole(calendarId, user.id);
-          if (!role) {
-            if (ack) ack({ success: false, error: 'UNAUTHORIZED_CALENDAR_ACCESS' });
-            return;
-          }
-
-          const room = `calendar:${calendarId}`;
-          socket.join(room);
-
-          if (ack) ack({ success: true });
-        } catch (error: any) {
-          if (ack) ack({ success: false, error: error.message || 'SUBSCRIPTION_FAILED' });
-        }
-      });
+        },
+      );
 
       /**
        * Room Unsubscription Handler
        */
-      socket.on('unsubscribe:calendar', (calendarId: string, ack?: (res: { success: boolean }) => void) => {
-        if (calendarId && typeof calendarId === 'string') {
-          socket.leave(`calendar:${calendarId}`);
-        }
-        if (ack) ack({ success: true });
-      });
+      socket.on(
+        'unsubscribe:calendar',
+        (calendarId: string, ack?: (res: { success: boolean }) => void) => {
+          if (calendarId && typeof calendarId === 'string') {
+            socket.leave(`calendar:${calendarId}`);
+          }
+          if (ack) ack({ success: true });
+        },
+      );
 
       /**
        * Socket Disconnect
@@ -121,14 +124,14 @@ export class CalendarWebSocket {
   public notifyCalendarUpdate<K extends CalendarSocketEventType>(
     calendarId: string,
     eventType: K,
-    payload: CalendarEventPayloads[K]
+    payload: CalendarEventPayloads[K],
   ): void {
     const room = `calendar:${calendarId}`;
     this.io.to(room).emit(eventType, {
       eventType,
       calendarId,
       timestamp: new Date().toISOString(),
-      data: payload
+      data: payload,
     });
   }
 
@@ -138,14 +141,14 @@ export class CalendarWebSocket {
   public notifyUser<K extends CalendarSocketEventType>(
     userId: string,
     eventType: K,
-    payload: CalendarEventPayloads[K]
+    payload: CalendarEventPayloads[K],
   ): void {
     const room = `user:${userId}`;
     this.io.to(room).emit(eventType, {
       eventType,
       userId,
       timestamp: new Date().toISOString(),
-      data: payload
+      data: payload,
     });
   }
 
@@ -155,7 +158,7 @@ export class CalendarWebSocket {
   public notifyUsers<K extends CalendarSocketEventType>(
     userIds: string[],
     eventType: K,
-    payload: CalendarEventPayloads[K]
+    payload: CalendarEventPayloads[K],
   ): void {
     for (const userId of userIds) {
       this.notifyUser(userId, eventType, payload);

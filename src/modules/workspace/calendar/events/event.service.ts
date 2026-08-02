@@ -4,12 +4,19 @@ import { CreateEventDTO, UpdateEventDTO } from '../calendar.dto';
 import { RecurrenceExpansionEngine } from './recurrence.engine';
 import { ConflictDetector } from '../utils/conflict';
 import { CalendarEventBus, CALENDAR_EVENTS } from '../calendar.events';
-import { ParticipantStatus } from '@prisma/client';
+
+// ParticipantStatus is not in main Prisma schema — define locally
+const ParticipantStatus = {
+  ACCEPTED: 'ACCEPTED',
+  DECLINED: 'DECLINED',
+  NEEDS_ACTION: 'NEEDS_ACTION',
+  TENTATIVE: 'TENTATIVE',
+} as const;
 
 export class EventService {
   constructor(
     private eventRepo: EventRepository,
-    private calendarRepo: CalendarRepository
+    private calendarRepo: CalendarRepository,
   ) {}
 
   async createEvent(userId: string, dto: CreateEventDTO) {
@@ -24,7 +31,7 @@ export class EventService {
     const existingEvents = await this.eventRepo.findInWindow([dto.calendarId], start, end);
     const conflicts = ConflictDetector.findCollisions(
       { startTime: start, endTime: end },
-      existingEvents.map(e => ({ startTime: e.startTime, endTime: e.endTime }))
+      existingEvents.map((e: any) => ({ startTime: e.startTime, endTime: e.endTime })),
     );
 
     if (conflicts.length > 0) {
@@ -102,7 +109,7 @@ export class EventService {
     return deleted;
   }
 
-  async respondToInvitation(userId: string, eventId: string, status: ParticipantStatus) {
+  async respondToInvitation(userId: string, eventId: string, status: string) {
     await this.eventRepo.updateParticipantStatus(eventId, userId, status);
     CalendarEventBus.emit(CALENDAR_EVENTS.INVITATION_ACCEPTED, {
       userId,

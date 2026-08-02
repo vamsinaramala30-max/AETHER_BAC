@@ -2,11 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { ASSISTANT_CONSTANTS } from './assistant.constants';
 
 export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    roles?: string[];
-    workspaceId?: string;
-  };
+  user?: any;
 }
 
 export class AssistantMiddleware {
@@ -26,7 +22,9 @@ export class AssistantMiddleware {
     next();
   }
 
-  public static authorize(rolesAllowed: string[] = []): (req: AuthenticatedRequest, res: Response, next: NextFunction) => void {
+  public static authorize(
+    rolesAllowed: string[] = [],
+  ): (req: AuthenticatedRequest, res: Response, next: NextFunction) => void {
     return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
       if (!req.user) {
         res.status(401).json({ error: ASSISTANT_CONSTANTS.ERRORS.UNAUTHORIZED_ACCESS });
@@ -46,7 +44,11 @@ export class AssistantMiddleware {
     };
   }
 
-  public static rateLimiterHook(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  public static rateLimiterHook(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction,
+  ): void {
     // Production Rate Limiting Integration Hook
     next();
   }

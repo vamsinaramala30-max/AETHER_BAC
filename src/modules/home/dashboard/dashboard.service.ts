@@ -6,7 +6,7 @@ export class DashboardService {
 
   async getDashboardSummary(userId: string, workspaceId: string): Promise<DashboardEntity> {
     const stats = await this.dashboardRepository.getMetrics(userId, workspaceId);
-    
+
     const currentHour = new Date().getHours();
     let greeting = 'Good day';
     if (currentHour < 12) greeting = 'Good morning';

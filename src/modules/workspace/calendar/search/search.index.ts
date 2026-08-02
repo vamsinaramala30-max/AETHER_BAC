@@ -23,7 +23,11 @@ export class EventSearchIndex {
 
     for (const doc of this.docs.values()) {
       if (calendarIds.includes(doc.calendarId)) {
-        if (doc.title.toLowerCase().includes(q) || doc.description?.toLowerCase().includes(q) || doc.location?.toLowerCase().includes(q)) {
+        if (
+          doc.title.toLowerCase().includes(q) ||
+          doc.description?.toLowerCase().includes(q) ||
+          doc.location?.toLowerCase().includes(q)
+        ) {
           results.push(doc);
         }
       }

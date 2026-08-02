@@ -30,7 +30,7 @@ export class AssistantPromptBuilder {
     this.contextMemory = await AssistantMemoryManager.getInstance().buildMemoryContextPrompt(
       userId,
       this.userQuery,
-      workspaceId
+      workspaceId,
     );
     return this;
   }

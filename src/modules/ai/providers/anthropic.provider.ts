@@ -1,10 +1,18 @@
-import { IAiProvider, ChatMessage, CompletionOptions, ProviderResponse } from './provider.interface';
+import {
+  IAiProvider,
+  ChatMessage,
+  CompletionOptions,
+  ProviderResponse,
+} from './provider.interface';
 
 export class AnthropicProvider implements IAiProvider {
   public id = 'anthropic';
   public name = 'Anthropic Provider';
 
-  public async generateCompletion(messages: ChatMessage[], options: CompletionOptions): Promise<ProviderResponse> {
+  public async generateCompletion(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+  ): Promise<ProviderResponse> {
     const content = `[Anthropic ${options.model}] Structured analytical response generated.`;
     return {
       content,
@@ -13,7 +21,11 @@ export class AnthropicProvider implements IAiProvider {
     };
   }
 
-  public async generateStream(messages: ChatMessage[], options: CompletionOptions, onChunk: (chunk: string) => void): Promise<ProviderResponse> {
+  public async generateStream(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+    onChunk: (chunk: string) => void,
+  ): Promise<ProviderResponse> {
     const fullText = `[Anthropic ${options.model}] Streaming response text block.`;
     const tokens = fullText.split(' ');
     for (const token of tokens) {

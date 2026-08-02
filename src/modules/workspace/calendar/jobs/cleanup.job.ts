@@ -5,7 +5,7 @@ export class CleanupJob {
 
   async run(): Promise<void> {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    await this.prisma.eventNotification.deleteMany({
+    await (this.prisma as any).eventNotification.deleteMany({
       where: { isRead: true, createdAt: { lt: thirtyDaysAgo } },
     });
   }

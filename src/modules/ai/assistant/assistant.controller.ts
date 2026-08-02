@@ -61,7 +61,11 @@ export class AssistantController {
   public getMessages = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const pagination = AssistantValidator.validatePagination(req.query.page, req.query.limit);
-      const result = await this.service.getMessages(req.params.conversationId, req.user!.id, pagination);
+      const result = await this.service.getMessages(
+        req.params.conversationId,
+        req.user!.id,
+        pagination,
+      );
       res.status(200).json(result);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -102,7 +106,7 @@ export class AssistantController {
           userId: req.user!.id,
           workspaceId: req.user!.workspaceId,
         },
-        controller.signal
+        controller.signal,
       );
 
       res.status(200).json(message);
@@ -126,7 +130,7 @@ export class AssistantController {
           workspaceId: req.user!.workspaceId,
         },
         streamHandler,
-        controller.signal
+        controller.signal,
       );
     } catch (error: any) {
       if (!res.headersSent) {
@@ -145,7 +149,7 @@ export class AssistantController {
           ...req.body,
           userId: req.user!.id,
         },
-        controller.signal
+        controller.signal,
       );
 
       res.status(200).json(message);

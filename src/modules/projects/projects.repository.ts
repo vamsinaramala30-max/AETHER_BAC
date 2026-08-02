@@ -47,7 +47,11 @@ export class ProjectsRepository {
     }
     if (filter.search) {
       const q = filter.search.toLowerCase();
-      items = items.filter((p) => p.name.toLowerCase().includes(q) || (p.description && p.description.toLowerCase().includes(q)));
+      items = items.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          (p.description && p.description.toLowerCase().includes(q)),
+      );
     }
     if (filter.tags && filter.tags.length > 0) {
       items = items.filter((p) => filter.tags?.some((t) => p.tags.includes(t)));

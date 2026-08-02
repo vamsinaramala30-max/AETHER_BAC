@@ -39,4 +39,13 @@ export class CalendarService {
     }
     return this.calendarRepo.delete(calendarId);
   }
+
+  async getEvents(params: {
+    workspaceId?: string;
+    userId?: string;
+    limit?: number;
+  }): Promise<{ data: any[] }> {
+    // Stub: returns empty events list; real implementation would query events by workspaceId
+    return { data: [] };
+  }
 }

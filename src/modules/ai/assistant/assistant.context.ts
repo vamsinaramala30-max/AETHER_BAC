@@ -5,8 +5,9 @@ import { AssistantUtils } from './assistant.utils';
 export class AssistantContextManager {
   public static trimContextWindow(
     messages: Message[],
-    maxTokens: number = ASSISTANT_CONSTANTS.CONTEXT.MAX_TOKEN_WINDOW - ASSISTANT_CONSTANTS.CONTEXT.RESERVED_COMPLETION_TOKENS,
-    systemPrompt?: string
+    maxTokens: number = ASSISTANT_CONSTANTS.CONTEXT.MAX_TOKEN_WINDOW -
+      ASSISTANT_CONSTANTS.CONTEXT.RESERVED_COMPLETION_TOKENS,
+    systemPrompt?: string,
   ): { role: MessageRole; content: string }[] {
     const formattedMessages: { role: MessageRole; content: string }[] = [];
     let currentTokens = 0;

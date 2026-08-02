@@ -1,17 +1,17 @@
 import { FileActivityType } from '../workspace.constants';
 
 export class TrackFileAccessDto {
-  workspaceId: string;
-  fileId: string;
-  fileName: string;
-  fileUrl: string;
-  mimeType: string;
-  sizeBytes: number;
-  activityType: FileActivityType;
+  declare workspaceId: string;
+  declare fileId: string;
+  declare fileName: string;
+  declare fileUrl: string;
+  declare mimeType: string;
+  declare sizeBytes: number;
+  declare activityType: FileActivityType;
 }
 
 export class QueryRecentFilesDto {
-  workspaceId: string;
+  declare workspaceId: string;
   search?: string;
   mimeType?: string;
   page?: number;

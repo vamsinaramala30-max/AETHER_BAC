@@ -21,7 +21,7 @@ export * from './productivity-hub/productivity.repository';
 export * from './productivity-hub/productivity.service';
 export * from './productivity-hub/productivity.controller';
 
-// Focus Sub-module     
+// Focus Sub-module
 export * from './focus/focus.entity';
 export * from './focus/focus.dto';
 export * from './focus/focus.repository';

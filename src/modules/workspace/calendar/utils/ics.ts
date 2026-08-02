@@ -8,7 +8,7 @@ export class ICSExporter {
       'BEGIN:VCALENDAR',
       'VERSION:2.0',
       'PRODID:-//Enterprise Calendar Engine//EN',
-      'CALSCALE:GREGORIAN'
+      'CALSCALE:GREGORIAN',
     ];
 
     for (const evt of events) {
@@ -21,7 +21,7 @@ export class ICSExporter {
         `SUMMARY:${this.escapeText(evt.title)}`,
         `DESCRIPTION:${this.escapeText(evt.description || '')}`,
         `LOCATION:${this.escapeText(evt.location || '')}`,
-        'END:VEVENT'
+        'END:VEVENT',
       );
     }
 

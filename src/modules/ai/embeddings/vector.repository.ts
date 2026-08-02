@@ -4,7 +4,9 @@ import { EmbeddingEntity } from './embedding.entity';
 export class VectorRepository extends AiRepository {
   private collectionName = 'vectors';
 
-  public async insertVector(entity: Omit<EmbeddingEntity, 'id' | 'createdAt'>): Promise<EmbeddingEntity> {
+  public async insertVector(
+    entity: Omit<EmbeddingEntity, 'id' | 'createdAt'>,
+  ): Promise<EmbeddingEntity> {
     const collection = this.getCollection<EmbeddingEntity>(this.collectionName);
     const id = `vec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const item: EmbeddingEntity = { ...entity, id, createdAt: new Date() };
@@ -12,7 +14,10 @@ export class VectorRepository extends AiRepository {
     return item;
   }
 
-  public async similaritySearch(targetVector: number[], topK = 5): Promise<Array<{ item: EmbeddingEntity; score: number }>> {
+  public async similaritySearch(
+    targetVector: number[],
+    topK = 5,
+  ): Promise<Array<{ item: EmbeddingEntity; score: number }>> {
     const collection = this.getCollection<EmbeddingEntity>(this.collectionName);
     const results = Array.from(collection.values()).map((item) => ({
       item,

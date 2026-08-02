@@ -3,6 +3,7 @@
 // ============================================================================
 
 import { ProjectsRepository } from './projects.repository';
+export { ProjectsRepository };
 import { TasksRepository } from './tasks/tasks.repository';
 import { GoalsRepository } from './goals/goals.repository';
 import { StudyPlannerRepository } from './study-planner/study-planner.repository';
@@ -31,9 +32,9 @@ export class ProjectsModuleSharedRepository {
     return {
       totalProjects: projects.total,
       totalTasks: tasks.total,
-      completedTasks: tasks.data.filter((t) => t.isCompleted).length,
+      completedTasks: tasks.data.filter((t: any) => t.isCompleted).length,
       totalGoals: goals.total,
-      completedGoals: goals.data.filter((g) => g.isCompleted).length,
+      completedGoals: goals.data.filter((g: any) => g.isCompleted).length,
     };
   }
 }

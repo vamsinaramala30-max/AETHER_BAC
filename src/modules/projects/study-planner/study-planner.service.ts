@@ -4,7 +4,11 @@
 
 import { StudyPlannerRepository } from './study-planner.repository';
 import { StudySubject, StudySession, StudyStreak } from './study-planner.entity';
-import { CreateSubjectDTO, CreateStudySessionDTO, StudyPlannerFilterDTO } from './study-planner.dto';
+import {
+  CreateSubjectDTO,
+  CreateStudySessionDTO,
+  StudyPlannerFilterDTO,
+} from './study-planner.dto';
 
 export class StudyPlannerService {
   constructor(private readonly repository: StudyPlannerRepository) {}
@@ -41,7 +45,7 @@ export class StudyPlannerService {
     return this.repository.findSessions(
       filter.userId,
       filter.startDate ? new Date(filter.startDate) : undefined,
-      filter.endDate ? new Date(filter.endDate) : undefined
+      filter.endDate ? new Date(filter.endDate) : undefined,
     );
   }
 

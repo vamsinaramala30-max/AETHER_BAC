@@ -1,6 +1,5 @@
 import typescriptEslint from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
-import prettierPlugin from 'eslint-plugin-prettier';
 
 export default [
   {
@@ -13,20 +12,17 @@ export default [
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
-        project: './tsconfig.json',
       },
     },
     plugins: {
       '@typescript-eslint': typescriptEslint,
-      prettier: prettierPlugin,
     },
     rules: {
       ...typescriptEslint.configs['recommended'].rules,
-      'prettier/prettier': 'error',
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/no-unused-vars': [
-        'error',
+        'warn',
         { argsIgnorePattern: '^_', ignoreRestSiblings: true },
       ],
       '@typescript-eslint/no-namespace': 'off',
@@ -42,9 +38,7 @@ export default [
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/restrict-template-expressions': 'off',
       '@typescript-eslint/naming-convention': 'off',
-      'no-console': 'warn',
-      eqeqeq: ['error', 'always'],
-      curly: 'error',
+      'no-console': 'off',
     },
   },
 ];

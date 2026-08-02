@@ -24,7 +24,10 @@ export class FocusService {
     return this.focusRepository.create(userId, session);
   }
 
-  async completeSession(sessionId: string, actualDurationSeconds: number): Promise<FocusSessionEntity> {
+  async completeSession(
+    sessionId: string,
+    actualDurationSeconds: number,
+  ): Promise<FocusSessionEntity> {
     const session = await this.focusRepository.findById(sessionId);
     if (!session) throw new Error(`Focus session ${sessionId} not found`);
 
@@ -53,7 +56,9 @@ export class FocusService {
       totalSessions: completed.length,
       totalFocusMinutes: Math.round(totalSeconds / 60),
       totalDistractions,
-      averageDistractionsPerSession: completed.length ? (totalDistractions / completed.length).toFixed(1) : 0,
+      averageDistractionsPerSession: completed.length
+        ? (totalDistractions / completed.length).toFixed(1)
+        : 0,
     };
   }
 }

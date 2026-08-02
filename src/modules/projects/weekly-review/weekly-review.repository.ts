@@ -12,9 +12,13 @@ export class WeeklyReviewRepository {
     return review ? { ...review } : null;
   }
 
-  async findByUserAndWeek(userId: string, weekNumber: number, year: number): Promise<WeeklyReviewEntity | null> {
+  async findByUserAndWeek(
+    userId: string,
+    weekNumber: number,
+    year: number,
+  ): Promise<WeeklyReviewEntity | null> {
     const item = Array.from(this.reviews.values()).find(
-      (r) => r.userId === userId && r.weekNumber === weekNumber && r.year === year
+      (r) => r.userId === userId && r.weekNumber === weekNumber && r.year === year,
     );
     return item ? { ...item } : null;
   }

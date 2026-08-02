@@ -4,7 +4,10 @@ import { ModelEntity } from './model.entity';
 export class ModelRouterService {
   constructor(private modelRegistry: ModelRegistryService) {}
 
-  public resolveModel(requestedModelId?: string, requirements?: { vision?: boolean; maxTokens?: number }): ModelEntity {
+  public resolveModel(
+    requestedModelId?: string,
+    requirements?: { vision?: boolean; maxTokens?: number },
+  ): ModelEntity {
     if (requestedModelId) {
       const model = this.modelRegistry.getModel(requestedModelId);
       if (model && model.isActive) return model;

@@ -8,7 +8,7 @@ export const UpdateWidgetConfigSchema = z.object({
       title: z.string(),
       enabled: z.boolean(),
       order: z.number(),
-    })
+    }),
   ),
 });
 

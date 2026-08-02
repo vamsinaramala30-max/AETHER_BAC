@@ -26,11 +26,15 @@ import { AssistantUtils } from './assistant.utils';
 export class AssistantService {
   constructor(
     private readonly repository: AssistantRepository,
-    private readonly aiAdapter?: AIProviderAdapter
+    private readonly aiAdapter?: AIProviderAdapter,
   ) {}
 
   async createConversation(dto: CreateConversationDto): Promise<Conversation> {
-    const title = dto.title || (dto.initialMessage ? await AssistantTitleGenerator.generateTitle(dto.initialMessage.content, this.aiAdapter) : 'New Conversation');
+    const title =
+      dto.title ||
+      (dto.initialMessage
+        ? await AssistantTitleGenerator.generateTitle(dto.initialMessage.content, this.aiAdapter)
+        : 'New Conversation');
 
     const conversation = await this.repository.createConversation({
       ...dto,
@@ -57,15 +61,24 @@ export class AssistantService {
     return conversation;
   }
 
-  async listConversations(userId: string, params: PaginationParams): Promise<PaginatedResult<Conversation>> {
+  async listConversations(
+    userId: string,
+    params: PaginationParams,
+  ): Promise<PaginatedResult<Conversation>> {
     return this.repository.listConversations(userId, params);
   }
 
-  async searchConversations(params: ConversationSearchParams): Promise<PaginatedResult<Conversation>> {
+  async searchConversations(
+    params: ConversationSearchParams,
+  ): Promise<PaginatedResult<Conversation>> {
     return this.repository.searchConversations(params);
   }
 
-  async updateConversation(id: string, userId: string, dto: UpdateConversationDto): Promise<Conversation> {
+  async updateConversation(
+    id: string,
+    userId: string,
+    dto: UpdateConversationDto,
+  ): Promise<Conversation> {
     const updated = await this.repository.updateConversation(id, userId, dto);
     if (!updated) throw new Error(ASSISTANT_CONSTANTS.ERRORS.CONVERSATION_NOT_FOUND);
     return updated;
@@ -76,7 +89,11 @@ export class AssistantService {
     if (!deleted) throw new Error(ASSISTANT_CONSTANTS.ERRORS.CONVERSATION_NOT_FOUND);
   }
 
-  async getMessages(conversationId: string, userId: string, params: PaginationParams): Promise<PaginatedResult<Message>> {
+  async getMessages(
+    conversationId: string,
+    userId: string,
+    params: PaginationParams,
+  ): Promise<PaginatedResult<Message>> {
     await this.getConversation(conversationId, userId);
     return this.repository.listMessagesByConversation(conversationId, userId, params);
   }
@@ -85,9 +102,14 @@ export class AssistantService {
     const existing = await this.repository.findMessageById(dto.messageId, dto.userId);
     if (!existing) throw new Error(ASSISTANT_CONSTANTS.ERRORS.MESSAGE_NOT_FOUND);
 
-    const updated = await this.repository.updateMessageStatus(dto.messageId, existing.status, dto.newContent, {
-      editedFromId: dto.messageId,
-    });
+    const updated = await this.repository.updateMessageStatus(
+      dto.messageId,
+      existing.status,
+      dto.newContent,
+      {
+        editedFromId: dto.messageId,
+      },
+    );
 
     return updated!;
   }
@@ -116,8 +138,16 @@ export class AssistantService {
       attachments: dto.attachments,
     });
 
-    const historyResult = await this.repository.listMessagesByConversation(conversationId, dto.userId, { page: 1, limit: 50 });
-    const trimmedHistory = AssistantContextManager.trimContextWindow(historyResult.data, undefined, dto.systemPrompt);
+    const historyResult = await this.repository.listMessagesByConversation(
+      conversationId,
+      dto.userId,
+      { page: 1, limit: 50 },
+    );
+    const trimmedHistory = AssistantContextManager.trimContextWindow(
+      historyResult.data,
+      undefined,
+      dto.systemPrompt,
+    );
 
     const promptBuilder = new AssistantPromptBuilder();
     await promptBuilder.injectLongTermMemory(dto.userId, dto.workspaceId);
@@ -139,9 +169,14 @@ export class AssistantService {
     try {
       if (!this.aiAdapter) {
         const mockContent = `AETHER Mock Response to: "${dto.content}"`;
-        const updated = await this.repository.updateMessageStatus(assistantPlaceholder.id, MessageStatus.COMPLETED, mockContent, {
-          totalTokens: AssistantUtils.estimateTokenCount(mockContent),
-        });
+        const updated = await this.repository.updateMessageStatus(
+          assistantPlaceholder.id,
+          MessageStatus.COMPLETED,
+          mockContent,
+          {
+            totalTokens: AssistantUtils.estimateTokenCount(mockContent),
+          },
+        );
         return updated!;
       }
 
@@ -156,18 +191,24 @@ export class AssistantService {
         assistantPlaceholder.id,
         MessageStatus.COMPLETED,
         response.content,
-        response.metadata
+        response.metadata as unknown as Record<string, unknown>,
       );
 
       assistantEventEmitter.emitMessageCompleted(completedMessage!);
       return completedMessage!;
     } catch (err: any) {
-      await this.repository.updateMessageStatus(assistantPlaceholder.id, MessageStatus.FAILED, '', { error: err.message });
+      await this.repository.updateMessageStatus(assistantPlaceholder.id, MessageStatus.FAILED, '', {
+        error: err.message,
+      });
       throw err;
     }
   }
 
-  async streamChat(dto: ChatRequestDto, streamHandler: AssistantStreamHandler, signal?: AbortSignal): Promise<void> {
+  async streamChat(
+    dto: ChatRequestDto,
+    streamHandler: AssistantStreamHandler,
+    signal?: AbortSignal,
+  ): Promise<void> {
     let conversationId = dto.conversationId;
 
     if (!conversationId) {
@@ -186,8 +227,16 @@ export class AssistantService {
       attachments: dto.attachments,
     });
 
-    const historyResult = await this.repository.listMessagesByConversation(conversationId, dto.userId, { page: 1, limit: 50 });
-    const trimmedHistory = AssistantContextManager.trimContextWindow(historyResult.data, undefined, dto.systemPrompt);
+    const historyResult = await this.repository.listMessagesByConversation(
+      conversationId,
+      dto.userId,
+      { page: 1, limit: 50 },
+    );
+    const trimmedHistory = AssistantContextManager.trimContextWindow(
+      historyResult.data,
+      undefined,
+      dto.systemPrompt,
+    );
 
     const promptBuilder = new AssistantPromptBuilder();
     await promptBuilder.injectLongTermMemory(dto.userId, dto.workspaceId);
@@ -235,22 +284,37 @@ export class AssistantService {
       }
 
       const finalStatus = signal?.aborted ? MessageStatus.CANCELLED : MessageStatus.COMPLETED;
-      const completed = await this.repository.updateMessageStatus(assistantPlaceholder.id, finalStatus, accumulatedText, {
-        totalTokens: AssistantUtils.estimateTokenCount(accumulatedText),
-      });
+      const completed = await this.repository.updateMessageStatus(
+        assistantPlaceholder.id,
+        finalStatus,
+        accumulatedText,
+        {
+          totalTokens: AssistantUtils.estimateTokenCount(accumulatedText),
+        },
+      );
 
       streamHandler.sendTyping(false);
       streamHandler.complete({ messageId: completed?.id, conversationId });
     } catch (err: any) {
-      await this.repository.updateMessageStatus(assistantPlaceholder.id, MessageStatus.FAILED, accumulatedText, { error: err.message });
+      await this.repository.updateMessageStatus(
+        assistantPlaceholder.id,
+        MessageStatus.FAILED,
+        accumulatedText,
+        { error: err.message },
+      );
       streamHandler.sendError(err.message);
       streamHandler.close();
     }
   }
 
   async regenerateResponse(dto: RegenerateRequestDto, signal?: AbortSignal): Promise<Message> {
-    const history = await this.repository.listMessagesByConversation(dto.conversationId, dto.userId, { page: 1, limit: 50 });
-    if (history.data.length === 0) throw new Error(ASSISTANT_CONSTANTS.ERRORS.CONVERSATION_NOT_FOUND);
+    const history = await this.repository.listMessagesByConversation(
+      dto.conversationId,
+      dto.userId,
+      { page: 1, limit: 50 },
+    );
+    if (history.data.length === 0)
+      throw new Error(ASSISTANT_CONSTANTS.ERRORS.CONVERSATION_NOT_FOUND);
 
     const lastUserMsg = [...history.data].reverse().find((m) => m.role === MessageRole.USER);
     if (!lastUserMsg) throw new Error('No user message available to regenerate from');
@@ -264,7 +328,7 @@ export class AssistantService {
         model: dto.model,
         temperature: dto.temperature,
       },
-      signal
+      signal,
     );
   }
 }

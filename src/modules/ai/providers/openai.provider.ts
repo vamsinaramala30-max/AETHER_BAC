@@ -1,10 +1,18 @@
-import { IAiProvider, ChatMessage, CompletionOptions, ProviderResponse } from './provider.interface';
+import {
+  IAiProvider,
+  ChatMessage,
+  CompletionOptions,
+  ProviderResponse,
+} from './provider.interface';
 
 export class OpenAIProvider implements IAiProvider {
   public id = 'openai';
   public name = 'OpenAI Provider';
 
-  public async generateCompletion(messages: ChatMessage[], options: CompletionOptions): Promise<ProviderResponse> {
+  public async generateCompletion(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+  ): Promise<ProviderResponse> {
     const promptText = messages.map((m) => m.content).join(' ');
     const estimatedPrompt = Math.ceil(promptText.length / 4);
     const simulatedResponse = `[OpenAI ${options.model}] Processed request with ${messages.length} messages.`;
@@ -21,7 +29,11 @@ export class OpenAIProvider implements IAiProvider {
     };
   }
 
-  public async generateStream(messages: ChatMessage[], options: CompletionOptions, onChunk: (chunk: string) => void): Promise<ProviderResponse> {
+  public async generateStream(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+    onChunk: (chunk: string) => void,
+  ): Promise<ProviderResponse> {
     const fullText = `[OpenAI ${options.model} Stream] Streamed completion output.`;
     const tokens = fullText.split(' ');
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { workspaceController } from '../modules/workspace/workspace.controller';
+import { WorkspaceModule } from '../modules/workspace/workspace.module';
 import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validation.middleware';
 import {
@@ -7,6 +7,9 @@ import {
   updateWorkspaceSchema,
   addWorkspaceMemberSchema,
 } from '../validators/workspace.validator';
+
+const _workspaceModule = new WorkspaceModule();
+const workspaceController = _workspaceModule.workspaceController;
 
 const router = Router();
 

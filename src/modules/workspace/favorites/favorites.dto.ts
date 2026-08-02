@@ -1,19 +1,19 @@
 import { FavoriteType } from '../workspace.constants';
 
 export class AddFavoriteDto {
-  workspaceId: string;
-  targetId: string;
-  type: FavoriteType;
-  title: string;
+  declare workspaceId: string;
+  declare targetId: string;
+  declare type: FavoriteType;
+  declare title: string;
 }
 
 export class ReorderFavoritesDto {
-  workspaceId: string;
-  orderedIds: string[];
+  declare workspaceId: string;
+  declare orderedIds: string[];
 }
 
 export class QueryFavoritesDto {
-  workspaceId: string;
+  declare workspaceId: string;
   type?: FavoriteType;
   search?: string;
 }

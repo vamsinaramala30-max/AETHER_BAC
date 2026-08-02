@@ -4,7 +4,9 @@ import { MemoryEntity } from './memory.entity';
 export class MemoryRepository extends AiRepository {
   private collectionName = 'memories';
 
-  public async create(data: Omit<MemoryEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<MemoryEntity> {
+  public async create(
+    data: Omit<MemoryEntity, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<MemoryEntity> {
     const collection = this.getCollection<MemoryEntity>(this.collectionName);
     const id = `mem_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const memory: MemoryEntity = {

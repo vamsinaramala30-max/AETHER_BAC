@@ -1,8 +1,11 @@
 import { Router } from 'express';
-import { aiController } from '../modules/ai/ai.controller';
+import { AiModule } from '../modules/ai/ai.module';
 import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { chatSchema, generatePromptSchema } from '../validators/ai.validator';
+
+const _aiModule = new AiModule();
+const aiController = _aiModule.aiController;
 
 const router = Router();
 

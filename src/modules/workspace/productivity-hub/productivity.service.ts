@@ -4,7 +4,11 @@ import { GetProductivityStatsDto, AIProductivityInsightDto } from './productivit
 export class ProductivityService {
   constructor(private readonly repository: ProductivityRepository) {}
 
-  async calculateScore(completedTasks: number, focusTimeMinutes: number, goalProgress: number): Promise<number> {
+  async calculateScore(
+    completedTasks: number,
+    focusTimeMinutes: number,
+    goalProgress: number,
+  ): Promise<number> {
     const taskFactor = Math.min(completedTasks * 10, 40);
     const focusFactor = Math.min((focusTimeMinutes / 120) * 40, 40);
     const goalFactor = Math.min(goalProgress * 0.2, 20);

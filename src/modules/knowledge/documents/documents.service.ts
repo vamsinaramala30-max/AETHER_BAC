@@ -37,7 +37,11 @@ export class DocumentsService {
     return doc;
   }
 
-  async updateDocument(id: string, dto: UpdateDocumentDto, userId: string): Promise<DocumentEntity> {
+  async updateDocument(
+    id: string,
+    dto: UpdateDocumentDto,
+    userId: string,
+  ): Promise<DocumentEntity> {
     await this.getDocument(id, userId);
     const updated = await this.documentsRepository.update(id, dto);
     if (!updated) throw new Error('Failed to update document.');

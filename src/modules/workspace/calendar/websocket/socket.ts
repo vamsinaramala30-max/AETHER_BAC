@@ -25,7 +25,10 @@ export class CalendarWebSocketServer {
       if (!token) return next(new Error('Authentication failed: Missing token'));
 
       try {
-        const decoded = jwt.verify(token as string, process.env.JWT_SECRET || 'fallback-secret') as any;
+        const decoded = jwt.verify(
+          token as string,
+          process.env.JWT_SECRET || 'fallback-secret',
+        ) as any;
         socket.data.user = decoded;
         next();
       } catch (err) {
@@ -56,13 +59,16 @@ export class CalendarWebSocketServer {
 
   private bindDomainEvents(): void {
     Object.values(CALENDAR_EVENTS).forEach((eventName) => {
-      CalendarEventBus.on(eventName, (payload: { calendarId?: string; userId?: string; data: any }) => {
-        if (payload.calendarId) {
-          this.io.to(`calendar:${payload.calendarId}`).emit(eventName, payload.data);
-        } else if (payload.userId) {
-          this.io.to(`user:${payload.userId}`).emit(eventName, payload.data);
-        }
-      });
+      CalendarEventBus.on(
+        eventName,
+        (payload: { calendarId?: string; userId?: string; data: any }) => {
+          if (payload.calendarId) {
+            this.io.to(`calendar:${payload.calendarId}`).emit(eventName, payload.data);
+          } else if (payload.userId) {
+            this.io.to(`user:${payload.userId}`).emit(eventName, payload.data);
+          }
+        },
+      );
     });
   }
 }

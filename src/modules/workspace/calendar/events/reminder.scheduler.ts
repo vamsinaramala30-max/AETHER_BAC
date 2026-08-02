@@ -2,13 +2,16 @@ import { PrismaClient } from '@prisma/client';
 import { NotificationService } from './notification.service';
 
 export class ReminderScheduler {
-  constructor(private prisma: PrismaClient, private notificationService: NotificationService) {}
+  constructor(
+    private prisma: PrismaClient,
+    private notificationService: NotificationService,
+  ) {}
 
   async evaluatePendingReminders(): Promise<void> {
     const now = new Date();
     const lookahead = new Date(now.getTime() + 15 * 60 * 1000);
 
-    const events = await this.prisma.event.findMany({
+    const events = await (this.prisma as any).event.findMany({
       where: {
         startTime: { gte: now, lte: lookahead },
         reminders: { some: {} },
@@ -24,7 +27,7 @@ export class ReminderScheduler {
             await this.notificationService.dispatchInAppNotification(
               participant.userId,
               event.id,
-              `Upcoming Event: "${event.title}" starts in ${reminder.minutes} minutes.`
+              `Upcoming Event: "${event.title}" starts in ${reminder.minutes} minutes.`,
             );
           }
         }

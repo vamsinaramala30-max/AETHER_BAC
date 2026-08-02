@@ -16,13 +16,15 @@ export class AssistantMemoryManager {
     userId: string,
     query: string,
     workspaceId?: string,
-    limit: number = 5
+    limit: number = 5,
   ): Promise<MemoryChunk[]> {
     // Production RAG Vector Search Hook
     return [];
   }
 
-  public async storeMemoryChunk(chunk: Omit<MemoryChunk, 'id' | 'createdAt'>): Promise<MemoryChunk> {
+  public async storeMemoryChunk(
+    chunk: Omit<MemoryChunk, 'id' | 'createdAt'>,
+  ): Promise<MemoryChunk> {
     return {
       ...chunk,
       id: crypto.randomUUID(),
@@ -30,7 +32,11 @@ export class AssistantMemoryManager {
     };
   }
 
-  public async buildMemoryContextPrompt(userId: string, query: string, workspaceId?: string): Promise<string> {
+  public async buildMemoryContextPrompt(
+    userId: string,
+    query: string,
+    workspaceId?: string,
+  ): Promise<string> {
     const memories = await this.retrieveRelevantMemory(userId, query, workspaceId);
     if (memories.length === 0) return '';
 

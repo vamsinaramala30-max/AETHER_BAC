@@ -4,7 +4,9 @@ import { ConversationEntity } from './conversations.entity';
 export class ConversationsRepository extends AiRepository {
   private collectionName = 'conversations';
 
-  public async create(data: Omit<ConversationEntity, 'id' | 'createdAt' | 'updatedAt'>): Promise<ConversationEntity> {
+  public async create(
+    data: Omit<ConversationEntity, 'id' | 'createdAt' | 'updatedAt'>,
+  ): Promise<ConversationEntity> {
     const collection = this.getCollection<ConversationEntity>(this.collectionName);
     const id = `conv_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const conversation: ConversationEntity = {
@@ -22,7 +24,10 @@ export class ConversationsRepository extends AiRepository {
     return collection.get(id) || null;
   }
 
-  public async update(id: string, updates: Partial<ConversationEntity>): Promise<ConversationEntity | null> {
+  public async update(
+    id: string,
+    updates: Partial<ConversationEntity>,
+  ): Promise<ConversationEntity | null> {
     const conversation = await this.findById(id);
     if (!conversation) return null;
 

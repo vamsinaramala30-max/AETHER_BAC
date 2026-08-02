@@ -32,8 +32,15 @@ export interface ProviderResponse {
 export interface IAiProvider {
   id: string;
   name: string;
-  generateCompletion(messages: ChatMessage[], options: CompletionOptions): Promise<ProviderResponse>;
-  generateStream(messages: ChatMessage[], options: CompletionOptions, onChunk: (chunk: string) => void): Promise<ProviderResponse>;
+  generateCompletion(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+  ): Promise<ProviderResponse>;
+  generateStream(
+    messages: ChatMessage[],
+    options: CompletionOptions,
+    onChunk: (chunk: string) => void,
+  ): Promise<ProviderResponse>;
   generateEmbeddings(text: string | string[], model?: string): Promise<number[][]>;
   countTokens(text: string): Promise<number>;
 }

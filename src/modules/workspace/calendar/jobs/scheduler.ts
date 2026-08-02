@@ -4,7 +4,10 @@ import { CleanupJob } from './cleanup.job';
 export class JobScheduler {
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(private reminderJob: ReminderJob, private cleanupJob: CleanupJob) {}
+  constructor(
+    private reminderJob: ReminderJob,
+    private cleanupJob: CleanupJob,
+  ) {}
 
   start(intervalMs = 60000): void {
     this.timer = setInterval(async () => {

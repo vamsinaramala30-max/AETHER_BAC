@@ -3,7 +3,8 @@ import { RawAggregateMetrics, CalculatedScores, TimeDistributionItem } from './a
 export class AnalyticsCalculator {
   public static calculateScores(metrics: RawAggregateMetrics): CalculatedScores {
     const taskRatio = metrics.totalTasks > 0 ? metrics.completedTasks / metrics.totalTasks : 0.5;
-    const focusRatio = metrics.totalTrackedSeconds > 0 ? metrics.focusSeconds / metrics.totalTrackedSeconds : 0.5;
+    const focusRatio =
+      metrics.totalTrackedSeconds > 0 ? metrics.focusSeconds / metrics.totalTrackedSeconds : 0.5;
 
     const productivityScore = Math.min(100, Math.round(taskRatio * 50 + focusRatio * 50));
     const focusScore = Math.min(100, Math.round(focusRatio * 100));
@@ -13,14 +14,20 @@ export class AnalyticsCalculator {
       totalMilestones > 0
         ? Number(((metrics.completedMilestones / totalMilestones) * 100).toFixed(1))
         : metrics.activeGoals + metrics.completedGoals > 0
-        ? Number(((metrics.completedGoals / (metrics.activeGoals + metrics.completedGoals)) * 100).toFixed(1))
-        : 0;
+          ? Number(
+              (
+                (metrics.completedGoals / (metrics.activeGoals + metrics.completedGoals)) *
+                100
+              ).toFixed(1),
+            )
+          : 0;
 
     const consistencyScore = Math.min(100, Math.round((metrics.sessionCount / 7) * 100));
 
     // High total work hours combined with low break ratio elevates burnout index
     const totalHours = metrics.totalTrackedSeconds / 3600;
-    const breakRatio = metrics.totalTrackedSeconds > 0 ? metrics.breakSeconds / metrics.totalTrackedSeconds : 0;
+    const breakRatio =
+      metrics.totalTrackedSeconds > 0 ? metrics.breakSeconds / metrics.totalTrackedSeconds : 0;
     let burnoutRiskIndex = Math.min(100, Math.round(totalHours * 1.5 - breakRatio * 100));
     if (burnoutRiskIndex < 0) burnoutRiskIndex = 0;
 

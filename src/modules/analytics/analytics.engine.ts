@@ -9,7 +9,7 @@ import {
 export class AnalyticsEngine {
   public static generateAIRecommendations(
     metrics: RawAggregateMetrics,
-    scores: CalculatedScores
+    scores: CalculatedScores,
   ): AIRecommendationItem[] {
     const recommendations: AIRecommendationItem[] = [];
 
@@ -17,7 +17,8 @@ export class AnalyticsEngine {
       recommendations.push({
         id: 'rec-focus-1',
         title: 'Batch Morning Meetings',
-        description: 'Your focus score is below threshold. Consolidate meetings into afternoon hours to preserve peak morning clarity.',
+        description:
+          'Your focus score is below threshold. Consolidate meetings into afternoon hours to preserve peak morning clarity.',
         category: RecommendationCategory.WEEKLY_PICKS,
         priority: PriorityLevel.HIGH,
         impactScore: 92,
@@ -39,7 +40,8 @@ export class AnalyticsEngine {
       recommendations.push({
         id: 'rec-burnout-1',
         title: 'Schedule Mandatory Micro-Breaks',
-        description: 'High burnout risk detected relative to deep work intensity and low break ratio.',
+        description:
+          'High burnout risk detected relative to deep work intensity and low break ratio.',
         category: RecommendationCategory.OPTIMIZE,
         priority: PriorityLevel.HIGH,
         impactScore: 95,
@@ -51,7 +53,8 @@ export class AnalyticsEngine {
       recommendations.push({
         id: 'rec-skill-1',
         title: 'Skill Expansion Horizon',
-        description: 'Learning allocation is under 2 hours for this period. Dedicate targeted time to core tech upgrades.',
+        description:
+          'Learning allocation is under 2 hours for this period. Dedicate targeted time to core tech upgrades.',
         category: RecommendationCategory.FRESH_ANGLES,
         priority: PriorityLevel.MEDIUM,
         impactScore: 84,

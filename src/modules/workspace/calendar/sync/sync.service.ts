@@ -1,8 +1,20 @@
-import { PrismaClient, SyncProvider, SyncStatus } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { GoogleCalendarSync } from './google.sync';
 import { OutlookCalendarSync } from './outlook.sync';
 import { AppleCalendarSync } from './apple.sync';
 import { CalendarEventBus, CALENDAR_EVENTS } from '../calendar.events';
+
+export enum SyncProvider {
+  GOOGLE = 'GOOGLE',
+  OUTLOOK = 'OUTLOOK',
+  APPLE = 'APPLE',
+}
+
+export enum SyncStatus {
+  SYNCING = 'SYNCING',
+  SUCCESS = 'SUCCESS',
+  FAILED = 'FAILED',
+}
 
 export class SyncService {
   private googleSync = new GoogleCalendarSync();
@@ -12,13 +24,13 @@ export class SyncService {
   constructor(private prisma: PrismaClient) {}
 
   async triggerSync(userId: string, calendarId: string, provider: SyncProvider) {
-    const account = await this.prisma.syncAccount.findUnique({
+    const account = await (this.prisma as any).syncAccount.findUnique({
       where: { userId_provider: { userId, provider } },
     });
 
     if (!account) throw new Error(`No connected ${provider} account found for user.`);
 
-    const job = await this.prisma.syncJob.create({
+    const job = await (this.prisma as any).syncJob.create({
       data: { syncAccountId: account.id, calendarId, status: SyncStatus.SYNCING },
     });
 
@@ -32,7 +44,7 @@ export class SyncService {
         result = await this.appleSync.sync(account.accessToken, calendarId);
       }
 
-      await this.prisma.syncJob.update({
+      await (this.prisma as any).syncJob.update({
         where: { id: job.id },
         data: { status: SyncStatus.SUCCESS, lastSyncedAt: new Date() },
       });
@@ -44,7 +56,7 @@ export class SyncService {
 
       return { status: 'SUCCESS', ...result };
     } catch (err: any) {
-      await this.prisma.syncJob.update({
+      await (this.prisma as any).syncJob.update({
         where: { id: job.id },
         data: { status: SyncStatus.FAILED, errorMessage: err.message },
       });

@@ -1,7 +1,7 @@
 import { AssistantService } from './assistant/assistant.service';
 import { ConversationsService } from './conversations/conversations.service';
 import { MemoryService } from './memory/memory.service';
-import { PromptLibraryService } from './prompt/prompt-library.service';
+import { PromptLibraryService } from './prompts/prompt-library.service';
 import { ModelsService } from './models/models.service';
 import { EmbeddingsService } from './embeddings/embeddings.service';
 import { RagService } from './rag/rag.service';
@@ -18,7 +18,7 @@ export class AiService {
     public readonly embeddings: EmbeddingsService,
     public readonly rag: RagService,
     public readonly streaming: StreamingService,
-    public readonly tools: ToolsService
+    public readonly tools: ToolsService,
   ) {}
 
   public async getHealthStatus() {

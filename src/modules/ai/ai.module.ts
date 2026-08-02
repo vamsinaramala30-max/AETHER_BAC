@@ -62,7 +62,10 @@ export class AiModule {
   public readonly promptLibraryController = new PromptLibraryController(this.promptLibraryService);
 
   public readonly vectorRepository = new VectorRepository();
-  public readonly embeddingsService = new EmbeddingsService(this.providerFactory, this.vectorRepository);
+  public readonly embeddingsService = new EmbeddingsService(
+    this.providerFactory,
+    this.vectorRepository,
+  );
   public readonly embeddingsController = new EmbeddingsController(this.embeddingsService);
 
   public readonly retrievalService = new RetrievalService();
@@ -80,12 +83,7 @@ export class AiModule {
   public readonly toolsController = new ToolsController(this.toolsService);
 
   public readonly assistantRepository = new AssistantRepository();
-  public readonly assistantService = new AssistantService(
-    this.providerFactory,
-    this.modelRouter,
-    this.conversationsService,
-    this.ragService
-  );
+  public readonly assistantService = new AssistantService(this.assistantRepository);
   public readonly assistantController = new AssistantController(this.assistantService);
 
   public readonly aiRepository = new AiRepository();
@@ -98,7 +96,7 @@ export class AiModule {
     this.embeddingsService,
     this.ragService,
     this.streamingService,
-    this.toolsService
+    this.toolsService,
   );
   public readonly aiController = new AiController(this.aiService);
 }

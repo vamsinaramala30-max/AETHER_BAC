@@ -33,7 +33,11 @@ export class UsersController {
     }
   }
 
-  public async getConnectedAccounts(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public async getConnectedAccounts(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       // Mock or fetched connected accounts list
       res.status(200).json([
@@ -83,7 +87,11 @@ export class UsersController {
     }
   }
 
-  public async getNotificationSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public async getNotificationSettings(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       res.status(200).json({
         success: true,
@@ -100,7 +108,11 @@ export class UsersController {
     }
   }
 
-  public async updateNotificationSettings(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public async updateNotificationSettings(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       res.status(200).json({
         success: true,

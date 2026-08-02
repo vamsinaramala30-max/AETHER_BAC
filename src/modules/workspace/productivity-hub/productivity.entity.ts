@@ -1,14 +1,14 @@
 export class ProductivitySnapshotEntity {
-  id: string;
-  workspaceId: string;
-  userId: string;
-  date: Date;
-  productivityScore: number;
-  completedTasksCount: number;
-  totalFocusTimeSeconds: number;
-  totalTrackedTimeSeconds: number;
-  goalProgressPercentage: number;
-  createdAt: Date;
+  declare id: string;
+  declare workspaceId: string;
+  declare userId: string;
+  declare date: Date;
+  declare productivityScore: number;
+  declare completedTasksCount: number;
+  declare totalFocusTimeSeconds: number;
+  declare totalTrackedTimeSeconds: number;
+  declare goalProgressPercentage: number;
+  declare createdAt: Date;
 
   constructor(partial: Partial<ProductivitySnapshotEntity>) {
     Object.assign(this, partial);

@@ -1,17 +1,17 @@
 import { FocusSessionStatus, FocusTimerType } from '../workspace.constants';
 
 export class FocusSessionEntity {
-  id: string;
-  workspaceId: string;
-  userId: string;
-  type: FocusTimerType;
-  status: FocusSessionStatus;
-  durationMinutes: number;
-  actualDurationSeconds: number;
-  distractionsCount: number;
+  declare id: string;
+  declare workspaceId: string;
+  declare userId: string;
+  declare type: FocusTimerType;
+  declare status: FocusSessionStatus;
+  declare durationMinutes: number;
+  declare actualDurationSeconds: number;
+  declare distractionsCount: number;
   startTime?: Date | null;
   endTime?: Date | null;
-  createdAt: Date;
+  declare createdAt: Date;
 
   constructor(partial: Partial<FocusSessionEntity>) {
     Object.assign(this, partial);

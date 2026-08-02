@@ -5,7 +5,9 @@ export class DocumentsRepository {
   private documentsMap = new Map<string, DocumentEntity>();
   private versionsMap = new Map<string, DocumentVersion[]>();
 
-  async create(doc: Omit<DocumentEntity, 'id' | 'createdAt' | 'updatedAt' | 'version'>): Promise<DocumentEntity> {
+  async create(
+    doc: Omit<DocumentEntity, 'id' | 'createdAt' | 'updatedAt' | 'version'>,
+  ): Promise<DocumentEntity> {
     const id = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const now = new Date();
     const newDoc: DocumentEntity = {
@@ -38,16 +40,21 @@ export class DocumentsRepository {
     return updated;
   }
 
-  async findAll(query: QueryDocumentsDto, userId: string): Promise<{ data: DocumentEntity[]; total: number }> {
+  async findAll(
+    query: QueryDocumentsDto,
+    userId: string,
+  ): Promise<{ data: DocumentEntity[]; total: number }> {
     let results = Array.from(this.documentsMap.values()).filter(
-      (d) => d.ownerId === userId || d.permissions.canRead.includes(userId)
+      (d) => d.ownerId === userId || d.permissions.canRead.includes(userId),
     );
 
     if (query.category) results = results.filter((d) => d.category === query.category);
     if (query.status) results = results.filter((d) => d.status === query.status);
     if (query.search) {
       const q = query.search.toLowerCase();
-      results = results.filter((d) => d.title.toLowerCase().includes(q) || d.description?.toLowerCase().includes(q));
+      results = results.filter(
+        (d) => d.title.toLowerCase().includes(q) || d.description?.toLowerCase().includes(q),
+      );
     }
 
     const total = results.length;

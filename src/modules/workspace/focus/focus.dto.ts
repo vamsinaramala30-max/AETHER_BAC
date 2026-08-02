@@ -1,19 +1,19 @@
 import { FocusTimerType } from '../workspace.constants';
 
 export class StartFocusSessionDto {
-  workspaceId: string;
-  type: FocusTimerType;
-  durationMinutes: number;
+  declare workspaceId: string;
+  declare type: FocusTimerType;
+  declare durationMinutes: number;
 }
 
 export class LogDistractionDto {
-  sessionId: string;
+  declare sessionId: string;
   reason?: string;
 }
 
 export class FocusAnalyticsDto {
-  workspaceId: string;
-  userId: string;
+  declare workspaceId: string;
+  declare userId: string;
   startDate?: Date;
   endDate?: Date;
 }

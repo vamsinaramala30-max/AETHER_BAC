@@ -35,7 +35,10 @@ export class RecentFilesRepository {
     return newRecord;
   }
 
-  async findMany(userId: string, query: QueryRecentFilesDto): Promise<{ data: RecentFileEntity[]; total: number }> {
+  async findMany(
+    userId: string,
+    query: QueryRecentFilesDto,
+  ): Promise<{ data: RecentFileEntity[]; total: number }> {
     let list = Array.from(this.files.values()).filter(
       (f) => f.userId === userId && f.workspaceId === query.workspaceId,
     );

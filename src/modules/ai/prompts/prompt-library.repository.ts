@@ -4,7 +4,9 @@ import { PromptEntity } from './prompt-library.entity';
 export class PromptLibraryRepository extends AiRepository {
   private collectionName = 'prompts';
 
-  public async create(data: Omit<PromptEntity, 'id' | 'version' | 'createdAt' | 'updatedAt'>): Promise<PromptEntity> {
+  public async create(
+    data: Omit<PromptEntity, 'id' | 'version' | 'createdAt' | 'updatedAt'>,
+  ): Promise<PromptEntity> {
     const collection = this.getCollection<PromptEntity>(this.collectionName);
     const id = `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const prompt: PromptEntity = {

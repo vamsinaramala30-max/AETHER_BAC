@@ -4,34 +4,34 @@ import rateLimit from 'express-rate-limit';
 import * as jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 
-import { CalendarRepository } from './modules/workspace/calender/calender.repository';
-import { CalendarService } from './modules/workspace/calender/calender.service';
-import { CalendarController } from './modules/workspace/calender/calender.controller';
-import { createCalendarRouter } from './modules/workspace/calender/calender.routes';
+import { CalendarRepository } from './modules/workspace/calendar/calendar.repository';
+import { CalendarService } from './modules/workspace/calendar/calendar.service';
+import { CalendarController } from './modules/workspace/calendar/calendar.controller';
+import { createCalendarRouter } from './modules/workspace/calendar/calendar.routes';
 
-import { EventRepository } from './modules/workspace/calender/events/event.repository';
-import { EventService } from './modules/workspace/calender/events/event.service';
-import { EventController } from './modules/workspace/calender/events/event.controller';
-import { createEventRouter } from './modules/workspace/calender/events/event.routes';
+import { EventRepository } from './modules/workspace/calendar/events/event.repository';
+import { EventService } from './modules/workspace/calendar/events/event.service';
+import { EventController } from './modules/workspace/calendar/events/event.controller';
+import { createEventRouter } from './modules/workspace/calendar/events/event.routes';
 
-import { SearchService } from './modules/workspace/calender/search/search.service';
-import { SearchController } from './modules/workspace/calender/search/search.controller';
-import { createSearchRouter } from './modules/workspace/calender/search/search.routes';
+import { SearchService } from './modules/workspace/calendar/search/search.service';
+import { SearchController } from './modules/workspace/calendar/search/search.controller';
+import { createSearchRouter } from './modules/workspace/calendar/search/search.routes';
 
-import { SyncService } from './modules/workspace/calender/sync/sync.service';
-import { SyncController } from './modules/workspace/calender/sync/sync.controller';
-import { createSyncRouter } from './modules/workspace/calender/sync/sync.routes';
+import { SyncService } from './modules/workspace/calendar/sync/sync.service';
+import { SyncController } from './modules/workspace/calendar/sync/sync.controller';
+import { createSyncRouter } from './modules/workspace/calendar/sync/sync.routes';
 
-import { NotificationController } from './modules/workspace/calender/notifications/notification.controller';
-import { createNotificationRouter } from './modules/workspace/calender/notifications/notification.routes';
+import { NotificationController } from './modules/workspace/calendar/notifications/notification.controller';
+import { createNotificationRouter } from './modules/workspace/calendar/notifications/notification.routes';
 
-import { NotificationService } from './modules/workspace/calender/events/notification.service';
-import { ReminderScheduler } from './modules/workspace/calender/events/reminder.scheduler';
-import { ReminderJob } from './modules/workspace/calender/jobs/reminder.job';
-import { CleanupJob } from './modules/workspace/calender/jobs/cleanup.job';
-import { JobScheduler } from './modules/workspace/calender/jobs/scheduler';
+import { NotificationService } from './modules/workspace/calendar/events/notification.service';
+import { ReminderScheduler } from './modules/workspace/calendar/events/reminder.scheduler';
+import { ReminderJob } from './modules/workspace/calendar/jobs/reminder.job';
+import { CleanupJob } from './modules/workspace/calendar/jobs/cleanup.job';
+import { JobScheduler } from './modules/workspace/calendar/jobs/scheduler';
 
-export function createApp(prisma: PrismaClient) {
+export function createApp(prisma: PrismaClient): express.Express {
   const app = express();
 
   app.use(cors());
@@ -87,11 +87,15 @@ export function createApp(prisma: PrismaClient) {
   jobScheduler.start();
 
   // Route Registrations
-  app.use('/workspace/calender', authMiddleware, createCalendarRouter(calenderController));
-  app.use('/workspace/calender/events', authMiddleware, createEventRouter(eventController));
-  app.use('/workspace/calender/search', authMiddleware, createSearchRouter(searchController));
-  app.use('/workspace/calender/sync', authMiddleware, createSyncRouter(syncController));
-  app.use('/workspace/calender/notifications', authMiddleware, createNotificationRouter(notificationController));
+  app.use('/workspace/calendar', authMiddleware, createCalendarRouter(calenderController));
+  app.use('/workspace/calendar/events', authMiddleware, createEventRouter(eventController));
+  app.use('/workspace/calendar/search', authMiddleware, createSearchRouter(searchController));
+  app.use('/workspace/calendar/sync', authMiddleware, createSyncRouter(syncController));
+  app.use(
+    '/workspace/calendar/notifications',
+    authMiddleware,
+    createNotificationRouter(notificationController),
+  );
 
   // Global Error Handler
   app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

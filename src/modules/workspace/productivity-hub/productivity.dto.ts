@@ -1,15 +1,15 @@
 export class GetProductivityStatsDto {
-  workspaceId: string;
-  userId: string;
-  period: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  declare workspaceId: string;
+  declare userId: string;
+  declare period: 'DAILY' | 'WEEKLY' | 'MONTHLY';
   startDate?: Date;
   endDate?: Date;
 }
 
 export class AIProductivityInsightDto {
-  score: number;
-  recommendations: string[];
-  trends: {
+  declare score: number;
+  declare recommendations: string[];
+  declare trends: {
     focusTrend: 'UP' | 'DOWN' | 'STABLE';
     taskCompletionRate: number;
   };

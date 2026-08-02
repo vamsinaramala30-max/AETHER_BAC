@@ -4,7 +4,7 @@
 
 import { GoalEntity } from './goals.entity';
 import { GoalFilterDTO } from './goals.dto';
-import { PaginatedResult } from '../projects/projects.repository';
+import { PaginatedResult } from '../projects.repository';
 
 export class GoalsRepository {
   private goals: Map<string, GoalEntity> = new Map();
