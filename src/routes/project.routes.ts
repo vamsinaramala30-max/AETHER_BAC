@@ -14,16 +14,17 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/', (req, res, next) => projectController.getDashboard(req as any, res as any, next));
+router.get('/', (req, res, next) => projectController.getDashboard(req, res, next));
 router.post('/', validate(createProjectSchema), (req, res, next) =>
-  projectController.getDashboard(req as any, res as any, next),
+  projectController.create(req, res, next),
 );
-router.get('/:id', (req, res, next) => projectController.getOverview(req as any, res as any, next));
+router.get('/:id', (req, res, next) => projectController.getById(req, res, next));
 router.put('/:id', validate(updateProjectSchema), (req, res, next) =>
-  projectController.getOverview(req as any, res as any, next),
+  projectController.update(req, res, next),
 );
-router.delete('/:id', (req, res, next) =>
-  projectController.getDashboard(req as any, res as any, next),
+router.patch('/:id', validate(updateProjectSchema), (req, res, next) =>
+  projectController.update(req, res, next),
 );
+router.delete('/:id', (req, res, next) => projectController.delete(req, res, next));
 
 export const projectRoutes: Router = router;

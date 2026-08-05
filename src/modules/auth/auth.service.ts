@@ -2,14 +2,56 @@ import bcrypt from 'bcryptjs';
 import jwt, { SignOptions } from 'jsonwebtoken';
 import { AuthRepository } from './auth.repository';
 import { securityConfig, logger } from '../../config';
+import { db } from '../../database/client';
 import { AppError } from '../../middleware/error.middleware';
 import { AuthTokenPayload, LoginResponse, OAuthUserPayload, GoogleUserPayload } from './auth.types';
+
+interface ProfileUserPayload {
+  id: string;
+  email: string;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  bio?: string | null;
+  company?: string | null;
+  timezone?: string | null;
+  language?: string | null;
+  role?: string;
+  isEmailVerified?: boolean;
+}
 
 export class AuthService {
   private repo: AuthRepository;
 
   constructor() {
     this.repo = new AuthRepository();
+  }
+
+  private buildProfilePayload(user: ProfileUserPayload) {
+    const fullName =
+      user.fullName?.trim() ||
+      [user.email.split('@')[0]]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+    const parts = fullName.split(/\s+/).filter(Boolean);
+    const firstName = parts[0] || '';
+    const lastName = parts.slice(1).join(' ') || '';
+
+    return {
+      id: user.id,
+      email: user.email.toLowerCase(),
+      fullName,
+      firstName,
+      lastName,
+      name: fullName || user.email.split('@')[0],
+      role: user.role || 'USER',
+      avatarUrl: user.avatarUrl || null,
+      bio: user.bio || null,
+      company: user.company || null,
+      timezone: user.timezone || 'UTC',
+      language: user.language || 'en',
+      isEmailVerified: Boolean(user.isEmailVerified),
+    };
   }
 
   public async register(payload: {
@@ -31,7 +73,25 @@ export class AuthService {
       fullName: `${payload.firstName} ${payload.lastName}`,
     });
 
+    await db.notification.create({
+      data: {
+        userId: user.id,
+        title: 'Welcome aboard',
+        message: 'Your AETHER workspace is ready. Start by creating your first project or task.',
+        type: 'SYSTEM',
+      },
+    });
+
     return this.generateAuthResponse(user);
+  }
+
+  public async getProfile(userId: string) {
+    const user = await this.repo.findUserById(userId);
+    if (!user) {
+      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+    }
+
+    return this.buildProfilePayload(user);
   }
 
   public async login(payload: { email: string; password: string }): Promise<LoginResponse> {
@@ -48,6 +108,15 @@ export class AuthService {
     if (!isMatch) {
       throw new AppError('Invalid email or password credentials', 401, 'INVALID_CREDENTIALS');
     }
+
+    await db.notification.create({
+      data: {
+        userId: user.id,
+        title: 'Sign-in detected',
+        message: 'You signed in successfully to your AETHER account.',
+        type: 'SECURITY',
+      },
+    });
 
     return this.generateAuthResponse(user);
   }
@@ -149,10 +218,18 @@ export class AuthService {
     role: string;
     avatarUrl?: string | null;
   }): Promise<LoginResponse> {
+    const fullUser = await this.repo.findUserById(user.id);
+    const workspaceId = fullUser
+      ? await this.repo.ensureUserWorkspaceAndSettings(fullUser)
+      : undefined;
+
+    const profile = fullUser ? this.buildProfilePayload(fullUser) : undefined;
+
     const payload: AuthTokenPayload = {
       id: user.id,
       email: user.email,
       role: user.role,
+      workspaceId,
     };
 
     const signOptions: SignOptions = {
@@ -177,12 +254,20 @@ export class AuthService {
     const nameParts = user.fullName ? user.fullName.split(' ') : ['', ''];
     return {
       user: {
-        id: user.id,
-        email: user.email,
-        firstName: nameParts[0] || '',
-        lastName: nameParts.slice(1).join(' ') || '',
-        role: user.role,
-        avatarUrl: user.avatarUrl,
+        id: profile?.id || user.id,
+        email: profile?.email || user.email,
+        firstName: profile?.firstName || nameParts[0] || '',
+        lastName: profile?.lastName || nameParts.slice(1).join(' ') || '',
+        fullName: profile?.fullName || user.fullName || `${nameParts[0] || ''} ${nameParts.slice(1).join(' ') || ''}`.trim(),
+        name: profile?.name || profile?.fullName || user.fullName || `${nameParts[0] || ''} ${nameParts.slice(1).join(' ') || ''}`.trim(),
+        role: profile?.role || user.role,
+        avatarUrl: profile?.avatarUrl || user.avatarUrl,
+        bio: profile?.bio || null,
+        company: profile?.company || null,
+        timezone: profile?.timezone || 'UTC',
+        language: profile?.language || 'en',
+        isEmailVerified: profile?.isEmailVerified || false,
+        workspaceId,
       },
       tokens: {
         accessToken,

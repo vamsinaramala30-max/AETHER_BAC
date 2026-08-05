@@ -6,9 +6,27 @@ import { TasksRepository } from './tasks.repository';
 import { TaskEntity } from './tasks.entity';
 import { CreateTaskDTO, UpdateTaskDTO, TaskFilterDTO, BulkTaskOperationDTO } from './tasks.dto';
 import { TaskStatus, PriorityLevel, RecurrenceInterval } from '../projects.constants';
+import { db } from '../../../database/client';
 
 export class TasksService {
   constructor(private readonly repository: TasksRepository) {}
+
+  private async notifyAssignees(assigneeIds: string[], title: string, message: string, type: string = 'TASK') {
+    if (!assigneeIds?.length) return;
+
+    await Promise.all(
+      assigneeIds.map((assigneeId) =>
+        db.notification.create({
+          data: {
+            userId: assigneeId,
+            title,
+            message,
+            type: type as any,
+          },
+        }),
+      ),
+    );
+  }
 
   async createTask(dto: CreateTaskDTO): Promise<TaskEntity> {
     const id = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -38,7 +56,13 @@ export class TasksService {
       updatedAt: now,
     };
 
-    return this.repository.save(task);
+    const savedTask = await this.repository.save(task);
+    await this.notifyAssignees(
+      savedTask.assigneeIds,
+      'Task assigned',
+      `You were assigned to task "${savedTask.title}".`,
+    );
+    return savedTask;
   }
 
   async getTask(id: string): Promise<TaskEntity> {
@@ -53,6 +77,7 @@ export class TasksService {
 
   async updateTask(id: string, dto: UpdateTaskDTO): Promise<TaskEntity> {
     const task = await this.getTask(id);
+    const previousAssignees = [...task.assigneeIds];
 
     if (dto.title !== undefined) task.title = dto.title;
     if (dto.description !== undefined) task.description = dto.description;
@@ -76,7 +101,23 @@ export class TasksService {
     if (dto.recurrence !== undefined) task.recurrence = dto.recurrence;
     if (dto.labels !== undefined) task.labels = dto.labels;
 
-    return this.repository.save(task);
+    const savedTask = await this.repository.save(task);
+    const shouldNotify = dto.status !== undefined || dto.assigneeIds !== undefined || dto.title !== undefined;
+
+    if (shouldNotify) {
+      const nextAssignees = savedTask.assigneeIds || [];
+      const newlyAssigned = nextAssignees.filter((id) => !previousAssignees.includes(id));
+
+      if (dto.status === TaskStatus.DONE) {
+        await this.notifyAssignees(nextAssignees, 'Task completed', `Task "${savedTask.title}" is now complete.`);
+      } else if (newlyAssigned.length > 0) {
+        await this.notifyAssignees(newlyAssigned, 'Task assigned', `You were assigned to task "${savedTask.title}".`);
+      } else {
+        await this.notifyAssignees(nextAssignees, 'Task updated', `Task "${savedTask.title}" was updated.`);
+      }
+    }
+
+    return savedTask;
   }
 
   async logTime(id: string, minutes: number): Promise<TaskEntity> {

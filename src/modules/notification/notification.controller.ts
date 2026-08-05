@@ -6,7 +6,11 @@ export class NotificationController {
 
   getPreferences = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
       const data = await this.service.getPreferences(userId);
       res.json({ status: 'success', data });
     } catch (err) {
@@ -16,7 +20,11 @@ export class NotificationController {
 
   updatePreferences = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
       const data = await this.service.updatePreferences(userId, req.body);
       res.json({ status: 'success', data });
     } catch (err) {
@@ -26,10 +34,16 @@ export class NotificationController {
 
   getHistory = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
-      const data = await this.service.getHistory(userId, page, limit);
+      const search = (req.query.search as string) || '';
+      const status = (req.query.status as 'read' | 'unread' | 'all') || 'all';
+      const data = await this.service.getHistory(userId, page, limit, search, status);
       res.json({ status: 'success', data });
     } catch (err) {
       next(err);
@@ -38,7 +52,11 @@ export class NotificationController {
 
   markRead = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
       const { id } = req.params;
       await this.service.markAsRead(id, userId);
       res.json({ status: 'success', message: 'Notification marked as read' });
@@ -49,7 +67,11 @@ export class NotificationController {
 
   markAllRead = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
       await this.service.markAllAsRead(userId);
       res.json({ status: 'success', message: 'All notifications marked as read' });
     } catch (err) {
@@ -59,7 +81,11 @@ export class NotificationController {
 
   delete = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
       const { id } = req.params;
       await this.service.deleteNotification(id, userId);
       res.json({ status: 'success', message: 'Notification removed' });
@@ -68,9 +94,27 @@ export class NotificationController {
     }
   };
 
+  deleteAll = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
+      await this.service.deleteAllNotifications(userId);
+      res.json({ status: 'success', message: 'All notifications cleared' });
+    } catch (err) {
+      next(err);
+    }
+  };
+
   subscribePush = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = (req as any).user.id;
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ status: 'error', message: 'Unauthorized' });
+        return;
+      }
       await this.service.registerPush(userId, req.body);
       res.json({ status: 'success', message: 'Push subscription registered' });
     } catch (err) {

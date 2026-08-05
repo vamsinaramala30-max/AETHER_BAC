@@ -14,10 +14,16 @@ import { analyticsRoutes } from './analytics.routes';
 import { settingsRoutes } from './settings.routes';
 import { adminRoutes } from './admin.routes';
 import { taskGoalRoutes } from './taskGoal.routes';
+import { dashboardRoutes } from './dashboard.routes';
+import { HomeModule } from '../modules/home/home.module';
+import { db } from '../database/client';
+import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
 router.use('/health', healthRoutes);
+router.use('/home', authenticate, HomeModule.init(db));
+router.use('/dashboard', dashboardRoutes);
 router.use('/auth', authRoutes);
 router.use('/users', usersRoutes);
 router.use('/user', usersRoutes);

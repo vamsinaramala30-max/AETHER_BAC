@@ -18,14 +18,24 @@ export class NotificationService {
     this.pushService = pushService || new PushService();
   }
 
+  private normalizePreferences(pref: Partial<NotificationPreferencesData>): NotificationPreferencesData {
+    return {
+      emailAlerts: pref.emailAlerts ?? true,
+      pushNotifications: pref.pushNotifications ?? true,
+      browserNotifications: pref.browserNotifications ?? true,
+      workspaceNotifications: pref.workspaceNotifications ?? true,
+      projectNotifications: pref.projectNotifications ?? true,
+      mentionNotifications: pref.mentionNotifications ?? true,
+      automationNotifications: pref.automationNotifications ?? true,
+      securityAlerts: pref.securityAlerts ?? true,
+      systemUpdates: pref.systemUpdates ?? false,
+      weeklyDigest: pref.weeklyDigest ?? false,
+    };
+  }
+
   async getPreferences(userId: string): Promise<NotificationPreferencesData> {
     const pref = await this.repo.getPreferences(userId);
-    return {
-      emailAlerts: (pref as any)?.emailAlerts ?? true,
-      securityAlerts: (pref as any)?.securityAlerts ?? true,
-      systemUpdates: (pref as any)?.systemUpdates ?? false,
-      weeklyDigest: (pref as any)?.weeklyDigest ?? false,
-    };
+    return this.normalizePreferences(pref);
   }
 
   async updatePreferences(
@@ -33,29 +43,31 @@ export class NotificationService {
     data: NotificationPreferencesData,
   ): Promise<NotificationPreferencesData> {
     const updated = await this.repo.updatePreferences(userId, data);
-    return {
-      emailAlerts: (updated as any).emailAlerts ?? true,
-      securityAlerts: (updated as any).securityAlerts ?? true,
-      systemUpdates: (updated as any).systemUpdates ?? false,
-      weeklyDigest: (updated as any).weeklyDigest ?? false,
-    };
+    return this.normalizePreferences(updated);
   }
 
   async dispatchNotification(dto: SendNotificationDTO) {
-    const prefs = await this.getPreferences(dto.userId);
-    if (!(prefs as any)[dto.category]) {
+    const prefs = this.normalizePreferences(await this.getPreferences(dto.userId));
+    const categoryEnabled = Boolean((prefs as unknown as Record<string, boolean>)[dto.category]);
+    if (!categoryEnabled) {
       return { skipped: true, reason: 'Category disabled in user preferences' };
     }
 
     const results: Record<string, boolean> = {};
 
     if (dto.channels.includes('IN_APP')) {
-      await this.repo.createNotification(dto.userId, dto.title, dto.message);
+      await this.repo.createNotification({
+        userId: dto.userId,
+        title: dto.title,
+        message: dto.message,
+        type: dto.type,
+        link: dto.link,
+        metadata: dto.metadata,
+      });
       results.IN_APP = true;
     }
 
     if (dto.channels.includes('EMAIL') && dto.email) {
-      await this.repo.createNotification(dto.userId, dto.title, dto.message);
       const sent = await this.emailService!.sendEmail(dto.email, dto.title, dto.message);
       results.EMAIL = sent;
     }
@@ -63,15 +75,17 @@ export class NotificationService {
     if (dto.channels.includes('PUSH')) {
       const subs = await this.repo.getPushSubscriptions(dto.userId);
       for (const sub of subs) {
-        await this.repo.createNotification(dto.userId, dto.title, dto.message);
         const sent = await this.pushService!.sendPushNotification(
           {
-            endpoint: (sub as any).endpoint,
-            keys: { p256dh: (sub as any).p256dh, auth: (sub as any).auth },
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth },
           },
           { title: dto.title, message: dto.message },
         );
-        results.PUSH = sent;
+        results.PUSH = sent || results.PUSH;
+      }
+      if (Object.keys(results).length === 0) {
+        results.PUSH = false;
       }
     }
 
@@ -86,8 +100,19 @@ export class NotificationService {
     });
   }
 
-  async getHistory(userId: string, page = 1, limit = 20) {
-    return this.repo.getUserNotifications(userId, page, limit);
+  async getHistory(userId: string, page = 1, limit = 20, search = '', status?: 'read' | 'unread' | 'all') {
+    const data = await this.repo.getUserNotifications(userId, page, limit, search, status);
+    const unreadCount = await this.repo.getUserNotifications(userId, 1, 100000, '', 'unread');
+    return {
+      items: data.items,
+      unreadCount: unreadCount.total,
+      pagination: {
+        page: data.page,
+        limit,
+        total: data.total,
+        totalPages: data.totalPages,
+      },
+    };
   }
 
   async markAsRead(id: string, userId: string) {
@@ -100,5 +125,20 @@ export class NotificationService {
 
   async deleteNotification(id: string, userId: string) {
     return this.repo.deleteNotification(id, userId);
+  }
+
+  async deleteAllNotifications(userId: string) {
+    return this.repo.deleteAllNotifications(userId);
+  }
+
+  async createNotification(payload: {
+    userId: string;
+    title: string;
+    message: string;
+    type?: string;
+    link?: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    return this.repo.createNotification(payload);
   }
 }

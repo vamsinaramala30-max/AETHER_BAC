@@ -44,8 +44,19 @@ export class AuthController {
     }
   }
 
-  public async getProfile(req: Request, res: Response): Promise<void> {
-    res.status(200).json({ success: true, data: req.user });
+  public async getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req.user as any)?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Unauthorized' });
+        return;
+      }
+
+      const profile = await authService.getProfile(userId);
+      res.status(200).json({ success: true, data: profile });
+    } catch (err) {
+      next(err);
+    }
   }
 
   public async updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -56,7 +67,8 @@ export class AuthController {
         return;
       }
       const updated = await authService.updateUserProfile(userId, req.body);
-      res.status(200).json({ success: true, data: updated });
+      const profile = await authService.getProfile(userId);
+      res.status(200).json({ success: true, data: profile });
     } catch (err) {
       next(err);
     }

@@ -2,6 +2,7 @@ export interface AuthTokenPayload {
   id: string;
   email: string;
   role: string;
+  workspaceId?: string;
 }
 
 export interface LoginResponse {
@@ -10,8 +11,16 @@ export interface LoginResponse {
     email: string;
     firstName: string;
     lastName: string;
+    fullName?: string | null;
+    name?: string | null;
     role: string;
     avatarUrl?: string | null;
+    bio?: string | null;
+    company?: string | null;
+    timezone?: string | null;
+    language?: string | null;
+    isEmailVerified?: boolean;
+    workspaceId?: string;
   };
   tokens: {
     accessToken: string;

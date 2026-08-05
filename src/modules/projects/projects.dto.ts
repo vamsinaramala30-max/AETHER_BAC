@@ -35,6 +35,7 @@ export interface UpdateProjectDTO {
 
 export interface ProjectFilterDTO {
   ownerId?: string;
+  workspaceId?: string;
   memberId?: string;
   category?: string;
   status?: ProjectStatus;

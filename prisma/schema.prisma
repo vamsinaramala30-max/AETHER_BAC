@@ -10,6 +10,10 @@ datasource db {
   extensions = [pgvector(map: "vector")]
 }
 
+// ============================================================================
+// Enums
+// ============================================================================
+
 enum Role {
   USER
   ADMIN
@@ -30,18 +34,97 @@ enum FileStatus {
   FAILED
 }
 
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum ProjectPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  AT_RISK
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  MISSED
+}
+
+enum NotificationType {
+  SYSTEM
+  PROJECT
+  TASK
+  CALENDAR
+  AI
+  AUTOMATION
+  SECURITY
+  KNOWLEDGE
+  WORKSPACE
+}
+
+enum FolderType {
+  NOTES
+  FILES
+  KNOWLEDGE
+}
+
+enum AutomationStatus {
+  ACTIVE
+  PAUSED
+  FAILED
+  COMPLETED
+}
+
+// ============================================================================
+// Core Identity Models
+// ============================================================================
+
 model User {
   id              String            @id @default(uuid()) @db.Uuid
   email           String            @unique
   passwordHash    String?
   fullName        String?
   avatarUrl       String?
+  bio             String?
+  phone           String?
+  company         String?
+  timezone        String?           @default("UTC")
+  language        String?           @default("en")
   role            Role              @default(USER)
   isEmailVerified Boolean           @default(false)
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   deletedAt       DateTime?
 
+  // Existing relations
   memberships     WorkspaceMember[]
   projects        Project[]         @relation("ProjectOwner")
   files           File[]
@@ -51,6 +134,17 @@ model User {
   conversations   Conversation[]
   messages        Message[]
   oauthAccounts   OAuthAccount[]
+
+  // New relations
+  tasksAssigned   Task[]            @relation("TaskAssignee")
+  tasksCreated    Task[]            @relation("TaskCreator")
+  taskComments    TaskComment[]
+  goals           Goal[]
+  calendarEvents  CalendarEvent[]
+  settings        UserSettings?
+  notes           Note[]
+  folders         Folder[]
+  activities      ActivityLog[]
 
   @@index([email])
   @@map("users")
@@ -88,18 +182,43 @@ model OAuthAccount {
   @@map("oauth_accounts")
 }
 
-model Workspace {
-  id          String            @id @default(uuid()) @db.Uuid
-  name        String
-  slug        String            @unique
-  description String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  deletedAt   DateTime?
+model UserSettings {
+  id                 String   @id @default(uuid()) @db.Uuid
+  userId             String   @unique @db.Uuid
+  theme              String   @default("dark")
+  language           String   @default("en")
+  timezone           String   @default("UTC")
+  notificationPrefs  Json     @default("{}")
+  privacySettings    Json     @default("{}")
+  displayPreferences Json     @default("{}")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
-  members     WorkspaceMember[]
-  projects    Project[]
-  knowledge   KnowledgeBase[]
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+// ============================================================================
+// Workspace Models
+// ============================================================================
+
+model Workspace {
+  id             String            @id @default(uuid()) @db.Uuid
+  name           String
+  slug           String            @unique
+  description    String?
+  logoUrl        String?
+  plan           String            @default("free")
+  storageUsedMb  Int               @default(0)
+  storageLimitMb Int               @default(5120)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  deletedAt      DateTime?
+
+  members        WorkspaceMember[]
+  projects       Project[]
+  knowledge      KnowledgeBase[]
 
   @@map("workspaces")
 }
@@ -119,27 +238,190 @@ model WorkspaceMember {
   @@map("workspace_members")
 }
 
+// ============================================================================
+// Project Management Models
+// ============================================================================
+
 model Project {
-  id            String         @id @default(uuid()) @db.Uuid
-  name          String
-  description   String?
-  workspaceId   String         @db.Uuid
-  ownerId       String         @db.Uuid
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt     DateTime?
+  id             String          @id @default(uuid()) @db.Uuid
+  name           String
+  description    String?
+  workspaceId    String          @db.Uuid
+  ownerId        String          @db.Uuid
+  status         ProjectStatus   @default(ACTIVE)
+  priority       ProjectPriority @default(MEDIUM)
+  color          String?
+  icon           String?
+  category       String?
+  tags           String[]        @default([])
+  isFavorite     Boolean         @default(false)
+  isArchived     Boolean         @default(false)
+  startDate      DateTime?
+  endDate        DateTime?
+  progress       Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
 
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner         User           @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  conversations Conversation[]
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner          User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  conversations  Conversation[]
+  tasks          Task[]
+  goals          Goal[]
+  milestones     Milestone[]
+  calendarEvents CalendarEvent[]
 
+  @@index([workspaceId, ownerId])
+  @@index([workspaceId, status])
   @@map("projects")
 }
+
+model Task {
+  id             String          @id @default(uuid()) @db.Uuid
+  projectId      String          @db.Uuid
+  workspaceId    String          @db.Uuid
+  title          String
+  description    String?
+  status         TaskStatus      @default(TODO)
+  priority       TaskPriority    @default(MEDIUM)
+  dueDate        DateTime?
+  startDate      DateTime?
+  assigneeId     String?         @db.Uuid
+  creatorId      String          @db.Uuid
+  parentTaskId   String?         @db.Uuid
+  labels         String[]        @default([])
+  isRecurring    Boolean         @default(false)
+  recurringRule  String?
+  position       Int             @default(0)
+  estimatedHours Float?
+  completedAt    DateTime?
+  archivedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  deletedAt      DateTime?
+
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee       User?           @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator        User            @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  parentTask     Task?           @relation("SubTasks", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  subtasks       Task[]          @relation("SubTasks")
+  comments       TaskComment[]
+  attachments    TaskAttachment[]
+  calendarEvents CalendarEvent[]
+
+  @@index([projectId, status])
+  @@index([assigneeId, status])
+  @@index([workspaceId, creatorId])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @db.Uuid
+  userId    String   @db.Uuid
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@map("task_comments")
+}
+
+model TaskAttachment {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @db.Uuid
+  fileId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, fileId])
+  @@map("task_attachments")
+}
+
+model Goal {
+  id          String     @id @default(uuid()) @db.Uuid
+  projectId   String?    @db.Uuid
+  workspaceId String     @db.Uuid
+  userId      String     @db.Uuid
+  title       String
+  description String?
+  targetDate  DateTime?
+  progress    Int        @default(0)
+  status      GoalStatus @default(NOT_STARTED)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  deletedAt   DateTime?
+
+  project     Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId])
+  @@index([projectId])
+  @@map("goals")
+}
+
+model Milestone {
+  id          String          @id @default(uuid()) @db.Uuid
+  projectId   String          @db.Uuid
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      MilestoneStatus @default(PENDING)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("milestones")
+}
+
+// ============================================================================
+// Calendar & Scheduling
+// ============================================================================
+
+model CalendarEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  userId      String    @db.Uuid
+  title       String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  allDay      Boolean   @default(false)
+  recurrence  String?
+  color       String?
+  location    String?
+  reminders   Json?
+  projectId   String?   @db.Uuid
+  taskId      String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task        Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, userId])
+  @@index([startDate, endDate])
+  @@map("calendar_events")
+}
+
+// ============================================================================
+// AI & Conversations
+// ============================================================================
 
 model Conversation {
   id          String    @id @default(uuid()) @db.Uuid
   workspaceId String    @db.Uuid
-  projectId   String    @db.Uuid
+  projectId   String?   @db.Uuid
   userId      String    @db.Uuid
   title       String    @default("New Conversation")
   metadata    Json?
@@ -147,11 +429,12 @@ model Conversation {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages    Message[]
 
   @@index([projectId, userId])
+  @@index([workspaceId, userId])
   @@map("conversations")
 }
 
@@ -172,64 +455,131 @@ model Message {
   @@map("messages")
 }
 
+// ============================================================================
+// Knowledge Management
+// ============================================================================
+
 model KnowledgeBase {
-  id          String       @id @default(uuid()) @db.Uuid
-  workspaceId String       @db.Uuid
+  id          String                 @id @default(uuid()) @db.Uuid
+  workspaceId String                 @db.Uuid
   name        String?
   title       String?
   content     String?
   embedding   Unsupported("vector")?
   metadata    Json?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
 
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   documents   Document[]
 
   @@map("knowledge_base")
 }
 
 model Document {
-  id              String   @id @default(uuid()) @db.Uuid
-  knowledgeBaseId String   @db.Uuid
+  id              String        @id @default(uuid()) @db.Uuid
+  knowledgeBaseId String        @db.Uuid
   fileName        String?
   fileUrl         String?
-  status          String   @default("PENDING")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  content         String?
+  status          String        @default("PENDING")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
 
   @@map("documents")
 }
 
-model File {
+model Note {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  userId      String    @db.Uuid
+  title       String    @default("Untitled Note")
+  content     String?
+  isPinned    Boolean   @default(false)
+  isFavorite  Boolean   @default(false)
+  tags        String[]  @default([])
+  folderId    String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder      Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, userId])
+  @@map("notes")
+}
+
+model Folder {
   id          String     @id @default(uuid()) @db.Uuid
+  workspaceId String     @db.Uuid
+  userId      String     @db.Uuid
+  name        String
+  parentId    String?    @db.Uuid
+  type        FolderType @default(FILES)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  parent      Folder?    @relation("FolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Folder[]   @relation("FolderTree")
+  notes       Note[]
+  files       File[]
+
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId])
+  @@map("folders")
+}
+
+// ============================================================================
+// File Storage
+// ============================================================================
+
+model File {
+  id          String           @id @default(uuid()) @db.Uuid
   filename    String
   mimeType    String
   size        Int
   storagePath String
-  status      FileStatus @default(PENDING)
-  userId      String     @db.Uuid
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  status      FileStatus       @default(PENDING)
+  userId      String           @db.Uuid
+  workspaceId String?          @db.Uuid
+  projectId   String?          @db.Uuid
+  folderId    String?          @db.Uuid
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder      Folder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  attachments TaskAttachment[]
 
+  @@index([userId])
+  @@index([workspaceId])
   @@map("files")
 }
 
+// ============================================================================
+// Notifications & Activity & Search
+// ============================================================================
+
 model Notification {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
   title     String
   message   String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
+  type      NotificationType @default(SYSTEM)
+  metadata  Json?
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
@@ -247,17 +597,62 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-model Automation {
+model ActivityLog {
   id          String   @id @default(uuid()) @db.Uuid
   workspaceId String   @db.Uuid
-  name        String
-  trigger     String   @default("manual")
-  actions     Json?
-  isEnabled   Boolean  @default(true)
+  userId      String   @db.Uuid
+  action      String
+  entityType  String
+  entityId    String   @db.Uuid
+  entityName  String?
+  metadata    Json?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
 
-  @@map("automations")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([userId])
+  @@map("activity_logs")
 }
 
+model SearchIndex {
+  id          String   @id @default(uuid()) @db.Uuid
+  entityType  String
+  entityId    String   @db.Uuid
+  workspaceId String   @db.Uuid
+  title       String
+  content     String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, entityType])
+  @@index([workspaceId])
+  @@map("search_index")
+}
+
+// ============================================================================
+// Automation
+// ============================================================================
+
+model Automation {
+  id          String           @id @default(uuid()) @db.Uuid
+  workspaceId String           @db.Uuid
+  userId      String?          @db.Uuid
+  name        String
+  description String?
+  trigger     String           @default("manual")
+  conditions  Json?
+  actions     Json?
+  schedule    String?
+  isEnabled   Boolean          @default(true)
+  status      AutomationStatus @default(ACTIVE)
+  lastRunAt   DateTime?
+  runCount    Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  deletedAt   DateTime?
+
+  @@index([workspaceId])
+  @@map("automations")
+}

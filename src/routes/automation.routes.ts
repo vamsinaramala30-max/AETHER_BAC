@@ -1,102 +1,107 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { automationController } from '../modules/automation/automation.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { createAutomationSchema, updateAutomationSchema } from '../validators/automation.validator';
+import { db } from '../database/client';
 
 const router = Router();
 
 router.use(authenticate);
 
-// Integrations routes
-const mockIntegrations = [
-  {
-    id: 'int-slack',
-    name: 'Slack',
-    category: 'Communication',
-    isConnected: true,
-    status: 'Active',
-    icon: 'slack',
-  },
-  {
-    id: 'int-github',
-    name: 'GitHub',
-    category: 'Developer Tools',
-    isConnected: true,
-    status: 'Active',
-    icon: 'github',
-  },
-  {
-    id: 'int-jira',
-    name: 'Jira',
-    category: 'Project Management',
-    isConnected: false,
-    status: 'Inactive',
-    icon: 'jira',
-  },
-  {
-    id: 'int-notion',
-    name: 'Notion',
-    category: 'Knowledge',
-    isConnected: false,
-    status: 'Inactive',
-    icon: 'notion',
-  },
-];
+async function resolveWorkspaceId(req: Request): Promise<string | null> {
+  const headerId = req.headers['x-workspace-id'] as string | undefined;
+  if (headerId) return headerId;
 
-router.get('/integrations', (req: Request, res: Response) => {
-  res.status(200).json({ success: true, data: mockIntegrations });
-});
+  const userId = (req as any).user?.id;
+  if (!userId) return null;
 
-router.patch('/integrations/:id', (req: Request, res: Response) => {
-  const { id } = req.params;
-  const item = mockIntegrations.find((i) => i.id === id);
-  if (item) {
-    item.isConnected = !item.isConnected;
-    item.status = item.isConnected ? 'Active' : 'Inactive';
-    res.status(200).json({ success: true, data: item });
-  } else {
-    res.status(200).json({ success: true, data: { id, isConnected: true, status: 'Active' } });
+  const membership = await db.workspaceMember.findFirst({
+    where: { userId },
+    select: { workspaceId: true },
+  });
+  return membership?.workspaceId ?? null;
+}
+
+// Integrations — user-specific connections only; empty until configured
+router.get('/integrations', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+    res.status(200).json({ success: true, data: [] });
+  } catch (err) {
+    next(err);
   }
 });
 
-// Scheduled Automation Tasks
-const mockTasks = [
-  {
-    id: 'task-1',
-    name: 'Nightly Database Sync',
-    schedule: '0 0 * * *',
-    status: 'active',
-    lastRun: '2026-08-02T00:00:00Z',
-    nextRun: '2026-08-03T00:00:00Z',
-  },
-  {
-    id: 'task-2',
-    name: 'AI Lead Qualification Batch',
-    schedule: '*/30 * * * *',
-    status: 'active',
-    lastRun: '2026-08-02T17:30:00Z',
-    nextRun: '2026-08-02T18:00:00Z',
-  },
-  {
-    id: 'task-3',
-    name: 'Slack Incident Alert Cleanup',
-    schedule: '0 12 * * *',
-    status: 'paused',
-    lastRun: '2026-08-01T12:00:00Z',
-    nextRun: '2026-08-03T12:00:00Z',
-  },
-];
-
-router.get('/tasks', (req: Request, res: Response) => {
-  res.status(200).json({ success: true, data: mockTasks });
+router.patch('/integrations/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+    res.status(200).json({
+      success: true,
+      data: { id: req.params.id, isConnected: Boolean(req.body.isConnected), status: 'Active' },
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.get('/logs', automationController.getLogs);
-router.get('/', automationController.getAutomations);
-router.post('/', validate(createAutomationSchema), automationController.createAutomation);
-router.get('/:id', automationController.getAutomationById);
-router.put('/:id', validate(updateAutomationSchema), automationController.updateAutomation);
-router.delete('/:id', automationController.deleteAutomation);
+// Scheduled automations from database
+router.get('/tasks', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const workspaceId = await resolveWorkspaceId(req);
+    if (!workspaceId) {
+      res.status(200).json({ success: true, data: [] });
+      return;
+    }
+    const automations = await db.automation.findMany({
+      where: { workspaceId, deletedAt: null, schedule: { not: null } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const data = automations.map((a) => ({
+      id: a.id,
+      name: a.name,
+      schedule: a.schedule,
+      status: a.isEnabled ? 'active' : 'paused',
+      lastRun: a.lastRunAt?.toISOString() ?? null,
+      nextRun: null,
+    }));
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/workflows', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const workspaceId = await resolveWorkspaceId(req);
+    if (!workspaceId) {
+      res.status(200).json({ success: true, data: [] });
+      return;
+    }
+    const automations = await db.automation.findMany({
+      where: { workspaceId, deletedAt: null },
+      orderBy: { updatedAt: 'desc' },
+    });
+    res.status(200).json({ success: true, data: automations });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/logs', automationController.getLogs.bind(automationController));
+router.get('/', automationController.getAutomations.bind(automationController));
+router.post('/', validate(createAutomationSchema), automationController.createAutomation.bind(automationController));
+router.get('/:id', automationController.getAutomationById.bind(automationController));
+router.put('/:id', validate(updateAutomationSchema), automationController.updateAutomation.bind(automationController));
+router.patch('/:id', validate(updateAutomationSchema), automationController.updateAutomation.bind(automationController));
+router.delete('/:id', automationController.deleteAutomation.bind(automationController));
 
 export const automationRoutes: Router = router;

@@ -83,4 +83,50 @@ export class AuthRepository extends PrismaService {
       data,
     });
   }
+
+  public async ensureUserWorkspaceAndSettings(user: User): Promise<string> {
+    const membership = await this.prisma.workspaceMember.findFirst({
+      where: { userId: user.id },
+    });
+
+    let workspaceId: string;
+
+    if (!membership) {
+      const name = user.fullName || user.email.split('@')[0];
+      const slug = `ws-${user.id.slice(0, 8)}-${Date.now().toString(36)}`;
+      const workspace = await this.prisma.workspace.create({
+        data: {
+          name: `${name}'s Workspace`,
+          slug,
+          description: 'Personal workspace',
+          members: {
+            create: {
+              userId: user.id,
+              role: 'OWNER',
+            },
+          },
+        },
+      });
+      workspaceId = workspace.id;
+    } else {
+      workspaceId = membership.workspaceId;
+    }
+
+    const settings = await this.prisma.userSettings.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (!settings) {
+      await this.prisma.userSettings.create({
+        data: {
+          userId: user.id,
+          theme: 'dark',
+          language: user.language || 'en',
+          timezone: user.timezone || 'UTC',
+        },
+      });
+    }
+
+    return workspaceId;
+  }
 }

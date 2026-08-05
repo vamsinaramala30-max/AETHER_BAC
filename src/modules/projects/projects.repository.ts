@@ -2,8 +2,10 @@
 // File: backend/src/modules/projects/projects/projects.repository.ts
 // ============================================================================
 
-import { ProjectEntity } from './projects.entity';
+import { db } from '../../database/client';
 import { ProjectFilterDTO } from './projects.dto';
+import { ProjectEntity } from './projects.entity';
+import { ProjectStatus as PrismaProjectStatus, ProjectPriority as PrismaProjectPriority } from '@prisma/client';
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -14,71 +16,118 @@ export interface PaginatedResult<T> {
 }
 
 export class ProjectsRepository {
-  private projects: Map<string, ProjectEntity> = new Map();
+  private mapToEntity(p: any): ProjectEntity {
+    return {
+      id: p.id,
+      ownerId: p.ownerId,
+      name: p.name,
+      slug: p.id,
+      description: p.description || null,
+      templateId: null,
+      category: p.category || 'General',
+      status: (p.status || 'ACTIVE') as any,
+      priority: (p.priority || 'MEDIUM') as any,
+      progressPercentage: p.progress ?? 0,
+      startDate: p.startDate ? new Date(p.startDate) : null,
+      endDate: p.endDate ? new Date(p.endDate) : null,
+      dueDate: p.endDate ? new Date(p.endDate) : null,
+      members: p.workspace?.members ? p.workspace.members.map((m: any) => ({
+        userId: m.userId,
+        role: m.role,
+        joinedAt: m.createdAt,
+      })) : [],
+      tags: p.tags || [],
+      attachments: [],
+      notes: [],
+      isArchived: p.isArchived ?? false,
+      isFavorite: p.isFavorite ?? false,
+      metadata: {},
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    };
+  }
 
   async findById(id: string): Promise<ProjectEntity | null> {
-    const project = this.projects.get(id);
-    return project ? { ...project } : null;
+    const project = await db.project.findFirst({
+      where: { id, deletedAt: null },
+      include: {
+        workspace: {
+          include: {
+            members: true,
+          },
+        },
+      },
+    });
+    return project ? this.mapToEntity(project) : null;
   }
 
   async findMany(filter: ProjectFilterDTO): Promise<PaginatedResult<ProjectEntity>> {
-    let items = Array.from(this.projects.values());
+    const where: any = { deletedAt: null };
 
     if (filter.ownerId) {
-      items = items.filter((p) => p.ownerId === filter.ownerId);
+      where.ownerId = filter.ownerId;
+    }
+    if (filter.workspaceId) {
+      where.workspaceId = filter.workspaceId;
     }
     if (filter.memberId) {
-      items = items.filter((p) => p.members.some((m) => m.userId === filter.memberId));
+      where.workspace = {
+        members: {
+          some: { userId: filter.memberId },
+        },
+      };
     }
     if (filter.category) {
-      items = items.filter((p) => p.category.toLowerCase() === filter.category?.toLowerCase());
+      where.category = { equals: filter.category, mode: 'insensitive' };
     }
     if (filter.status) {
-      items = items.filter((p) => p.status === filter.status);
+      where.status = filter.status as PrismaProjectStatus;
     }
     if (filter.priority) {
-      items = items.filter((p) => p.priority === filter.priority);
+      where.priority = filter.priority as PrismaProjectPriority;
     }
     if (filter.isArchived !== undefined) {
-      items = items.filter((p) => p.isArchived === filter.isArchived);
+      where.isArchived = filter.isArchived;
     }
     if (filter.isFavorite !== undefined) {
-      items = items.filter((p) => p.isFavorite === filter.isFavorite);
+      where.isFavorite = filter.isFavorite;
     }
     if (filter.search) {
-      const q = filter.search.toLowerCase();
-      items = items.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.description && p.description.toLowerCase().includes(q)),
-      );
+      where.OR = [
+        { name: { contains: filter.search, mode: 'insensitive' } },
+        { description: { contains: filter.search, mode: 'insensitive' } },
+      ];
     }
     if (filter.tags && filter.tags.length > 0) {
-      items = items.filter((p) => filter.tags?.some((t) => p.tags.includes(t)));
+      where.tags = { hasSome: filter.tags };
     }
-
-    const sortBy = filter.sortBy || 'createdAt';
-    const sortOrder = filter.sortOrder || 'desc';
-    items.sort((a, b) => {
-      let valA = a[sortBy as keyof ProjectEntity];
-      let valB = b[sortBy as keyof ProjectEntity];
-      if (valA instanceof Date) valA = valA.getTime();
-      if (valB instanceof Date) valB = valB.getTime();
-      if (valA === null || valA === undefined) return 1;
-      if (valB === null || valB === undefined) return -1;
-      if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-      if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-      return 0;
-    });
 
     const page = Math.max(1, filter.page || 1);
     const limit = Math.max(1, Math.min(100, filter.limit || 20));
-    const total = items.length;
-    const startIndex = (page - 1) * limit;
-    const paginatedItems = items.slice(startIndex, startIndex + limit);
+    const skip = (page - 1) * limit;
+
+    const sortBy = filter.sortBy || 'createdAt';
+    const sortOrder = filter.sortOrder || 'desc';
+
+    const [items, total] = await Promise.all([
+      db.project.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        skip,
+        take: limit,
+        include: {
+          workspace: {
+            include: {
+              members: true,
+            },
+          },
+        },
+      }),
+      db.project.count({ where }),
+    ]);
 
     return {
-      data: paginatedItems,
+      data: items.map((i) => this.mapToEntity(i)),
       total,
       page,
       limit,
@@ -86,16 +135,101 @@ export class ProjectsRepository {
     };
   }
 
-  async save(project: ProjectEntity): Promise<ProjectEntity> {
-    this.projects.set(project.id, { ...project, updatedAt: new Date() });
-    return { ...this.projects.get(project.id)! };
+  async save(project: Partial<ProjectEntity> & { name: string; ownerId: string; workspaceId?: string }): Promise<ProjectEntity> {
+    let workspaceId = project.workspaceId;
+
+    if (!workspaceId) {
+      // Find default workspace for owner
+      const membership = await db.workspaceMember.findFirst({
+        where: { userId: project.ownerId },
+      });
+      if (membership) {
+        workspaceId = membership.workspaceId;
+      } else {
+        // Create workspace for user if none exists
+        const name = project.ownerId.slice(0, 8);
+        const ws = await db.workspace.create({
+          data: {
+            name: `Personal Workspace`,
+            slug: `ws-${project.ownerId.slice(0, 8)}-${Date.now().toString(36)}`,
+            members: { create: { userId: project.ownerId, role: 'OWNER' } },
+          },
+        });
+        workspaceId = ws.id;
+      }
+    }
+
+    if (project.id) {
+      const existing = await db.project.findUnique({ where: { id: project.id } });
+      if (existing) {
+        const updated = await db.project.update({
+          where: { id: project.id },
+          data: {
+            name: project.name,
+            description: project.description,
+            status: project.status as any,
+            priority: project.priority as any,
+            category: project.category,
+            tags: project.tags,
+            progress: project.progressPercentage,
+            isArchived: project.isArchived,
+            isFavorite: project.isFavorite,
+            startDate: project.startDate,
+            endDate: project.endDate,
+          },
+          include: { workspace: { include: { members: true } } },
+        });
+        return this.mapToEntity(updated);
+      }
+    }
+
+    const created = await db.project.create({
+      data: {
+        name: project.name,
+        description: project.description,
+        workspaceId: workspaceId!,
+        ownerId: project.ownerId,
+        status: (project.status as any) || 'ACTIVE',
+        priority: (project.priority as any) || 'MEDIUM',
+        category: project.category || 'General',
+        tags: project.tags || [],
+        progress: project.progressPercentage || 0,
+        isArchived: project.isArchived || false,
+        isFavorite: project.isFavorite || false,
+        startDate: project.startDate,
+        endDate: project.endDate,
+      },
+      include: { workspace: { include: { members: true } } },
+    });
+
+    await db.notification.create({
+      data: {
+        userId: project.ownerId,
+        title: 'Project created',
+        message: `Project "${project.name}" is now available in your workspace.`,
+        type: 'PROJECT',
+        metadata: { projectId: created.id },
+      },
+    });
+
+    return this.mapToEntity(created);
   }
 
   async delete(id: string): Promise<boolean> {
-    return this.projects.delete(id);
+    try {
+      await db.project.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async countByOwner(ownerId: string): Promise<number> {
-    return Array.from(this.projects.values()).filter((p) => p.ownerId === ownerId).length;
+    return db.project.count({
+      where: { ownerId, deletedAt: null },
+    });
   }
 }
