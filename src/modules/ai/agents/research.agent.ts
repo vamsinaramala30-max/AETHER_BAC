@@ -1,13 +1,17 @@
-import { GeminiProvider } from '../providers/gemini.provider';
+import { OllamaProvider } from '../providers/ollama.provider';
 
 export class ResearchAgent {
-  private provider: GeminiProvider;
+  private provider: OllamaProvider;
 
   constructor() {
-    this.provider = new GeminiProvider();
+    this.provider = new OllamaProvider();
   }
 
   public async research(topic: string): Promise<string> {
-    return this.provider.generateText(`Synthesize key facts for research topic: ${topic}`);
+    const res = await this.provider.generateCompletion(
+      [{ role: 'user', content: `Synthesize key facts for research topic: ${topic}` }],
+      { model: 'llama3.1:8b' },
+    );
+    return res.content;
   }
 }

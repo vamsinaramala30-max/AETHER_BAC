@@ -9,50 +9,45 @@ export class GeminiProvider implements IAiProvider {
   public id = 'gemini';
   public name = 'Google Gemini Provider';
 
-  public async generateText(
-    prompt: string,
-    options?: { systemInstruction?: string; model?: string },
-  ): Promise<string> {
-    const model = options?.model || 'gemini-pro';
-    return `[Gemini ${model}] Response to: ${prompt.slice(0, 80)}...`;
+  private apiKey?: string;
+
+  constructor() {
+    this.apiKey = process.env.GEMINI_API_KEY;
+  }
+
+  public isConfigured(): boolean {
+    return Boolean(this.apiKey && this.apiKey.trim().length > 0 && !this.apiKey.includes('your-'));
   }
 
   public async generateCompletion(
-    messages: ChatMessage[],
-    options: CompletionOptions,
+    _messages: ChatMessage[],
+    _options: CompletionOptions,
   ): Promise<ProviderResponse> {
-    const content = `[Gemini ${options.model}] Generated multi-modal context response.`;
-    return {
-      content,
-      finishReason: 'stop',
-      usage: { promptTokens: 15, completionTokens: 25, totalTokens: 40 },
-    };
+    if (!this.isConfigured()) {
+      throw new Error('Provider not configured.');
+    }
+    throw new Error('Gemini provider integration disabled until valid API key configured.');
   }
 
   public async generateStream(
-    messages: ChatMessage[],
-    options: CompletionOptions,
-    onChunk: (chunk: string) => void,
+    _messages: ChatMessage[],
+    _options: CompletionOptions,
+    _onChunk: (chunk: string) => void,
   ): Promise<ProviderResponse> {
-    const fullText = `[Gemini ${options.model}] Multi-modal streaming response complete.`;
-    const chunks = fullText.split(' ');
-    for (const chunk of chunks) {
-      onChunk(chunk + ' ');
-      await new Promise((r) => setTimeout(r, 15));
+    if (!this.isConfigured()) {
+      throw new Error('Provider not configured.');
     }
-    return {
-      content: fullText,
-      finishReason: 'stop',
-      usage: { promptTokens: 15, completionTokens: chunks.length, totalTokens: 15 + chunks.length },
-    };
+    throw new Error('Gemini provider integration disabled until valid API key configured.');
   }
 
-  public async generateEmbeddings(text: string | string[]): Promise<number[][]> {
-    const inputs = Array.isArray(text) ? text : [text];
-    return inputs.map(() => Array.from({ length: 768 }, () => Math.random() * 2 - 1));
+  public async generateEmbeddings(_text: string | string[]): Promise<number[][]> {
+    if (!this.isConfigured()) {
+      throw new Error('Provider not configured.');
+    }
+    return [];
   }
 
   public async countTokens(text: string): Promise<number> {
-    return Math.ceil(text.length / 3.8);
+    return Math.ceil(text.length / 4);
   }
 }

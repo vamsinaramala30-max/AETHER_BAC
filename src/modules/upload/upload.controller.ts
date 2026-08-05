@@ -50,7 +50,8 @@ export class UploadController {
   public async deleteFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      await uploadService.deleteFile(id);
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      await uploadService.deleteFile(id, userId);
       res.status(200).json({ success: true, message: 'File deleted successfully' });
     } catch (err) {
       next(err);

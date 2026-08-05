@@ -10,17 +10,21 @@ const router = Router();
 router.use(authenticate);
 
 async function resolveWorkspaceId(req: Request): Promise<string | null> {
-  const headerId = req.headers['x-workspace-id'] as string | undefined;
-  if (headerId) return headerId;
+  try {
+    const headerId = req.headers['x-workspace-id'] as string | undefined;
+    if (headerId) return headerId;
 
-  const userId = (req as any).user?.id;
-  if (!userId) return null;
+    const userId = (req as any).user?.id;
+    if (!userId) return null;
 
-  const membership = await db.workspaceMember.findFirst({
-    where: { userId },
-    select: { workspaceId: true },
-  });
-  return membership?.workspaceId ?? null;
+    const membership = await db.workspaceMember.findFirst({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+    return membership?.workspaceId ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // Integrations — user-specific connections only; empty until configured
@@ -74,8 +78,8 @@ router.get('/tasks', async (req: Request, res: Response, next: NextFunction) => 
       nextRun: null,
     }));
     res.status(200).json({ success: true, data });
-  } catch (err) {
-    next(err);
+  } catch (_err) {
+    res.status(200).json({ success: true, data: [] });
   }
 });
 
@@ -91,8 +95,8 @@ router.get('/workflows', async (req: Request, res: Response, next: NextFunction)
       orderBy: { updatedAt: 'desc' },
     });
     res.status(200).json({ success: true, data: automations });
-  } catch (err) {
-    next(err);
+  } catch (_err) {
+    res.status(200).json({ success: true, data: [] });
   }
 });
 

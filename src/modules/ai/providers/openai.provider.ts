@@ -9,49 +9,42 @@ export class OpenAIProvider implements IAiProvider {
   public id = 'openai';
   public name = 'OpenAI Provider';
 
-  public async generateCompletion(
-    messages: ChatMessage[],
-    options: CompletionOptions,
-  ): Promise<ProviderResponse> {
-    const promptText = messages.map((m) => m.content).join(' ');
-    const estimatedPrompt = Math.ceil(promptText.length / 4);
-    const simulatedResponse = `[OpenAI ${options.model}] Processed request with ${messages.length} messages.`;
-    const estimatedCompletion = Math.ceil(simulatedResponse.length / 4);
+  private apiKey?: string;
 
-    return {
-      content: simulatedResponse,
-      finishReason: 'stop',
-      usage: {
-        promptTokens: estimatedPrompt,
-        completionTokens: estimatedCompletion,
-        totalTokens: estimatedPrompt + estimatedCompletion,
-      },
-    };
+  constructor() {
+    this.apiKey = process.env.OPENAI_API_KEY;
+  }
+
+  public isConfigured(): boolean {
+    return Boolean(this.apiKey && this.apiKey.trim().length > 0 && !this.apiKey.includes('your-'));
+  }
+
+  public async generateCompletion(
+    _messages: ChatMessage[],
+    _options: CompletionOptions,
+  ): Promise<ProviderResponse> {
+    if (!this.isConfigured()) {
+      throw new Error('Provider not configured.');
+    }
+    throw new Error('OpenAI provider integration disabled until valid API key configured.');
   }
 
   public async generateStream(
-    messages: ChatMessage[],
-    options: CompletionOptions,
-    onChunk: (chunk: string) => void,
+    _messages: ChatMessage[],
+    _options: CompletionOptions,
+    _onChunk: (chunk: string) => void,
   ): Promise<ProviderResponse> {
-    const fullText = `[OpenAI ${options.model} Stream] Streamed completion output.`;
-    const tokens = fullText.split(' ');
-
-    for (const token of tokens) {
-      onChunk(token + ' ');
-      await new Promise((res) => setTimeout(res, 20));
+    if (!this.isConfigured()) {
+      throw new Error('Provider not configured.');
     }
-
-    return {
-      content: fullText,
-      finishReason: 'stop',
-      usage: { promptTokens: 20, completionTokens: tokens.length, totalTokens: 20 + tokens.length },
-    };
+    throw new Error('OpenAI provider integration disabled until valid API key configured.');
   }
 
-  public async generateEmbeddings(text: string | string[]): Promise<number[][]> {
-    const inputs = Array.isArray(text) ? text : [text];
-    return inputs.map(() => Array.from({ length: 1536 }, () => Math.random() * 2 - 1));
+  public async generateEmbeddings(_text: string | string[]): Promise<number[][]> {
+    if (!this.isConfigured()) {
+      throw new Error('Provider not configured.');
+    }
+    return [];
   }
 
   public async countTokens(text: string): Promise<number> {

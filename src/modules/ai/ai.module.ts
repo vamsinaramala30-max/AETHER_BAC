@@ -46,7 +46,7 @@ export class AiModule {
   public readonly providerFactory = new ProviderFactory();
   public readonly modelRegistry = new ModelRegistryService();
   public readonly modelRouter = new ModelRouterService(this.modelRegistry);
-  public readonly modelsService = new ModelsService(this.modelRegistry, this.modelRouter);
+  public readonly modelsService = new ModelsService(this.modelRegistry, this.modelRouter, this.providerFactory);
   public readonly modelsController = new ModelsController(this.modelsService);
 
   public readonly conversationsRepository = new ConversationsRepository();
@@ -91,12 +91,14 @@ export class AiModule {
   public readonly aiController: AiController;
 
   constructor() {
-    const gemini = this.providerFactory.getProvider('gemini');
+    const providerFactory = this.providerFactory;
     const adapter = {
-      async generateCompletion(params: { messages: any[]; model?: string; temperature?: number }) {
+      async generateCompletion(params: { messages: any[]; model?: string; temperature?: number; providerId?: string }) {
+        const provider = providerFactory.getProvider(params.providerId || 'ollama');
         const chatMsgs = params.messages.map((m) => ({ role: m.role, content: m.content }));
-        const res = await gemini.generateCompletion(chatMsgs, {
-          model: params.model || 'gemini-pro',
+        const defaultModel = params.model || 'llama3.1:8b';
+        const res = await provider.generateCompletion(chatMsgs, {
+          model: defaultModel,
           temperature: params.temperature,
         });
         return { content: res.content, metadata: { totalTokens: res.usage.totalTokens } };
@@ -105,13 +107,16 @@ export class AiModule {
         messages: any[];
         model?: string;
         temperature?: number;
+        providerId?: string;
         onToken: (t: string) => void;
       }) {
+        const provider = providerFactory.getProvider(params.providerId || 'ollama');
         const chatMsgs = params.messages.map((m) => ({ role: m.role, content: m.content }));
-        const res = await gemini.generateStream(
+        const defaultModel = params.model || 'llama3.1:8b';
+        const res = await provider.generateStream(
           chatMsgs,
           {
-            model: params.model || 'gemini-pro',
+            model: defaultModel,
             temperature: params.temperature,
           },
           params.onToken,
@@ -132,6 +137,7 @@ export class AiModule {
       this.ragService,
       this.streamingService,
       this.toolsService,
+      this.providerFactory,
     );
     this.aiController = new AiController(this.aiService);
   }

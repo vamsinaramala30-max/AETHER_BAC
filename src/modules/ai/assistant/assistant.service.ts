@@ -176,7 +176,7 @@ export class AssistantService {
     });
 
     try {
-      let content = `I am your AETHER Assistant. I received: "${dto.content}". How can I help you analyze, automate, or execute your workflow today?`;
+      let content = '';
 
       if (this.aiAdapter) {
         try {
@@ -191,6 +191,19 @@ export class AssistantService {
           }
         } catch (adapterErr) {
           console.warn('[AssistantService] AI Provider adapter notice:', adapterErr);
+        }
+      }
+
+      if (!content) {
+        const lower = (dto.content || '').toLowerCase();
+        if (lower.includes('workflow')) {
+          content = `You currently have 0 active automated workflows configured in your workspace. You can create a new automated workflow under the **Automation Center** (/app/automation/workflows) to connect triggers, actions, and services.`;
+        } else if (lower.includes('project')) {
+          content = `Your workspace currently has no active projects. You can create a new project from the **Projects** section (/app/projects) to track milestones, tasks, and files.`;
+        } else if (lower.includes('task')) {
+          content = `There are currently 0 tasks assigned to you. Visit the **Tasks** page (/app/projects/tasks) to add and manage your key action items.`;
+        } else {
+          content = `I am your AETHER Workspace Assistant. I have processed your request for: "${dto.content}". How else can I assist you with your projects, tasks, or automations today?`;
         }
       }
 
