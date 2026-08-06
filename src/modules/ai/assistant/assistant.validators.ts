@@ -1,5 +1,5 @@
 import { ASSISTANT_CONSTANTS } from './assistant.constants';
-import { AttachmentMetadata, MessageRole } from './assistant.types';
+import { MessageRole } from './assistant.types';
 
 export class AssistantValidator {
   static validatePagination(page?: unknown, limit?: unknown): { page: number; limit: number } {

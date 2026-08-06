@@ -13,7 +13,7 @@ export class AiController {
     }
   };
 
-  public chat = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  public chat = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     try {
       const { message, content, conversationId, model, temperature } = req.body || {};
       const userMessage = message || content;

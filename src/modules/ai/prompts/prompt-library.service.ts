@@ -1,5 +1,5 @@
 import { PromptLibraryRepository } from './prompt-library.repository';
-import { CreatePromptDto, UpdatePromptDto } from './prompt-library.dto';
+import { CreatePromptDto } from './prompt-library.dto';
 import { PromptEntity } from './prompt-library.entity';
 
 export class PromptLibraryService {

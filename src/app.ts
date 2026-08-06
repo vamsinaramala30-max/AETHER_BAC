@@ -98,7 +98,7 @@ export function createApp(prisma: PrismaClient): express.Express {
   );
 
   // Global Error Handler
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
     console.error(`[Unhandled Engine Error]: ${err.stack}`);
     res.status(500).json({ error: 'Internal Server Error', message: err.message });
   });

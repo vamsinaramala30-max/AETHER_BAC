@@ -1,54 +1,82 @@
-import { FavoriteEntity } from './favorites.entity';
+import { db } from '../../../database/client';
 import { AddFavoriteDto, QueryFavoritesDto } from './favorites.dto';
+import { FavoriteEntity } from './favorites.entity';
 
 export class FavoritesRepository {
-  private favorites: Map<string, FavoriteEntity> = new Map();
+  private mapToEntity(f: any): FavoriteEntity {
+    return new FavoriteEntity({
+      id: f.id,
+      userId: f.userId,
+      workspaceId: f.workspaceId || '',
+      targetId: f.resourceId,
+      type: f.resourceType,
+      title: f.title,
+      order: f.order || 0,
+      createdAt: f.createdAt,
+    });
+  }
 
   async add(userId: string, dto: AddFavoriteDto): Promise<FavoriteEntity> {
-    const id = `fav_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const fav = new FavoriteEntity({
-      id,
-      userId,
-      workspaceId: dto.workspaceId,
-      targetId: dto.targetId,
-      type: dto.type,
-      title: dto.title,
-      order: this.favorites.size + 1,
-      createdAt: new Date(),
+    const count = await db.userFavorite.count({ where: { userId } });
+
+    const fav = await db.userFavorite.upsert({
+      where: {
+        userId_resourceType_resourceId: {
+          userId,
+          resourceType: dto.type,
+          resourceId: dto.targetId,
+        },
+      },
+      create: {
+        userId,
+        workspaceId: dto.workspaceId || null,
+        resourceType: dto.type,
+        resourceId: dto.targetId,
+        title: dto.title,
+        order: count,
+      },
+      update: {
+        title: dto.title,
+      },
     });
 
-    this.favorites.set(id, fav);
-    return fav;
+    return this.mapToEntity(fav);
   }
 
   async remove(id: string): Promise<boolean> {
-    return this.favorites.delete(id);
+    const result = await db.userFavorite.deleteMany({ where: { id } });
+    return result.count > 0;
   }
 
   async findMany(userId: string, query: QueryFavoritesDto): Promise<FavoriteEntity[]> {
-    let list = Array.from(this.favorites.values()).filter(
-      (f) => f.userId === userId && f.workspaceId === query.workspaceId,
-    );
+    const where: any = { userId };
 
+    if (query.workspaceId) {
+      where.workspaceId = query.workspaceId;
+    }
     if (query.type) {
-      list = list.filter((f) => f.type === query.type);
+      where.resourceType = query.type;
     }
-
     if (query.search) {
-      const s = query.search.toLowerCase();
-      list = list.filter((f) => f.title.toLowerCase().includes(s));
+      where.title = { contains: query.search, mode: 'insensitive' };
     }
 
-    return list.sort((a, b) => a.order - b.order);
+    const items = await db.userFavorite.findMany({
+      where,
+      orderBy: { order: 'asc' },
+    });
+
+    return items.map((f) => this.mapToEntity(f));
   }
 
   async updateOrder(orderedIds: string[]): Promise<void> {
-    orderedIds.forEach((id, index) => {
-      const item = this.favorites.get(id);
-      if (item) {
-        item.order = index + 1;
-        this.favorites.set(id, item);
-      }
-    });
+    await Promise.all(
+      orderedIds.map((id, index) =>
+        db.userFavorite.updateMany({
+          where: { id },
+          data: { order: index },
+        }),
+      ),
+    );
   }
 }

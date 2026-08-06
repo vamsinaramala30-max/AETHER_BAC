@@ -14,18 +14,23 @@ export class GoalsService {
     const id = `gol_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const now = new Date();
 
+    const deadlineDate =
+      dto.deadline && !isNaN(new Date(dto.deadline).getTime())
+        ? new Date(dto.deadline)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+
     const goal: GoalEntity = {
       id,
       userId: dto.userId,
-      title: dto.title,
+      title: dto.title || 'Untitled Goal',
       description: dto.description || null,
-      type: dto.type,
+      type: dto.type || ('OBJECTIVE' as any),
       status: GoalStatus.NOT_STARTED,
-      category: dto.category,
+      category: dto.category || 'General',
       targetValue: dto.targetValue || 100,
       currentValue: 0,
       unit: dto.unit || '%',
-      deadline: new Date(dto.deadline),
+      deadline: deadlineDate,
       milestones: [],
       linkedProjectIds: dto.linkedProjectIds || [],
       linkedTaskIds: dto.linkedTaskIds || [],

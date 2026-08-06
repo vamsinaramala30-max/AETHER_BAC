@@ -147,7 +147,6 @@ export class ProjectsRepository {
         workspaceId = membership.workspaceId;
       } else {
         // Create workspace for user if none exists
-        const name = project.ownerId.slice(0, 8);
         const ws = await db.workspace.create({
           data: {
             name: `Personal Workspace`,

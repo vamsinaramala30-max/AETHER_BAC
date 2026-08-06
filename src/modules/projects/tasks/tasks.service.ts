@@ -14,18 +14,24 @@ export class TasksService {
   private async notifyAssignees(assigneeIds: string[], title: string, message: string, type: string = 'TASK') {
     if (!assigneeIds?.length) return;
 
-    await Promise.all(
-      assigneeIds.map((assigneeId) =>
-        db.notification.create({
-          data: {
-            userId: assigneeId,
-            title,
-            message,
-            type: type as any,
-          },
+    try {
+      await Promise.all(
+        assigneeIds.map(async (assigneeId) => {
+          const userExists = await db.user.findUnique({ where: { id: assigneeId } });
+          if (!userExists) return;
+          await db.notification.create({
+            data: {
+              userId: assigneeId,
+              title,
+              message,
+              type: type as any,
+            },
+          });
         }),
-      ),
-    );
+      );
+    } catch {
+      // Ignore notification failures
+    }
   }
 
   async createTask(dto: CreateTaskDTO): Promise<TaskEntity> {

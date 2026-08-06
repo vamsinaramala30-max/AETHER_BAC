@@ -1,4 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let Resend: any;
 try {
   Resend = require('resend').Resend;

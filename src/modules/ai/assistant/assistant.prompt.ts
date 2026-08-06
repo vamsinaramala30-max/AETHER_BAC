@@ -1,5 +1,5 @@
 import { AssistantMemoryManager } from './assistant.memory';
-import { AttachmentMetadata, Message, MessageRole } from './assistant.types';
+import { AttachmentMetadata, MessageRole } from './assistant.types';
 import { AssistantUtils } from './assistant.utils';
 
 export class AssistantPromptBuilder {

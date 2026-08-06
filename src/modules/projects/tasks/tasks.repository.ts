@@ -110,7 +110,30 @@ export class TasksRepository {
         projectId = firstProj.id;
         creatorId = creatorId || firstProj.ownerId;
       } else {
-        throw new Error('No project found to attach task to.');
+        const firstUser = await db.user.findFirst();
+        const ownerId = creatorId || firstUser?.id || '00000000-0000-0000-0000-000000000000';
+        let wsMember = await db.workspaceMember.findFirst({ where: { userId: ownerId } });
+        let wsId = wsMember?.workspaceId;
+        if (!wsId) {
+          const ws = await db.workspace.create({
+            data: {
+              name: 'Personal Workspace',
+              slug: `ws-${Date.now().toString(36)}`,
+              members: { create: { userId: ownerId, role: 'OWNER' } },
+            },
+          });
+          wsId = ws.id;
+        }
+        const newProj = await db.project.create({
+          data: {
+            name: 'General Tasks Project',
+            ownerId,
+            workspaceId: wsId,
+            category: 'General',
+          },
+        });
+        projectId = newProj.id;
+        creatorId = ownerId;
       }
     }
 

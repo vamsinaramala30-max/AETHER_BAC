@@ -40,7 +40,7 @@ export class CalendarService {
     return this.calendarRepo.delete(calendarId);
   }
 
-  async getEvents(params: {
+  async getEvents(_params: {
     workspaceId?: string;
     userId?: string;
     limit?: number;

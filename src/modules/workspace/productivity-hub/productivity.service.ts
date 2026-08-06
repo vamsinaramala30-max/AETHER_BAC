@@ -31,7 +31,7 @@ export class ProductivityService {
     };
   }
 
-  async getAIInsights(workspaceId: string, userId: string): Promise<AIProductivityInsightDto> {
+  async getAIInsights(_workspaceId: string, _userId: string): Promise<AIProductivityInsightDto> {
     return {
       score: 85,
       recommendations: [

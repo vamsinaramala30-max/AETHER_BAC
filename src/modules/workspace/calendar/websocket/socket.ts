@@ -31,7 +31,7 @@ export class CalendarWebSocketServer {
         ) as any;
         socket.data.user = decoded;
         next();
-      } catch (err) {
+      } catch {
         next(new Error('Authentication failed: Invalid signature'));
       }
     });

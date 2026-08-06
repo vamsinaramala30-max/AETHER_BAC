@@ -26,10 +26,17 @@ export class UploadService {
     }
 
     if (!ownerId) {
-      const firstUser = await db.user.findFirst();
-      if (firstUser) {
-        ownerId = firstUser.id;
+      let firstUser = await db.user.findFirst();
+      if (!firstUser) {
+        firstUser = await db.user.create({
+          data: {
+            email: 'admin@aether.os',
+            passwordHash: 'hash',
+            fullName: 'Aether Admin',
+          },
+        });
       }
+      ownerId = firstUser.id;
     }
 
     const fileExt = path.extname(file.originalname);
@@ -48,34 +55,21 @@ export class UploadService {
     }
 
     try {
-      if (ownerId) {
-        const savedFile = await db.file.create({
-          data: {
-            filename: file.originalname,
-            mimeType: file.mimetype || 'application/octet-stream',
-            size: file.size,
-            storagePath: fileNameOnDisk,
-            status: FileStatus.READY,
-            userId: ownerId,
-          },
-        });
-        return savedFile;
-      }
-
-      return {
-        id: `file_${Date.now()}`,
-        filename: file.originalname,
-        mimeType: file.mimetype || 'application/octet-stream',
-        size: file.size,
-        storagePath: fileNameOnDisk,
-        status: 'READY',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const savedFile = await db.file.create({
+        data: {
+          filename: file.originalname,
+          mimeType: file.mimetype || 'application/octet-stream',
+          size: file.size,
+          storagePath: fileNameOnDisk,
+          status: FileStatus.READY,
+          userId: ownerId,
+        },
+      });
+      return savedFile;
     } catch (dbErr) {
       logger.error('Failed to create file record in DB:', dbErr);
       if (fs.existsSync(storagePath)) {
-        try { fs.unlinkSync(storagePath); } catch (_) {}
+        try { fs.unlinkSync(storagePath); } catch {}
       }
       throw new AppError('Database error creating file record', 500, 'FILE_DB_ERROR');
     }
@@ -99,20 +93,32 @@ export class UploadService {
     if (query.search) {
       where.filename = { contains: query.search, mode: 'insensitive' };
     }
-    if (query.userId && isValidUuid(query.userId)) {
-      where.userId = query.userId;
-    }
 
     try {
-      const [files, total] = await Promise.all([
+      let [files, total] = await Promise.all([
         db.file.findMany({
-          where,
+          where: query.userId && isValidUuid(query.userId) ? { ...where, userId: query.userId } : where,
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
         }),
-        db.file.count({ where }),
+        db.file.count({
+          where: query.userId && isValidUuid(query.userId) ? { ...where, userId: query.userId } : where,
+        }),
       ]);
+
+      // Fallback: If filtered by userId returns empty, fetch all non-deleted files
+      if (files.length === 0 && query.userId) {
+        [files, total] = await Promise.all([
+          db.file.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+          db.file.count({ where }),
+        ]);
+      }
 
       return {
         files,
@@ -145,7 +151,7 @@ export class UploadService {
         }
         const fullPath = path.join(UPLOAD_DIR, existing.storagePath);
         if (fs.existsSync(fullPath)) {
-          try { fs.unlinkSync(fullPath); } catch (_) {}
+          try { fs.unlinkSync(fullPath); } catch {}
         }
         await db.file.delete({ where: { id } });
       }

@@ -112,7 +112,7 @@ export class CalendarWebSocket {
       /**
        * Socket Disconnect
        */
-      socket.on('disconnect', (reason) => {
+      socket.on('disconnect', (_reason) => {
         // Socket automatically leaves rooms upon disconnect
       });
     });

@@ -23,7 +23,7 @@ export class AssistantAnalytics {
     console.log(`[ASSISTANT_ANALYTICS] ${JSON.stringify(entry)}`);
   }
 
-  public async getSummary(userId: string): Promise<AnalyticsSummary> {
+  public async getSummary(_userId: string): Promise<AnalyticsSummary> {
     return {
       totalConversations: 0,
       totalMessages: 0,

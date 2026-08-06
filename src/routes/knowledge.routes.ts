@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { KnowledgeController } from '../modules/knowledge/knowledge.controller';
 import { KnowledgeService } from '../modules/knowledge/knowledge.service';
 import { KnowledgeRepository } from '../modules/knowledge/knowledge.repository';
 

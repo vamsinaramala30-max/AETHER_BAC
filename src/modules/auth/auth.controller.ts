@@ -66,7 +66,7 @@ export class AuthController {
         res.status(401).json({ success: false, error: 'Unauthorized' });
         return;
       }
-      const updated = await authService.updateUserProfile(userId, req.body);
+      await authService.updateUserProfile(userId, req.body);
       const profile = await authService.getProfile(userId);
       res.status(200).json({ success: true, data: profile });
     } catch (err) {

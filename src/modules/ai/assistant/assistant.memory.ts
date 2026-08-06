@@ -16,7 +16,7 @@ export class AssistantMemoryManager {
     userId: string,
     query: string,
     workspaceId?: string,
-    limit: number = 5,
+    _limit: number = 5,
   ): Promise<MemoryChunk[]> {
     // Production RAG Vector Search Hook
     return [];

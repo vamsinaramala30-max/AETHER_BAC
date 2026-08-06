@@ -14,7 +14,7 @@ export class StudyPlannerRepository {
     return subject;
   }
 
-  async findSubjectsByUser(userId: string): Promise<StudySubject[]> {
+  async findSubjectsByUser(_userId: string): Promise<StudySubject[]> {
     return Array.from(this.subjects.values());
   }
 

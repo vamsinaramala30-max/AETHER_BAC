@@ -1,5 +1,5 @@
 export class EmailNotificationProvider {
-  async sendEmail(to: string, subject: string, body: string): Promise<boolean> {
+  async sendEmail(_to: string, _subject: string, _body: string): Promise<boolean> {
     // Production SMTP/Transactional Email Gateway integration wrapper
     return true;
   }

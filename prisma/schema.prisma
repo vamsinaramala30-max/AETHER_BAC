@@ -145,6 +145,8 @@ model User {
   notes           Note[]
   folders         Folder[]
   activities      ActivityLog[]
+  favorites       UserFavorite[]
+  userCalendars   UserCalendar[]
 
   @@index([email])
   @@map("users")
@@ -655,4 +657,52 @@ model Automation {
 
   @@index([workspaceId])
   @@map("automations")
+}
+
+// ============================================================================
+// User Favorites (persistent, any resource type)
+// ============================================================================
+
+model UserFavorite {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  workspaceId  String?  @db.Uuid
+  resourceType String   // e.g. "project" | "file" | "conversation" | "model"
+  resourceId   String   // ID of the favorited resource
+  title        String
+  metadata     Json?    // optional extra info (color, icon, url, etc.)
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceType, resourceId])
+  @@index([userId])
+  @@index([userId, workspaceId])
+  @@map("user_favorites")
+}
+
+// ============================================================================
+// User Calendars (persistent calendar categories per user)
+// ============================================================================
+
+model UserCalendar {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  workspaceId String?  @db.Uuid
+  title       String
+  color       String   @default("#38bdf8")
+  isPrimary   Boolean  @default(false)
+  isVisible   Boolean  @default(true)
+  description String?
+  timeZone    String   @default("UTC")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_calendars")
 }

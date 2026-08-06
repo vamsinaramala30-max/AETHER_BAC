@@ -1,6 +1,6 @@
 import { RetrievalService } from './retrieval.service';
 import { RerankerService } from './reranker.service';
-import { KnowledgeChunk, Citation } from './rag.entity';
+import { Citation } from './rag.entity';
 
 export class RagService {
   constructor(

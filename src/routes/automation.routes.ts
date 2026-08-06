@@ -58,7 +58,7 @@ router.patch('/integrations/:id', async (req: Request, res: Response, next: Next
 });
 
 // Scheduled automations from database
-router.get('/tasks', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/tasks', async (req: Request, res: Response) => {
   try {
     const workspaceId = await resolveWorkspaceId(req);
     if (!workspaceId) {
@@ -78,12 +78,43 @@ router.get('/tasks', async (req: Request, res: Response, next: NextFunction) => 
       nextRun: null,
     }));
     res.status(200).json({ success: true, data });
-  } catch (_err) {
+  } catch {
     res.status(200).json({ success: true, data: [] });
   }
 });
 
-router.get('/workflows', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/tasks', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const workspaceId = (await resolveWorkspaceId(req)) || '00000000-0000-0000-0000-000000000000';
+    const { name, schedule, cronExpression, target } = req.body;
+    const sched = schedule || cronExpression || '0 * * * *';
+    const created = await db.automation.create({
+      data: {
+        workspaceId,
+        name: name || 'Operational Schedule',
+        trigger: 'CRON_SCHEDULE',
+        actions: { target: target || '/v1/tasks/' },
+        schedule: sched,
+        isEnabled: true,
+      },
+    });
+    res.status(201).json({
+      success: true,
+      data: {
+        id: created.id,
+        name: created.name,
+        schedule: created.schedule,
+        status: 'active',
+        lastRun: null,
+        nextRun: null,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/workflows', async (req: Request, res: Response) => {
   try {
     const workspaceId = await resolveWorkspaceId(req);
     if (!workspaceId) {
@@ -95,7 +126,7 @@ router.get('/workflows', async (req: Request, res: Response, next: NextFunction)
       orderBy: { updatedAt: 'desc' },
     });
     res.status(200).json({ success: true, data: automations });
-  } catch (_err) {
+  } catch {
     res.status(200).json({ success: true, data: [] });
   }
 });

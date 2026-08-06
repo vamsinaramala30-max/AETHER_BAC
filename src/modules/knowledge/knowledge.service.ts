@@ -37,7 +37,7 @@ export class KnowledgeService {
     };
   }
 
-  async getGraphData(userId?: string) {
+  async getGraphData(_userId?: string) {
     const [files, kbEntries] = await Promise.all([
       prisma.file.findMany({ take: 50, orderBy: { createdAt: 'desc' } }),
       prisma.knowledgeBase.findMany({ take: 50, orderBy: { createdAt: 'desc' } }),

@@ -3,6 +3,9 @@ import { UsersService } from './users.service';
 
 const usersService = new UsersService();
 
+// Per-user connected accounts store in memory
+const userConnectionsMap = new Map<string, Record<string, string>>();
+
 export class UsersController {
   public async getUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -39,12 +42,17 @@ export class UsersController {
     next: NextFunction,
   ): Promise<void> {
     try {
-      // Mock or fetched connected accounts list
-      res.status(200).json([
-        { provider: 'github', identityName: 'user@github' },
-        { provider: 'google', identityName: 'user@gmail.com' },
-        { provider: 'gitlab', identityName: '' },
-      ]);
+      const userId = (req as any).user?.id || 'anonymous';
+      const userConnections = userConnectionsMap.get(userId) || {};
+
+      // All newly registered or logged-in users start with NO connected third-party accounts (Disconnected)
+      const providers = [
+        { provider: 'github', identityName: userConnections.github || '' },
+        { provider: 'google', identityName: userConnections.google || '' },
+        { provider: 'gitlab', identityName: userConnections.gitlab || '' },
+      ];
+
+      res.status(200).json(providers);
     } catch (err) {
       next(err);
     }
@@ -52,7 +60,14 @@ export class UsersController {
 
   public async disconnectAccount(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      res.status(200).json({ success: true, message: 'Account disconnected successfully' });
+      const userId = (req as any).user?.id || 'anonymous';
+      const provider = req.params.provider;
+
+      const userConnections = userConnectionsMap.get(userId) || {};
+      delete userConnections[provider];
+      userConnectionsMap.set(userId, userConnections);
+
+      res.status(200).json({ success: true, message: `${provider} disconnected successfully` });
     } catch (err) {
       next(err);
     }

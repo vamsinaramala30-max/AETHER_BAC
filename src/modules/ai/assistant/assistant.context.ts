@@ -9,7 +9,6 @@ export class AssistantContextManager {
       ASSISTANT_CONSTANTS.CONTEXT.RESERVED_COMPLETION_TOKENS,
     systemPrompt?: string,
   ): { role: MessageRole; content: string }[] {
-    const formattedMessages: { role: MessageRole; content: string }[] = [];
     let currentTokens = 0;
 
     if (systemPrompt) {
