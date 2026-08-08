@@ -15,8 +15,15 @@ export const updateAutomationSchema = z.object({
   }),
   body: z.object({
     name: z.string().min(1).trim().optional(),
+    description: z.string().nullable().optional(),
     isEnabled: z.boolean().optional(),
-    actions: z.union([z.record(z.unknown()), z.array(z.unknown())]).optional(),
+    isActive: z.boolean().optional(),
     trigger: z.string().optional(),
+    triggerType: z.string().optional(),
+    conditions: z.union([z.record(z.unknown()), z.array(z.unknown())]).nullable().optional(),
+    actions: z.union([z.record(z.unknown()), z.array(z.unknown())]).nullable().optional(),
+    nodes: z.array(z.unknown()).optional(),
+    schedule: z.string().nullable().optional(),
+    status: z.string().optional(),
   }),
 });

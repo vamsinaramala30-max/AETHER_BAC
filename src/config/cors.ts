@@ -14,8 +14,16 @@ export const corsConfig: CorsOptions = {
       return;
     }
 
+    // Allow local network IP addresses in development mode (for mobile device testing)
+    const isLocalNetworkIp =
+      process.env.NODE_ENV !== 'production' &&
+      /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
+        origin,
+      );
+
     if (
       allowedOrigins.includes(origin) ||
+      isLocalNetworkIp ||
       allowedOrigins.some(
         (o) => o !== '*' && new RegExp(`^${o.replace(/\*/g, '.*')}$`).test(origin),
       )

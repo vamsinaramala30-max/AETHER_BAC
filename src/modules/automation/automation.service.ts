@@ -32,10 +32,38 @@ export class AutomationService {
 
   public async updateAutomation(
     id: string,
-    data: { name?: string; isEnabled?: boolean; actions?: Prisma.InputJsonValue },
+    data: { name?: string; description?: string; isEnabled?: boolean; isActive?: boolean; trigger?: string; triggerType?: string; actions?: Prisma.InputJsonValue; nodes?: Prisma.InputJsonValue; conditions?: Prisma.InputJsonValue; schedule?: string },
   ) {
-    await this.getAutomationById(id);
-    return this.repo.update(id, data);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    let auto = null;
+    if (isUuid) {
+      auto = await this.repo.findById(id);
+    }
+    
+    // Map fields
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.isEnabled !== undefined) updateData.isEnabled = data.isEnabled;
+    if (data.isActive !== undefined) updateData.isEnabled = data.isActive;
+    if (data.trigger !== undefined) updateData.trigger = data.trigger;
+    if (data.triggerType !== undefined) updateData.trigger = data.triggerType;
+    if (data.schedule !== undefined) updateData.schedule = data.schedule;
+    if (data.nodes !== undefined) updateData.actions = data.nodes;
+    else if (data.actions !== undefined) updateData.actions = data.actions;
+    if (data.conditions !== undefined) updateData.conditions = data.conditions;
+
+    if (!auto) {
+      // Create new automation record if id was custom non-UUID or not found
+      return this.repo.create(
+        '00000000-0000-0000-0000-000000000000',
+        data.name || 'New Workflow',
+        data.triggerType || data.trigger || 'Manual Trigger',
+        (data.nodes || data.actions || []) as Prisma.InputJsonValue,
+      );
+    }
+
+    return this.repo.update(id, updateData);
   }
 
   public async deleteAutomation(id: string) {
