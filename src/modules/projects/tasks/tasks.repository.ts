@@ -145,7 +145,9 @@ export class TasksRepository {
     const proj = await db.project.findUnique({ where: { id: projectId } });
     const workspaceId = proj?.workspaceId || '00000000-0000-0000-0000-000000000000';
 
-    if (task.id) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (task.id && isUuid.test(task.id)) {
       const existing = await db.task.findUnique({ where: { id: task.id } });
       if (existing) {
         const updated = await db.task.update({

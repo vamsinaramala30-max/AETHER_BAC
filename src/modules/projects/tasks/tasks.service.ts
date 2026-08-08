@@ -38,12 +38,11 @@ export class TasksService {
     const id = `tsk_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const now = new Date();
 
-    const task: TaskEntity = {
-      id,
+    const task: Partial<TaskEntity> & { title: string; creatorId?: string } = {
+      title: dto.title,
       projectId: dto.projectId,
       listId: dto.listId || null,
       parentTaskId: dto.parentTaskId || null,
-      title: dto.title,
       description: dto.description || null,
       status: dto.status || TaskStatus.TODO,
       priority: dto.priority || PriorityLevel.MEDIUM,
@@ -60,6 +59,7 @@ export class TasksService {
       completedAt: dto.status === TaskStatus.DONE ? now : null,
       createdAt: now,
       updatedAt: now,
+      creatorId: dto.assigneeIds && dto.assigneeIds.length > 0 ? dto.assigneeIds[0] : undefined,
     };
 
     const savedTask = await this.repository.save(task);
