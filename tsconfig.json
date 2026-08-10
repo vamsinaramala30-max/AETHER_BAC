@@ -3,10 +3,14 @@
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "node",
-    "types": ["node"],
-    "lib": ["ES2022"],
-    "outDir": "./dist",
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022"
+    ],
     "rootDir": "./",
+    "outDir": "./dist",
     "strict": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
@@ -30,13 +34,21 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "incremental": true,
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "incremental": false,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
-  "include": ["server.ts", "src/**/*.ts", "prisma/**/*.ts"],
-  "exclude": ["node_modules", "dist", "coverage"]
+  "include": [
+    "server.ts",
+    "src/**/*.ts",
+    "prisma/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
 }

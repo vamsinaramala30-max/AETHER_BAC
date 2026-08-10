@@ -1,14 +1,14 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket, SocketEvent, AISreamPayload } from './socketTypes';
-import { OllamaProvider } from '../modules/ai/providers/ollama.provider';
-import { SYSTEM_PROMPT } from '../modules/ai/prompts/system.prompt';
+import { OllamaRuntime } from '../modules/ai/llm/model-runtime';
+import { AETHER_BASE_SYSTEM_PROMPT } from '../modules/ai/prompts/system-prompts';
 import { logger } from '../config';
 
 export class AIGateway {
-  private aiProvider: OllamaProvider;
+  private aiProvider: OllamaRuntime;
 
   constructor() {
-    this.aiProvider = new OllamaProvider();
+    this.aiProvider = new OllamaRuntime();
   }
 
   public registerHandlers(io: Server, socket: AuthenticatedSocket): void {
@@ -27,13 +27,21 @@ export class AIGateway {
 
         let fullText = '';
         await this.aiProvider.generateStream(
-          [{ role: 'user', content: payload.prompt }],
-          { model: 'llama3.1:8b', systemPrompt: SYSTEM_PROMPT },
-          (chunk: string) => {
-            fullText += chunk;
+          {
+            requestId: `req_${Date.now()}`,
+            modelId: 'llama3.1:8b',
+            messages: [
+              { role: 'system', content: AETHER_BASE_SYSTEM_PROMPT },
+              { role: 'user', content: payload.prompt },
+            ],
+            stream: true,
+          },
+          (chunk) => {
+            const textDelta = chunk.delta || '';
+            fullText += textDelta;
             socket.emit(SocketEvent.AI_STREAM_CHUNK, {
               conversationId: payload.conversationId,
-              chunk,
+              chunk: textDelta,
             });
           },
         );

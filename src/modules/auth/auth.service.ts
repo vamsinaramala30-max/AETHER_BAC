@@ -1,10 +1,23 @@
 import bcrypt from 'bcryptjs';
-import jwt, { SignOptions } from 'jsonwebtoken';
+import jwt, {
+  SignOptions,
+} from 'jsonwebtoken';
+
 import { AuthRepository } from './auth.repository';
-import { securityConfig, logger } from '../../config';
+import {
+  securityConfig,
+  logger,
+} from '../../config';
+
 import { db } from '../../database/client';
 import { AppError } from '../../middleware/error.middleware';
-import { AuthTokenPayload, LoginResponse, OAuthUserPayload, GoogleUserPayload } from './auth.types';
+
+import {
+  AuthTokenPayload,
+  LoginResponse,
+  OAuthUserPayload,
+  GoogleUserPayload,
+} from './auth.types';
 
 interface ProfileUserPayload {
   id: string;
@@ -26,274 +39,816 @@ export class AuthService {
     this.repo = new AuthRepository();
   }
 
-  private buildProfilePayload(user: ProfileUserPayload) {
+  /**
+   * ------------------------------------------------------------------------
+   * Build profile payload
+   * ------------------------------------------------------------------------
+   */
+  private buildProfilePayload(
+    user: ProfileUserPayload,
+  ) {
+    const fallbackName =
+      user.email
+        .split('@')[0]
+        ?.trim() || 'User';
+
     const fullName =
       user.fullName?.trim() ||
-      [user.email.split('@')[0]]
-        .filter(Boolean)
-        .join(' ')
-        .trim();
-    const parts = fullName.split(/\s+/).filter(Boolean);
-    const firstName = parts[0] || '';
-    const lastName = parts.slice(1).join(' ') || '';
+      fallbackName;
+
+    const parts =
+      fullName
+        .split(/\s+/)
+        .filter(Boolean);
+
+    const firstName =
+      parts[0] || '';
+
+    const lastName =
+      parts.slice(1).join(' ') || '';
 
     return {
       id: user.id,
-      email: user.email.toLowerCase(),
+
+      email:
+        user.email.toLowerCase(),
+
       fullName,
+
       firstName,
+
       lastName,
-      name: fullName || user.email.split('@')[0],
-      role: user.role || 'USER',
-      avatarUrl: user.avatarUrl || null,
-      bio: user.bio || null,
-      company: user.company || null,
-      timezone: user.timezone || 'UTC',
-      language: user.language || 'en',
-      isEmailVerified: Boolean(user.isEmailVerified),
+
+      name:
+        fullName ||
+        fallbackName,
+
+      role:
+        user.role ||
+        'USER',
+
+      avatarUrl:
+        user.avatarUrl ||
+        null,
+
+      bio:
+        user.bio ||
+        null,
+
+      company:
+        user.company ||
+        null,
+
+      timezone:
+        user.timezone ||
+        'UTC',
+
+      language:
+        user.language ||
+        'en',
+
+      isEmailVerified:
+        Boolean(
+          user.isEmailVerified,
+        ),
     };
   }
 
-  public async register(payload: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-  }): Promise<LoginResponse> {
-    const existing = await this.repo.findUserByEmail(payload.email);
+  /**
+   * ------------------------------------------------------------------------
+   * Register
+   * ------------------------------------------------------------------------
+   */
+  public async register(
+    payload: {
+      email: string;
+      password: string;
+      firstName: string;
+      lastName: string;
+    },
+  ): Promise<LoginResponse> {
+    const email =
+      payload.email
+        .trim()
+        .toLowerCase();
+
+    const existing =
+      await this.repo.findUserByEmail(
+        email,
+      );
+
     if (existing) {
-      throw new AppError('An account with this email already exists', 409, 'USER_EXISTS');
+      throw new AppError(
+        'An account with this email already exists',
+        409,
+        'USER_EXISTS',
+      );
     }
 
-    const hashedPassword = await bcrypt.hash(payload.password, securityConfig.bcrypt.saltRounds);
+    const hashedPassword =
+      await bcrypt.hash(
+        payload.password,
+        securityConfig.bcrypt.saltRounds,
+      );
 
-    const user = await this.repo.createUser({
-      email: payload.email,
-      passwordHash: hashedPassword,
-      fullName: `${payload.firstName} ${payload.lastName}`,
-    });
+    const fullName =
+      `${payload.firstName || ''} ${payload.lastName || ''
+        }`.trim();
+
+    const user =
+      await this.repo.createUser({
+        email,
+        passwordHash:
+          hashedPassword,
+        fullName:
+          fullName ||
+          email.split('@')[0],
+      });
+
+    if (!user) {
+      throw new AppError(
+        'Failed to create user',
+        500,
+        'USER_CREATION_FAILED',
+      );
+    }
 
     await db.notification.create({
       data: {
         userId: user.id,
         title: 'Welcome aboard',
-        message: 'Your AETHER workspace is ready. Start by creating your first project or task.',
+        message:
+          'Your AETHER workspace is ready. Start by creating your first project or task.',
         type: 'SYSTEM',
       },
     });
 
-    return this.generateAuthResponse(user);
+    return this.generateAuthResponse(
+      user,
+    );
   }
 
-  public async getProfile(userId: string) {
-    const user = await this.repo.findUserById(userId);
+  /**
+   * ------------------------------------------------------------------------
+   * Get profile
+   * ------------------------------------------------------------------------
+   */
+  public async getProfile(
+    userId: string,
+  ) {
+    const user =
+      await this.repo.findUserById(
+        userId,
+      );
+
     if (!user) {
-      throw new AppError('User not found', 404, 'USER_NOT_FOUND');
+      throw new AppError(
+        'User not found',
+        404,
+        'USER_NOT_FOUND',
+      );
     }
 
-    return this.buildProfilePayload(user);
+    return this.buildProfilePayload(
+      user,
+    );
   }
 
-  public async login(payload: { email: string; password: string }): Promise<LoginResponse> {
-    const user = await this.repo.findUserByEmail(payload.email);
+  /**
+   * ------------------------------------------------------------------------
+   * Login
+   * ------------------------------------------------------------------------
+   */
+  public async login(
+    payload: {
+      email: string;
+      password: string;
+    },
+  ): Promise<LoginResponse> {
+    const email =
+      payload.email
+        .trim()
+        .toLowerCase();
+
+    const user =
+      await this.repo.findUserByEmail(
+        email,
+      );
+
     if (!user) {
-      throw new AppError('Invalid email or password credentials', 401, 'INVALID_CREDENTIALS');
+      throw new AppError(
+        'Invalid email or password credentials',
+        401,
+        'INVALID_CREDENTIALS',
+      );
     }
 
     if (!user.passwordHash) {
-      throw new AppError('Account has no password set. Use OAuth login.', 401, 'OAUTH_ACCOUNT');
+      throw new AppError(
+        'Account has no password set. Use OAuth login.',
+        401,
+        'OAUTH_ACCOUNT',
+      );
     }
 
-    const isMatch = await bcrypt.compare(payload.password, user.passwordHash);
+    const isMatch =
+      await bcrypt.compare(
+        payload.password,
+        user.passwordHash,
+      );
+
     if (!isMatch) {
-      throw new AppError('Invalid email or password credentials', 401, 'INVALID_CREDENTIALS');
+      throw new AppError(
+        'Invalid email or password credentials',
+        401,
+        'INVALID_CREDENTIALS',
+      );
     }
 
     await db.notification.create({
       data: {
         userId: user.id,
         title: 'Sign-in detected',
-        message: 'You signed in successfully to your AETHER account.',
+        message:
+          'You signed in successfully to your AETHER account.',
         type: 'SECURITY',
       },
     });
 
-    return this.generateAuthResponse(user);
+    return this.generateAuthResponse(
+      user,
+    );
   }
 
-  public async refresh(refreshToken: string): Promise<LoginResponse> {
-    const session = await this.repo.findSessionByToken(refreshToken);
-    if (!session || session.expiresAt < new Date()) {
+  /**
+   * ------------------------------------------------------------------------
+   * Refresh token
+   * ------------------------------------------------------------------------
+   */
+  public async refresh(
+    refreshToken: string,
+  ): Promise<LoginResponse> {
+    if (!refreshToken) {
+      throw new AppError(
+        'Refresh token is required',
+        400,
+        'REFRESH_TOKEN_REQUIRED',
+      );
+    }
+
+    const session =
+      await this.repo.findSessionByToken(
+        refreshToken,
+      );
+
+    if (
+      !session ||
+      session.expiresAt < new Date()
+    ) {
       if (session) {
-        await this.repo.deleteSessionByToken(refreshToken);
+        await this.repo.deleteSessionByToken(
+          refreshToken,
+        );
       }
-      throw new AppError('Refresh token is expired or invalid', 401, 'INVALID_REFRESH_TOKEN');
+
+      throw new AppError(
+        'Refresh token is expired or invalid',
+        401,
+        'INVALID_REFRESH_TOKEN',
+      );
     }
 
-    // Rotate refresh token
-    const fullSession = await this.repo.findSessionByToken(refreshToken);
+    /**
+     * Find the session again so the related user
+     * can be accessed if the repository includes it.
+     */
+    const fullSession =
+      await this.repo.findSessionByToken(
+        refreshToken,
+      );
+
     if (!fullSession) {
-      throw new AppError('Session not found', 401, 'INVALID_REFRESH_TOKEN');
+      throw new AppError(
+        'Session not found',
+        401,
+        'INVALID_REFRESH_TOKEN',
+      );
     }
 
-    await this.repo.deleteSessionByToken(refreshToken);
+    await this.repo.deleteSessionByToken(
+      refreshToken,
+    );
 
-    // Fetch user directly
-    const user = await this.repo.findUserByEmail((fullSession as any).user?.email || '');
+    const sessionUserEmail =
+      (fullSession as any)?.user?.email;
+
+    if (!sessionUserEmail) {
+      throw new AppError(
+        'Session user information is missing',
+        401,
+        'INVALID_REFRESH_TOKEN',
+      );
+    }
+
+    const user =
+      await this.repo.findUserByEmail(
+        sessionUserEmail,
+      );
+
     if (!user) {
-      throw new AppError('User not found', 401, 'USER_NOT_FOUND');
+      throw new AppError(
+        'User not found',
+        401,
+        'USER_NOT_FOUND',
+      );
     }
-    return this.generateAuthResponse(user);
+
+    return this.generateAuthResponse(
+      user,
+    );
   }
 
-  public async logout(refreshToken: string): Promise<void> {
+  /**
+   * ------------------------------------------------------------------------
+   * Logout
+   * ------------------------------------------------------------------------
+   */
+  public async logout(
+    refreshToken: string,
+  ): Promise<void> {
+    if (!refreshToken) {
+      return;
+    }
+
     try {
-      await this.repo.deleteSessionByToken(refreshToken);
-    } catch {
-      logger.info(`Session cleanup during logout failed or token already deleted.`);
+      await this.repo.deleteSessionByToken(
+        refreshToken,
+      );
+    } catch (error) {
+      logger.info(
+        'Session cleanup during logout failed or token was already deleted.',
+      );
     }
   }
 
-  public async findUserById(id: string) {
+  /**
+   * ------------------------------------------------------------------------
+   * Find user by ID
+   * ------------------------------------------------------------------------
+   */
+  public async findUserById(
+    id: string,
+  ) {
     return this.repo.findUserById(id);
   }
 
-  public async findOrCreateGoogleUser(payload: GoogleUserPayload): Promise<LoginResponse> {
+  /**
+   * ------------------------------------------------------------------------
+   * Google user compatibility method
+   * ------------------------------------------------------------------------
+   */
+  public async findOrCreateGoogleUser(
+    payload: GoogleUserPayload,
+  ) {
     return this.findOrCreateOAuthUser({
       provider: 'google',
-      providerAccountId: payload.googleId,
-      email: payload.email,
-      fullName: payload.fullName,
-      avatarUrl: payload.avatarUrl,
+      providerAccountId:
+        payload.googleId,
+      email:
+        payload.email,
+      fullName:
+        payload.fullName,
+      avatarUrl:
+        payload.avatarUrl,
     });
   }
 
-  public async findOrCreateOAuthUser(payload: OAuthUserPayload): Promise<LoginResponse> {
-    // Check if OAuth account already exists
-    const existingOAuth = await this.repo.findOAuthAccount(
-      payload.provider,
-      payload.providerAccountId,
-    );
+  /**
+   * ------------------------------------------------------------------------
+   * Find or create OAuth user
+   *
+   * IMPORTANT:
+   * Returns the actual database user.
+   *
+   * Passport needs a user object here.
+   * JWT generation happens later in the controller.
+   * ------------------------------------------------------------------------
+   */
+  public async findOrCreateOAuthUser(
+    payload: OAuthUserPayload,
+  ) {
+    const email =
+      payload.email
+        .trim()
+        .toLowerCase();
 
-    if (existingOAuth) {
-      // User exists - return auth response
-      const existingUser = await this.repo.findUserById(existingOAuth.userId);
-      if (!existingUser) {
-        throw new AppError('User not found for OAuth account', 404, 'USER_NOT_FOUND');
-      }
-      return this.generateAuthResponse(existingUser);
+    if (!email) {
+      throw new AppError(
+        'OAuth provider did not return an email address',
+        400,
+        'OAUTH_EMAIL_MISSING',
+      );
     }
 
-    // Check if user already exists by email
-    let user = await this.repo.findUserByEmail(payload.email);
+    if (
+      !payload.providerAccountId
+    ) {
+      throw new AppError(
+        'OAuth provider account ID is missing',
+        400,
+        'OAUTH_ACCOUNT_ID_MISSING',
+      );
+    }
+
+    /**
+     * 1. Check existing OAuth account.
+     */
+    const existingOAuth =
+      await this.repo.findOAuthAccount(
+        payload.provider,
+        payload.providerAccountId,
+      );
+
+    if (existingOAuth) {
+      const existingUser =
+        await this.repo.findUserById(
+          existingOAuth.userId,
+        );
+
+      if (!existingUser) {
+        throw new AppError(
+          'User not found for OAuth account',
+          404,
+          'USER_NOT_FOUND',
+        );
+      }
+
+      logger.info(
+        `Existing OAuth user found: ${email}`,
+      );
+
+      return existingUser;
+    }
+
+    /**
+     * 2. Check existing user by email.
+     */
+    let user =
+      await this.repo.findUserByEmail(
+        email,
+      );
+
+    /**
+     * 3. Create user if necessary.
+     */
+    if (!user) {
+      user =
+        await this.repo.createUser({
+          email,
+          fullName:
+            payload.fullName?.trim() ||
+            email.split('@')[0],
+          avatarUrl:
+            payload.avatarUrl ||
+            undefined,
+          isEmailVerified: true,
+        });
+    }
 
     if (!user) {
-      // Create new user
-      user = await this.repo.createUser({
-        email: payload.email,
-        fullName: payload.fullName,
-        avatarUrl: payload.avatarUrl,
-        isEmailVerified: true,
+      throw new AppError(
+        'Failed to create or find OAuth user',
+        500,
+        'USER_CREATION_FAILED',
+      );
+    }
+
+    /**
+     * 4. Link OAuth account.
+     *
+     * The second lookup prevents a duplicate
+     * OAuth record in case the user already became
+     * linked between the first lookup and this point.
+     */
+    const linkedAccount =
+      await this.repo.findOAuthAccount(
+        payload.provider,
+        payload.providerAccountId,
+      );
+
+    if (!linkedAccount) {
+      await this.repo.createOAuthAccount({
+        provider:
+          payload.provider,
+
+        providerAccountId:
+          payload.providerAccountId,
+
+        user: {
+          connect: {
+            id: user.id,
+          },
+        },
       });
     }
 
-    if (!user) {
-      throw new AppError('Failed to create or find user', 500, 'USER_CREATION_FAILED');
-    }
+    logger.info(
+      `OAuth user ready: ${email}`,
+    );
 
-    // Create OAuth account link
-    await this.repo.createOAuthAccount({
-      provider: payload.provider,
-      providerAccountId: payload.providerAccountId,
-      user: { connect: { id: user.id } },
-    });
-
-    return this.generateAuthResponse(user);
+    /**
+     * Return the actual user.
+     */
+    return user;
   }
 
-  public async generateAuthResponse(user: {
-    id: string;
-    email: string;
-    fullName?: string | null;
-    role: string;
-    avatarUrl?: string | null;
-  }): Promise<LoginResponse> {
-    const fullUser = await this.repo.findUserById(user.id);
-    const workspaceId = fullUser
-      ? await this.repo.ensureUserWorkspaceAndSettings(fullUser)
-      : undefined;
+  /**
+   * ------------------------------------------------------------------------
+   * Generate authentication response
+   * ------------------------------------------------------------------------
+   */
+  public async generateAuthResponse(
+    user: {
+      id: string;
+      email: string;
+      fullName?: string | null;
+      role: string;
+      avatarUrl?: string | null;
+    },
+  ): Promise<LoginResponse> {
+    /**
+     * Reload complete user from database.
+     */
+    const fullUser =
+      await this.repo.findUserById(
+        user.id,
+      );
 
-    const profile = fullUser ? this.buildProfilePayload(fullUser) : undefined;
+    if (!fullUser) {
+      throw new AppError(
+        'User not found while generating authentication response',
+        404,
+        'USER_NOT_FOUND',
+      );
+    }
 
+    /**
+     * Ensure workspace and settings exist.
+     */
+    const workspaceId =
+      await this.repo.ensureUserWorkspaceAndSettings(
+        fullUser,
+      );
+
+    /**
+     * Build profile.
+     */
+    const profile =
+      this.buildProfilePayload(
+        fullUser,
+      );
+
+    /**
+     * JWT access-token payload.
+     */
     const payload: AuthTokenPayload = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
+      id: fullUser.id,
+      email: fullUser.email,
+      role: fullUser.role || 'USER',
       workspaceId,
     };
 
+    /**
+     * Access token.
+     */
     const signOptions: SignOptions = {
-      expiresIn: securityConfig.jwt.expiresIn as string & SignOptions['expiresIn'],
+      expiresIn:
+        securityConfig.jwt
+          .expiresIn as SignOptions['expiresIn'],
     };
 
-    const accessToken = jwt.sign(payload, securityConfig.jwt.secret, signOptions);
+    const accessToken =
+      jwt.sign(
+        payload,
+        securityConfig.jwt.secret,
+        signOptions,
+      );
 
-    const refreshToken = jwt.sign({ id: user.id }, securityConfig.jwt.refreshSecret, {
-      expiresIn: securityConfig.jwt.refreshExpiresIn as string & SignOptions['expiresIn'],
-    } as SignOptions);
+    /**
+     * Refresh token.
+     */
+    const refreshSignOptions: SignOptions =
+    {
+      expiresIn:
+        securityConfig.jwt
+          .refreshExpiresIn as SignOptions['expiresIn'],
+    };
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 30); // 30 days session persistence
+    const refreshToken =
+      jwt.sign(
+        {
+          id: fullUser.id,
+        },
+        securityConfig.jwt.refreshSecret,
+        refreshSignOptions,
+      );
 
+    /**
+     * Session expiry.
+     */
+    const expiresAt =
+      new Date();
+
+    expiresAt.setDate(
+      expiresAt.getDate() + 30,
+    );
+
+    /**
+     * Store refresh session.
+     */
     await this.repo.createSession({
       refreshToken,
       expiresAt,
-      user: { connect: { id: user.id } },
+      user: {
+        connect: {
+          id: fullUser.id,
+        },
+      },
     });
 
-    const nameParts = user.fullName ? user.fullName.split(' ') : ['', ''];
+    const fullName =
+      profile.fullName ||
+      fullUser.fullName ||
+      fullUser.email
+        .split('@')[0];
+
+    const nameParts =
+      fullName
+        .split(/\s+/)
+        .filter(Boolean);
+
+    const firstName =
+      profile.firstName ||
+      nameParts[0] ||
+      '';
+
+    const lastName =
+      profile.lastName ||
+      nameParts
+        .slice(1)
+        .join(' ') ||
+      '';
+
     return {
       user: {
-        id: profile?.id || user.id,
-        email: profile?.email || user.email,
-        firstName: profile?.firstName || nameParts[0] || '',
-        lastName: profile?.lastName || nameParts.slice(1).join(' ') || '',
-        fullName: profile?.fullName || user.fullName || `${nameParts[0] || ''} ${nameParts.slice(1).join(' ') || ''}`.trim(),
-        name: profile?.name || profile?.fullName || user.fullName || `${nameParts[0] || ''} ${nameParts.slice(1).join(' ') || ''}`.trim(),
-        role: profile?.role || user.role,
-        avatarUrl: profile?.avatarUrl || user.avatarUrl,
-        bio: profile?.bio || null,
-        company: profile?.company || null,
-        timezone: profile?.timezone || 'UTC',
-        language: profile?.language || 'en',
-        isEmailVerified: profile?.isEmailVerified || false,
+        id:
+          profile.id ||
+          fullUser.id,
+
+        email:
+          profile.email ||
+          fullUser.email,
+
+        firstName,
+
+        lastName,
+
+        fullName,
+
+        name:
+          profile.name ||
+          fullName,
+
+        role:
+          profile.role ||
+          fullUser.role ||
+          'USER',
+
+        avatarUrl:
+          profile.avatarUrl ||
+          fullUser.avatarUrl ||
+          null,
+
+        bio:
+          profile.bio ||
+          null,
+
+        company:
+          profile.company ||
+          null,
+
+        timezone:
+          profile.timezone ||
+          'UTC',
+
+        language:
+          profile.language ||
+          'en',
+
+        isEmailVerified:
+          Boolean(
+            profile.isEmailVerified,
+          ),
+
         workspaceId,
       },
+
       tokens: {
         accessToken,
+
         refreshToken,
-        expiresIn: securityConfig.jwt.expiresIn,
+
+        expiresIn:
+          securityConfig.jwt
+            .expiresIn,
       },
     };
   }
 
-  public async updateUserProfile(userId: string, data: any) {
+  /**
+   * ------------------------------------------------------------------------
+   * Update user profile
+   * ------------------------------------------------------------------------
+   */
+  public async updateUserProfile(
+    userId: string,
+    data: any,
+  ) {
     const updateData: any = {};
-    if (data.fullName) {
-      updateData.fullName = data.fullName;
-    } else if (data.firstName !== undefined || data.lastName !== undefined) {
-      const first = data.firstName || '';
-      const last = data.lastName || '';
-      updateData.fullName = `${first} ${last}`.trim();
-    }
-    if (data.email) updateData.email = data.email.toLowerCase();
-    if (data.avatarUrl || data.avatar) updateData.avatarUrl = data.avatarUrl || data.avatar;
-    if (data.bio !== undefined) updateData.bio = data.bio;
-    if (data.company !== undefined) updateData.company = data.company;
-    if (data.phone !== undefined) updateData.phone = data.phone;
-    if (data.timezone !== undefined) updateData.timezone = data.timezone;
-    if (data.language !== undefined) updateData.language = data.language;
 
-    return this.repo.updateUser(userId, updateData);
+    if (
+      data.fullName !== undefined
+    ) {
+      updateData.fullName =
+        String(data.fullName).trim();
+    } else if (
+      data.firstName !== undefined ||
+      data.lastName !== undefined
+    ) {
+      const first =
+        data.firstName || '';
+
+      const last =
+        data.lastName || '';
+
+      updateData.fullName =
+        `${first} ${last}`.trim();
+    }
+
+    if (data.email) {
+      updateData.email =
+        String(data.email)
+          .trim()
+          .toLowerCase();
+    }
+
+    if (
+      data.avatarUrl ||
+      data.avatar
+    ) {
+      updateData.avatarUrl =
+        data.avatarUrl ||
+        data.avatar;
+    }
+
+    if (
+      data.bio !== undefined
+    ) {
+      updateData.bio =
+        data.bio;
+    }
+
+    if (
+      data.company !== undefined
+    ) {
+      updateData.company =
+        data.company;
+    }
+
+    if (
+      data.phone !== undefined
+    ) {
+      updateData.phone =
+        data.phone;
+    }
+
+    if (
+      data.timezone !== undefined
+    ) {
+      updateData.timezone =
+        data.timezone;
+    }
+
+    if (
+      data.language !== undefined
+    ) {
+      updateData.language =
+        data.language;
+    }
+
+    return this.repo.updateUser(
+      userId,
+      updateData,
+    );
   }
 }

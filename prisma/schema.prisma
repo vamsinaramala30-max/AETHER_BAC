@@ -97,10 +97,14 @@ enum FolderType {
 }
 
 enum AutomationStatus {
+  DRAFT
   ACTIVE
   PAUSED
-  FAILED
+  RUNNING
   COMPLETED
+  FAILED
+  CANCELLED
+  NEEDS_APPROVAL
 }
 
 // ============================================================================
@@ -147,6 +151,9 @@ model User {
   activities      ActivityLog[]
   favorites       UserFavorite[]
   userCalendars   UserCalendar[]
+  automations          Automation[]
+  automationExecutions AutomationExecution[]
+  automationActivities AutomationActivity[]
 
   @@index([email])
   @@map("users")
@@ -638,26 +645,84 @@ model SearchIndex {
 // ============================================================================
 
 model Automation {
-  id          String           @id @default(uuid()) @db.Uuid
-  workspaceId String           @db.Uuid
-  userId      String?          @db.Uuid
+  id          String               @id @default(uuid()) @db.Uuid
+  workspaceId String               @db.Uuid
+  userId      String?              @db.Uuid
   name        String
   description String?
-  trigger     String           @default("manual")
+  trigger     String               @default("manual")
   conditions  Json?
   actions     Json?
   schedule    String?
-  isEnabled   Boolean          @default(true)
-  status      AutomationStatus @default(ACTIVE)
+  isEnabled   Boolean              @default(true)
+  status      AutomationStatus     @default(ACTIVE)
   lastRunAt   DateTime?
-  runCount    Int              @default(0)
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  runCount    Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
   deletedAt   DateTime?
 
+  user        User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  executions  AutomationExecution[]
+  activities  AutomationActivity[]
+
   @@index([workspaceId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
   @@map("automations")
 }
+
+model AutomationExecution {
+  id           String           @id @default(uuid()) @db.Uuid
+  automationId String           @db.Uuid
+  workspaceId  String           @db.Uuid
+  userId       String?          @db.Uuid
+  status       AutomationStatus @default(RUNNING)
+  triggerData  Json?
+  currentStep  Int              @default(0)
+  stepResults  Json?
+  result       Json?
+  error        Json?
+  retryCount   Int              @default(0)
+  startedAt    DateTime         @default(now())
+  completedAt  DateTime?
+
+  automation   Automation       @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  user         User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  activities   AutomationActivity[]
+
+  @@index([automationId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("automation_executions")
+}
+
+model AutomationActivity {
+  id           String               @id @default(uuid()) @db.Uuid
+  automationId String               @db.Uuid
+  executionId  String?              @db.Uuid
+  workspaceId  String               @db.Uuid
+  userId       String?              @db.Uuid
+  type         String
+  message      String
+  metadata     Json?
+  createdAt    DateTime             @default(now())
+
+  automation   Automation           @relation(fields: [automationId], references: [id], onDelete: Cascade)
+  execution    AutomationExecution? @relation(fields: [executionId], references: [id], onDelete: SetNull)
+  user         User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([automationId])
+  @@index([executionId])
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("automation_activities")
+}
+
 
 // ============================================================================
 // User Favorites (persistent, any resource type)
