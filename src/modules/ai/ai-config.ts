@@ -122,18 +122,18 @@ export function buildDefaultAIConfig(overrides?: Partial<AIConfig>): AIConfig {
   const defaultConfig: AIConfig = {
     runtime: {
       type: 'ollama',
-      baseUrl: process.env['OLLAMA_BASE_URL'] ?? 'http://localhost:11434',
-      timeoutMs: 120_000,
+      baseUrl: process.env['LOCAL_LLM_BASE_URL'] ?? process.env['OLLAMA_BASE_URL'] ?? 'http://localhost:11434',
+      timeoutMs: Number(process.env['LOCAL_LLM_TIMEOUT']) || 120_000,
       keepAliveMs: 300_000,
     },
     model: {
-      defaultModelId: process.env['AETHER_DEFAULT_MODEL'] ?? 'llama3.2',
+      defaultModelId: process.env['LOCAL_LLM_MODEL'] ?? process.env['AETHER_DEFAULT_MODEL'] ?? 'llama3.2',
       embeddingModelId: process.env['AETHER_EMBEDDING_MODEL'] ?? 'nomic-embed-text',
       maxContextTokens: 8192,
       defaultTemperature: 0.7,
       defaultMaxTokens: 2048,
       defaultTopP: 0.9,
-      defaultTimeoutMs: 120_000,
+      defaultTimeoutMs: Number(process.env['LOCAL_LLM_TIMEOUT']) || 120_000,
     },
     embedding: {
       provider: (process.env['AETHER_EMBEDDING_PROVIDER'] as EmbeddingProviderType) ?? 'ollama',

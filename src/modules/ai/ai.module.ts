@@ -44,8 +44,63 @@ export class AiExpressController {
     try {
       const userId = (req.user as any)?.id || (req as any).userId || 'anonymous';
       const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ success: false, error: { message: 'Missing conversation id' } });
+        return;
+      }
       const result = await conversationController.get(id, userId);
       res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async createConversation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req.user as any)?.id || (req as any).userId || 'anonymous';
+      const body = req.body || {};
+      const result = await conversationController.create(body, userId);
+      res.status(201).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async renameConversation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req.user as any)?.id || (req as any).userId || 'anonymous';
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ success: false, error: { message: 'Missing conversation id' } });
+        return;
+      }
+      const body = req.body || {};
+      const result = await conversationController.rename(id, body, userId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async deleteConversation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req.user as any)?.id || (req as any).userId || 'anonymous';
+      const { id } = req.params;
+      if (!id) {
+        res.status(400).json({ success: false, error: { message: 'Missing conversation id' } });
+        return;
+      }
+      const result = await conversationController.delete(id, userId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getHealth(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const status = await modelController.getRuntimeStatus();
+      res.status(200).json({ success: true, status });
     } catch (err) {
       next(err);
     }

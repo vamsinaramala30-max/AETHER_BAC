@@ -80,7 +80,7 @@ export interface ToolDefinition<TInput extends object = Record<string, unknown>,
   handler(input: TInput, context: ToolExecutionContext): Promise<TOutput>;
 }
 
-export type ToolCategory = 'tasks' | 'projects' | 'knowledge' | 'workspace' | 'system';
+export type ToolCategory = 'tasks' | 'projects' | 'knowledge' | 'workspace' | 'system' | 'automation';
 
 // ─── Tool Listing (public-safe, no handler exposed) ──────────────────────────
 
