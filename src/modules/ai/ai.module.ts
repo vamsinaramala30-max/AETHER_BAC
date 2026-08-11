@@ -3,6 +3,8 @@ import { chatController } from './api/controllers/chat-controller.js';
 import { aiController as coreAiController } from './api/controllers/ai-controller.js';
 import { conversationController } from './api/controllers/conversation-controller.js';
 import { modelController } from './api/controllers/model-controller.js';
+import { buildDefaultAIConfig } from './ai-config.js';
+import { ProviderManager } from './llm/provider-manager.js';
 
 export class AiExpressController {
   public async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -101,6 +103,17 @@ export class AiExpressController {
     try {
       const status = await modelController.getRuntimeStatus();
       res.status(200).json({ success: true, status });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getProvidersStatus(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const config = buildDefaultAIConfig();
+      const manager = new ProviderManager(config);
+      const statuses = await manager.getAllProviderStatuses();
+      res.status(200).json({ success: true, data: statuses });
     } catch (err) {
       next(err);
     }

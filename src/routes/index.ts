@@ -16,6 +16,7 @@ import { adminRoutes } from './admin.routes';
 import { taskGoalRoutes } from './taskGoal.routes';
 import { dashboardRoutes } from './dashboard.routes';
 import { favoritesRoutes } from './favorites.routes';
+import { contactRoutes } from './contact.routes';
 import { HomeModule } from '../modules/home/home.module';
 import { db } from '../database/client';
 import { authenticate } from '../middleware/auth.middleware';
@@ -46,5 +47,6 @@ router.use('/analytics', analyticsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/admin', adminRoutes);
 router.use('/favorites', favoritesRoutes);
+router.use('/contact', contactRoutes);
 
 export const apiRoutes: Router = router;

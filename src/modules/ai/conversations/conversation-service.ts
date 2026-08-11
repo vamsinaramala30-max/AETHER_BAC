@@ -72,6 +72,7 @@ export class ConversationService {
         message: content,
         options: {
           modelId: options?.modelId,
+          providerMode: options?.providerMode,
           enableMemory: options?.enableMemory,
           enableRAG: options?.enableRAG,
           ragCollectionIds: options?.ragCollectionIds,

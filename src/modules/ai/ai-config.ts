@@ -104,9 +104,22 @@ export interface StreamingConfig {
   readonly heartbeatIntervalMs: number;
 }
 
+// ─── Provider Configuration ──────────────────────────────────────────────────
+
+export interface ProvidersConfig {
+  readonly primaryProvider: 'gemini' | 'openai' | 'ollama';
+  readonly fallbackProvider: 'openai' | 'gemini' | 'ollama' | 'none';
+  readonly geminiApiKey?: string;
+  readonly openaiApiKey?: string;
+  readonly localLlmBaseUrl: string;
+  readonly localLlmModel: string;
+  readonly localLlmTimeoutMs: number;
+}
+
 // ─── Full AI Configuration ────────────────────────────────────────────────────
 
 export interface AIConfig {
+  readonly providers: ProvidersConfig;
   readonly runtime: LLMRuntimeConfig;
   readonly model: ModelConfig;
   readonly embedding: EmbeddingConfig;
@@ -120,6 +133,15 @@ export interface AIConfig {
 
 export function buildDefaultAIConfig(overrides?: Partial<AIConfig>): AIConfig {
   const defaultConfig: AIConfig = {
+    providers: {
+      primaryProvider: (process.env['AI_PRIMARY_PROVIDER'] as any) || 'gemini',
+      fallbackProvider: (process.env['AI_FALLBACK_PROVIDER'] as any) || 'openai',
+      geminiApiKey: process.env['GEMINI_API_KEY'],
+      openaiApiKey: process.env['OPENAI_API_KEY'],
+      localLlmBaseUrl: process.env['LOCAL_LLM_BASE_URL'] ?? 'http://localhost:11434',
+      localLlmModel: process.env['LOCAL_LLM_MODEL'] ?? 'llama3.2',
+      localLlmTimeoutMs: Number(process.env['LOCAL_LLM_TIMEOUT']) || 120_000,
+    },
     runtime: {
       type: 'ollama',
       baseUrl: process.env['LOCAL_LLM_BASE_URL'] ?? process.env['OLLAMA_BASE_URL'] ?? 'http://localhost:11434',
@@ -183,6 +205,7 @@ export function buildDefaultAIConfig(overrides?: Partial<AIConfig>): AIConfig {
   if (!overrides) return defaultConfig;
 
   return {
+    providers: overrides.providers ? { ...defaultConfig.providers, ...overrides.providers } : defaultConfig.providers,
     runtime: overrides.runtime ?? defaultConfig.runtime,
     model: overrides.model ? { ...defaultConfig.model, ...overrides.model } : defaultConfig.model,
     embedding: overrides.embedding

@@ -17,6 +17,10 @@ router.get('/', uploadController.listFiles);
 router.post('/single', upload.single('file'), uploadController.uploadSingle);
 router.post('/multiple', upload.array('files', 5), uploadController.uploadMultiple);
 router.get('/:id/download', uploadController.downloadFile);
+router.get('/:id/preview', (req, res, next) => {
+  req.query.inline = 'true';
+  return uploadController.downloadFile(req, res, next);
+});
 router.patch('/:id', uploadController.renameFile);
 router.delete('/:id', uploadController.deleteFile);
 

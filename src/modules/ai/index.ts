@@ -161,6 +161,15 @@ export { ResponseEngine } from './core/response-engine.js';
 export type { IStreamingEngine, StreamHandle, StreamSubscriber } from './core/streaming-engine.js';
 export { StreamingEngine } from './core/streaming-engine.js';
 
+export type { IConfidenceEngine } from './core/confidence-engine.js';
+export { ConfidenceEngine, confidenceEngine } from './core/confidence-engine.js';
+
+export type { IResponseValidator, ResponseValidationResult } from './core/response-validator.js';
+export { ResponseValidator, responseValidator } from './core/response-validator.js';
+
+export type { IConfirmationManager, ActionRiskLevel } from './core/confirmation-manager.js';
+export { ConfirmationManager, confirmationManager } from './core/confirmation-manager.js';
+
 // ─── LLM ─────────────────────────────────────────────────────────────────────
 
 export type { ILLMEngine } from './llm/llm-engine.js';

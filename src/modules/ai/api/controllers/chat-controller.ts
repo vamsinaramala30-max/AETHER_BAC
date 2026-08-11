@@ -13,13 +13,16 @@ import { handleAPIError } from '../middleware/error-handler.js';
 export class ChatController {
   constructor(private readonly aiEngine?: IAIEngine) {}
 
-  public async chat(body: { message: string; conversationId?: string; modelId?: string }, userId: string) {
+  public async chat(
+    body: { message: string; conversationId?: string; modelId?: string; providerMode?: 'auto' | 'gemini' | 'openai' | 'ollama' },
+    userId: string,
+  ) {
     try {
       const response = await conversationService.sendMessage(
         userId,
         body.message,
         body.conversationId,
-        { modelId: body.modelId },
+        { modelId: body.modelId, providerMode: body.providerMode },
       );
       return { success: true, data: response };
     } catch (err) {
@@ -28,7 +31,7 @@ export class ChatController {
   }
 
   public async chatStream(
-    body: { message: string; conversationId?: string; modelId?: string },
+    body: { message: string; conversationId?: string; modelId?: string; providerMode?: 'auto' | 'gemini' | 'openai' | 'ollama' },
     userId: string,
     subscriber: StreamSubscriber,
   ) {
@@ -46,7 +49,7 @@ export class ChatController {
         sessionId: `sess_${userId}`,
         conversationId: body.conversationId ?? `conv_${Date.now()}`,
         message: body.message,
-        options: { streaming: true, modelId: body.modelId },
+        options: { streaming: true, modelId: body.modelId, providerMode: body.providerMode },
         timestamp: Date.now(),
       };
 

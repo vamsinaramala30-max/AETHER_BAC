@@ -63,4 +63,9 @@ export class DocumentsService {
       },
     };
   }
+
+  async deleteDocument(id: string, _userId?: string): Promise<boolean> {
+    return this.documentsRepository.delete(id);
+  }
 }
+

@@ -11,7 +11,6 @@ export class GoalsService {
   constructor(private readonly repository: GoalsRepository) {}
 
   async createGoal(dto: CreateGoalDTO): Promise<GoalEntity> {
-    const id = `gol_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const now = new Date();
 
     const deadlineDate =
@@ -19,20 +18,21 @@ export class GoalsService {
         ? new Date(dto.deadline)
         : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    const goal: GoalEntity = {
-      id,
+    const goal: Partial<GoalEntity> & { projectId?: string; workspaceId?: string } = {
       userId: dto.userId,
+      projectId: (dto as any).projectId || (dto.linkedProjectIds && dto.linkedProjectIds.length > 0 ? dto.linkedProjectIds[0] : undefined),
+      workspaceId: (dto as any).workspaceId,
       title: dto.title || 'Untitled Goal',
       description: dto.description || null,
       type: dto.type || ('OBJECTIVE' as any),
-      status: GoalStatus.NOT_STARTED,
+      status: (dto as any).status || GoalStatus.NOT_STARTED,
       category: dto.category || 'General',
       targetValue: dto.targetValue || 100,
-      currentValue: 0,
+      currentValue: (dto as any).progress ?? (dto as any).currentValue ?? 0,
       unit: dto.unit || '%',
       deadline: deadlineDate,
       milestones: [],
-      linkedProjectIds: dto.linkedProjectIds || [],
+      linkedProjectIds: (dto as any).projectId ? [(dto as any).projectId] : dto.linkedProjectIds || [],
       linkedTaskIds: dto.linkedTaskIds || [],
       isCompleted: false,
       completedAt: null,
@@ -40,7 +40,7 @@ export class GoalsService {
       updatedAt: now,
     };
 
-    return this.repository.save(goal);
+    return this.repository.save(goal as GoalEntity);
   }
 
   async getGoal(id: string): Promise<GoalEntity> {
@@ -61,8 +61,8 @@ export class GoalsService {
     if (dto.status !== undefined) goal.status = dto.status;
     if (dto.category !== undefined) goal.category = dto.category;
     if (dto.targetValue !== undefined) goal.targetValue = dto.targetValue;
-    if (dto.currentValue !== undefined) {
-      goal.currentValue = dto.currentValue;
+    if (dto.currentValue !== undefined || (dto as any).progress !== undefined) {
+      goal.currentValue = (dto as any).progress ?? dto.currentValue;
       if (goal.currentValue >= goal.targetValue) {
         goal.isCompleted = true;
         goal.status = GoalStatus.ACHIEVED;
@@ -71,6 +71,9 @@ export class GoalsService {
     }
     if (dto.deadline !== undefined) goal.deadline = new Date(dto.deadline);
     if (dto.linkedProjectIds !== undefined) goal.linkedProjectIds = dto.linkedProjectIds;
+    if ((dto as any).projectId !== undefined) {
+      (goal as any).projectId = (dto as any).projectId;
+    }
     if (dto.linkedTaskIds !== undefined) goal.linkedTaskIds = dto.linkedTaskIds;
 
     return this.repository.save(goal);

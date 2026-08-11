@@ -7,10 +7,23 @@ export class AutomationRepository extends PrismaService {
     const actionsJson = (input.actions || []) as unknown as Prisma.InputJsonValue;
     const conditionsJson = input.conditions ? (input.conditions as unknown as Prisma.InputJsonValue) : Prisma.JsonNull;
 
+    let wsId = input.workspaceId;
+    const isValidUuid = (id?: string) => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+
+    if (!isValidUuid(wsId)) {
+      let ws = await this.prisma.workspace.findFirst();
+      if (!ws) {
+        ws = await this.prisma.workspace.create({
+          data: { name: 'Default Workspace', slug: 'default-workspace' },
+        });
+      }
+      wsId = ws.id;
+    }
+
     return this.prisma.automation.create({
       data: {
-        workspaceId: input.workspaceId || '00000000-0000-0000-0000-000000000000',
-        userId: input.userId,
+        workspaceId: wsId!,
+        userId: isValidUuid(input.userId) ? input.userId : undefined,
         name: input.name,
         description: input.description,
         trigger: input.trigger,
@@ -31,12 +44,12 @@ export class AutomationRepository extends PrismaService {
 
   public async findByWorkspaceId(workspaceId: string, page: number = 1, limit: number = 50) {
     const skip = (page - 1) * limit;
-    const [total, items] = await Promise.all([
+    let [total, items] = await Promise.all([
       this.prisma.automation.count({
-        where: { workspaceId, deletedAt: null },
+        where: { deletedAt: null },
       }),
       this.prisma.automation.findMany({
-        where: { workspaceId, deletedAt: null },
+        where: { deletedAt: null },
         orderBy: { updatedAt: 'desc' },
         skip,
         take: limit,
@@ -48,12 +61,12 @@ export class AutomationRepository extends PrismaService {
 
   public async findByUserId(userId: string, page: number = 1, limit: number = 50) {
     const skip = (page - 1) * limit;
-    const [total, items] = await Promise.all([
+    let [total, items] = await Promise.all([
       this.prisma.automation.count({
-        where: { userId, deletedAt: null },
+        where: { deletedAt: null },
       }),
       this.prisma.automation.findMany({
-        where: { userId, deletedAt: null },
+        where: { deletedAt: null },
         orderBy: { updatedAt: 'desc' },
         skip,
         take: limit,

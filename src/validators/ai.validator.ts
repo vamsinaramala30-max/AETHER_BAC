@@ -8,6 +8,7 @@ export const chatSchema = z.object({
       conversationId: z.string().optional(),
       workspaceId: z.string().optional(),
       model: z.string().optional(),
+      providerMode: z.enum(['auto', 'gemini', 'openai', 'ollama']).optional(),
       temperature: z.number().optional(),
     })
     .refine((data) => !!(data.message || data.content), {

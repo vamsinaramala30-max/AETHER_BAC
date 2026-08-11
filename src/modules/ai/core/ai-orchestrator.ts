@@ -11,6 +11,8 @@ import type { Result } from '../ai-types.js';
 import { ok, fail } from '../ai-types.js';
 import { InvalidRequestError, SafetyCheckFailedError, InternalError, toAetherAIError } from '../ai-errors.js';
 import type { ILLMEngine } from '../llm/llm-engine.js';
+import { ProviderManager } from '../llm/provider-manager.js';
+import { buildAetherSystemPrompt } from '../prompts/aether-system-context.js';
 import type { IIntentEngine } from './intent-engine.js';
 import type { IContextEngine } from './context-engine.js';
 import type { IReasoningEngine } from './reasoning-engine.js';
@@ -20,6 +22,14 @@ import type { IStreamingEngine, StreamSubscriber } from './streaming-engine.js';
 import type { IPromptEngine } from '../prompts/prompt-engine.js';
 import type { IMemoryEngine } from '../memory/memory-engine.js';
 import type { AIConfig } from '../ai-config.js';
+import type { IToolExecutor } from '../tools/tool-executor.js';
+import { toolExecutor } from '../tools/tool-executor.js';
+import type { IConfidenceEngine } from './confidence-engine.js';
+import { confidenceEngine } from './confidence-engine.js';
+import type { IResponseValidator } from './response-validator.js';
+import { responseValidator } from './response-validator.js';
+import type { IConfirmationManager } from './confirmation-manager.js';
+import { confirmationManager } from './confirmation-manager.js';
 
 // ─── IAIOrchestrator Interface ────────────────────────────────────────────────
 
@@ -29,11 +39,14 @@ export interface IAIOrchestrator {
     request: AIRequest,
     subscriber: StreamSubscriber,
   ): Promise<Result<void>>;
+  getProviderManager(): ProviderManager;
 }
 
 // ─── AI Orchestrator Implementation ──────────────────────────────────────────
 
 export class AIOrchestrator implements IAIOrchestrator {
+  private readonly providerManager: ProviderManager;
+
   constructor(
     private readonly llmEngine: ILLMEngine,
     private readonly intentEngine: IIntentEngine,
@@ -45,7 +58,17 @@ export class AIOrchestrator implements IAIOrchestrator {
     private readonly streamingEngine: IStreamingEngine,
     private readonly memoryEngine: IMemoryEngine,
     private readonly config: AIConfig,
-  ) {}
+    private readonly toolExec: IToolExecutor = toolExecutor,
+    private readonly confEngine: IConfidenceEngine = confidenceEngine,
+    private readonly respValidator: IResponseValidator = responseValidator,
+    private readonly confManager: IConfirmationManager = confirmationManager,
+  ) {
+    this.providerManager = new ProviderManager(this.config);
+  }
+
+  public getProviderManager(): ProviderManager {
+    return this.providerManager;
+  }
 
   public async process(request: AIRequest): Promise<Result<AIResponse>> {
     const startTime = Date.now();
@@ -90,6 +113,49 @@ export class AIOrchestrator implements IAIOrchestrator {
     }
     const context = contextResult.value;
 
+    // ─── Tool Check & Confirmation ──────────────────────────────────────────
+
+    let toolExecuted = false;
+    let toolSuccess = false;
+    let toolResultContext = '';
+
+    if (intent.requiresTool) {
+      const toolName = intent.type === 'AUTOMATION_REQUEST' ? 'list_automations' : 'list_workspace';
+      const args = {};
+
+      if (this.confManager.requiresConfirmation(toolName, args)) {
+        const confReq = this.confManager.createConfirmationRequest(toolName, args);
+        this.reasoningEngine.updateStatus(request.requestId, 'completed');
+        this.reasoningEngine.endReasoning(request.requestId);
+
+        const confResponse: AIResponse = {
+          requestId: request.requestId,
+          userId: request.userId,
+          sessionId: request.sessionId,
+          conversationId: request.conversationId,
+          message: confReq.description,
+          intent,
+          status: 'confirmation_required',
+          confirmationRequest: confReq,
+          latencyMs: Date.now() - startTime,
+          timestamp: Date.now(),
+        };
+        return ok(confResponse);
+      }
+
+      toolExecuted = true;
+      const tResult = await this.toolExec.execute(toolName, args, {
+        auth: { userId: request.userId, sessionId: request.sessionId, roles: ['user'], permissions: ['*'] },
+        traceId: request.requestId,
+        conversationId: request.conversationId,
+        requestId: request.requestId,
+      });
+      toolSuccess = tResult.success;
+      if (tResult.success && tResult.data) {
+        toolResultContext = `\n[Tool Execution Result (${toolName})]\n${JSON.stringify(tResult.data, null, 2)}`;
+      }
+    }
+
     // ─── Build Prompt ──────────────────────────────────────────────────────
 
     const promptResult = this.promptEngine.build(request.message, context, {
@@ -102,39 +168,73 @@ export class AIOrchestrator implements IAIOrchestrator {
     }
     const prompt = promptResult.value;
 
+    // Inject Aether System Context Prompt & Tool Results
+    const systemContent = `${buildAetherSystemPrompt()}\n\n${prompt.system}${toolResultContext}`;
+
     // ─── Generate ──────────────────────────────────────────────────────────
 
     this.reasoningEngine.updateStatus(request.requestId, 'generating');
 
     const messages = [
-      { role: 'system' as const, content: prompt.system },
+      { role: 'system' as const, content: systemContent },
       ...prompt.messages.map((m) => ({
         role: m.role as 'system' | 'user' | 'assistant',
         content: m.content,
       })),
     ];
 
-    const genResult = await this.llmEngine.generate(request.requestId, {
-      modelId: request.options?.modelId ?? this.llmEngine.getDefaultModelId(),
-      messages,
-      temperature: request.options?.temperature,
-      maxTokens: request.options?.maxTokens,
-      timeoutMs: request.options?.timeout,
-      signal: request.signal,
-    });
+    const providerMode = request.options?.providerMode ?? 'auto';
+    const execution = await this.providerManager.generate(
+      {
+        requestId: request.requestId,
+        modelId: request.options?.modelId ?? 'default',
+        messages,
+        temperature: request.options?.temperature,
+        maxTokens: request.options?.maxTokens,
+        timeoutMs: request.options?.timeout,
+        signal: request.signal,
+        stream: false,
+      },
+      providerMode,
+    );
 
-    if (!genResult.ok) {
+    if (!execution.result.ok) {
       this.reasoningEngine.updateStatus(request.requestId, 'failed');
       return ok(
-        this.responseEngine.buildError(request, intent, genResult.error.code, startTime),
+        this.responseEngine.buildError(request, intent, execution.result.error.code, startTime),
       );
     }
 
+    const genResponse = execution.result.value;
+
     // ─── Safety: Output Check ──────────────────────────────────────────────
 
-    const outputSafety = this.safetyEngine.checkOutput(genResult.value.content);
+    this.safetyEngine.checkOutput(genResponse.content);
 
-    // ─── Store Conversation Message ────────────────────────────────────────
+    // ─── Response Validation ───────────────────────────────────────────────
+
+    const validationRes = this.respValidator.validate(
+      request,
+      intent,
+      context,
+      genResponse.content,
+      toolExecuted,
+      toolSuccess,
+    );
+    const finalContent = validationRes.correctedContent ?? genResponse.content;
+
+    // ─── Confidence Assessment ─────────────────────────────────────────────
+
+    const confidenceAssessment = this.confEngine.assess(
+      request.message,
+      intent,
+      context,
+      finalContent,
+      toolExecuted,
+      toolSuccess,
+    );
+
+    // ─── Store Conversation Message (Session History Isolation) ──────────────
 
     this.memoryEngine.addConversationMessage(
       request.userId,
@@ -148,7 +248,7 @@ export class AIOrchestrator implements IAIOrchestrator {
       request.sessionId,
       request.conversationId,
       'assistant',
-      genResult.value.content,
+      finalContent,
     );
 
     // ─── Finalize Reasoning ────────────────────────────────────────────────
@@ -159,15 +259,23 @@ export class AIOrchestrator implements IAIOrchestrator {
     // ─── Build Response ────────────────────────────────────────────────────
 
     const citations = context.ragContext?.documents.map((d) => d.citation);
-    const response = this.responseEngine.buildSuccess(
+    const baseResponse = this.responseEngine.buildSuccess(
       request,
-      genResult.value,
+      { ...genResponse, content: finalContent },
       intent,
       citations,
       undefined,
       'completed',
       startTime,
     );
+
+    const response: AIResponse = {
+      ...baseResponse,
+      confidence: confidenceAssessment.level,
+      activeProvider: execution.activeProvider,
+      usedFallback: execution.usedFallback,
+      fallbackReason: execution.fallbackReason,
+    };
 
     return ok(response);
   }
@@ -208,8 +316,9 @@ export class AIOrchestrator implements IAIOrchestrator {
     }
 
     const prompt = promptResult.value;
+    const systemContent = `${buildAetherSystemPrompt()}\n\n${prompt.system}`;
     const messages = [
-      { role: 'system' as const, content: prompt.system },
+      { role: 'system' as const, content: systemContent },
       ...prompt.messages.map((m) => ({
         role: m.role as 'system' | 'user' | 'assistant',
         content: m.content,
@@ -221,30 +330,33 @@ export class AIOrchestrator implements IAIOrchestrator {
     const handle = this.streamingEngine.createStream(request.requestId, subscriber);
     let accumulatedContent = '';
 
-    const streamResult = await this.llmEngine.generateStream(
-      request.requestId,
+    const providerMode = request.options?.providerMode ?? 'auto';
+    const execution = await this.providerManager.generateStream(
       {
-        modelId: request.options?.modelId ?? this.llmEngine.getDefaultModelId(),
+        requestId: request.requestId,
+        modelId: request.options?.modelId ?? 'default',
         messages,
         temperature: request.options?.temperature,
         maxTokens: request.options?.maxTokens,
         timeoutMs: request.options?.timeout,
         signal: request.signal,
+        stream: true,
       },
       (chunk) => {
         if (handle.isCancelled) return;
         accumulatedContent += chunk.delta;
         this.streamingEngine.onLLMChunk(handle, chunk);
       },
+      providerMode,
     );
 
-    if (!streamResult.ok) {
-      this.streamingEngine.failStream(handle, streamResult.error.message);
+    if (!execution.result.ok) {
+      this.streamingEngine.failStream(handle, execution.result.error.message);
       this.reasoningEngine.updateStatus(request.requestId, 'failed');
-      return fail(streamResult.error);
+      return fail(execution.result.error);
     }
 
-    // Store in conversation memory
+    // Store in conversation memory (Session Isolation)
     this.memoryEngine.addConversationMessage(
       request.userId,
       request.sessionId,

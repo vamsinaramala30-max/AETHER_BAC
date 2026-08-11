@@ -37,6 +37,7 @@ export interface AIRequestOptions {
   readonly topP?: number;
   readonly timeout?: number;
   readonly modelId?: ModelId;
+  readonly providerMode?: 'auto' | 'gemini' | 'openai' | 'ollama';
   readonly enableMemory?: boolean;
   readonly enableRAG?: boolean;
   readonly ragCollectionIds?: readonly string[];
@@ -53,6 +54,11 @@ export interface AIResponse {
   readonly memoryIds?: readonly MemoryId[];
   readonly intent: Intent;
   readonly status: AIResponseStatus;
+  readonly confidence?: ConfidenceLevel;
+  readonly confirmationRequest?: ConfirmationRequest;
+  readonly activeProvider?: string;
+  readonly usedFallback?: boolean;
+  readonly fallbackReason?: string;
   readonly usage?: TokenUsage;
   readonly latencyMs: number;
   readonly timestamp: number;
@@ -67,7 +73,38 @@ export type AIResponseStatus =
   | 'context_too_large'
   | 'timeout'
   | 'cancelled'
-  | 'internal_error';
+  | 'internal_error'
+  | 'clarification_required'
+  | 'confirmation_required'
+  | 'insufficient_information'
+  | 'unsupported'
+  | 'permission_denied'
+  | 'action_completed'
+  | 'action_failed';
+
+// ─── Confidence ───────────────────────────────────────────────────────────────
+
+export type ConfidenceLevel =
+  | 'HIGH_CONFIDENCE'
+  | 'MEDIUM_CONFIDENCE'
+  | 'LOW_CONFIDENCE'
+  | 'INSUFFICIENT_INFORMATION';
+
+export interface ConfidenceAssessment {
+  readonly level: ConfidenceLevel;
+  readonly score: number;
+  readonly reasoning: string;
+}
+
+// ─── Confirmation Request ────────────────────────────────────────────────────
+
+export interface ConfirmationRequest {
+  readonly actionId: string;
+  readonly toolName: string;
+  readonly description: string;
+  readonly riskLevel: 'READ' | 'LOW_RISK_WRITE' | 'HIGH_RISK_WRITE' | 'DESTRUCTIVE';
+  readonly args: Record<string, unknown>;
+}
 
 // ─── Streaming ────────────────────────────────────────────────────────────────
 
@@ -93,7 +130,18 @@ export type IntentType =
   | 'RAG_REQUIRED'
   | 'MEMORY_REQUIRED'
   | 'TOOL_REQUIRED'
-  | 'AGENT_REQUIRED';
+  | 'AGENT_REQUIRED'
+  | 'AETHER_PRODUCT_QUESTION'
+  | 'USER_DATA_QUESTION'
+  | 'KNOWLEDGE_QUESTION'
+  | 'AUTOMATION_REQUEST'
+  | 'PROJECT_WORKSPACE_TASK'
+  | 'GENERAL_REASONING'
+  | 'WRITING'
+  | 'CODING_TECHNICAL'
+  | 'ANALYTICAL'
+  | 'AMBIGUOUS'
+  | 'UNSUPPORTED';
 
 export interface Intent {
   readonly type: IntentType;
@@ -333,7 +381,15 @@ export type AIErrorCode =
   | 'INTENT_FAILED'
   | 'PROMPT_BUILD_FAILED'
   | 'RUNTIME_UNAVAILABLE'
-  | 'NOT_CONFIGURED';
+  | 'NOT_CONFIGURED'
+  | 'RATE_LIMIT'
+  | 'QUOTA_EXCEEDED'
+  | 'AUTH_ERROR'
+  | 'NETWORK_ERROR'
+  | 'PROVIDER_UNAVAILABLE'
+  | 'MODEL_ERROR'
+  | 'STREAM_ERROR'
+  | 'UNKNOWN_ERROR';
 
 export interface AIError<E extends AIErrorCode = AIErrorCode> {
   readonly code: E;

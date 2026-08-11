@@ -15,6 +15,7 @@ router.use(authenticate);
 router.post('/chat', validate(chatSchema), aiController.chat);
 router.post('/prompt', validate(generatePromptSchema), aiController.generatePrompt);
 router.get('/health', (req, res, next) => aiController.getHealth(req, res, next));
+router.get('/providers/status', (req, res, next) => aiController.getProvidersStatus(req, res, next));
 
 // Conversations Routes
 router.get('/conversations', (req, res, next) => aiController.getConversations(req, res, next));

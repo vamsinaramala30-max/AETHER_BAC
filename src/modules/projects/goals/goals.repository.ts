@@ -8,6 +8,36 @@ import { GoalFilterDTO } from './goals.dto';
 import { PaginatedResult } from '../projects.repository';
 import { GoalStatus as PrismaGoalStatus } from '@prisma/client';
 
+const IS_UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+const mapStatusToPrisma = (status?: string): PrismaGoalStatus => {
+  if (!status) return PrismaGoalStatus.NOT_STARTED;
+  const s = status.toUpperCase();
+  if (s === 'PLANNED' || s === 'NOT_STARTED') return PrismaGoalStatus.NOT_STARTED;
+  if (s === 'IN_PROGRESS' || s === 'IN PROGRESS') return PrismaGoalStatus.IN_PROGRESS;
+  if (s === 'AT_RISK' || s === 'AT RISK') return PrismaGoalStatus.AT_RISK;
+  if (s === 'COMPLETED' || s === 'ACHIEVED') return PrismaGoalStatus.COMPLETED;
+  if (s === 'ARCHIVED' || s === 'CANCELLED') return PrismaGoalStatus.CANCELLED;
+  return PrismaGoalStatus.NOT_STARTED;
+};
+
+const mapStatusFromPrisma = (status: PrismaGoalStatus): string => {
+  switch (status) {
+    case PrismaGoalStatus.NOT_STARTED:
+      return 'PLANNED';
+    case PrismaGoalStatus.IN_PROGRESS:
+      return 'IN_PROGRESS';
+    case PrismaGoalStatus.AT_RISK:
+      return 'AT_RISK';
+    case PrismaGoalStatus.COMPLETED:
+      return 'COMPLETED';
+    case PrismaGoalStatus.CANCELLED:
+      return 'ARCHIVED';
+    default:
+      return 'PLANNED';
+  }
+};
+
 export class GoalsRepository {
   private mapToEntity(g: any): GoalEntity {
     const isCompleted = g.status === 'COMPLETED' || g.progress === 100;
@@ -17,7 +47,7 @@ export class GoalsRepository {
       title: g.title,
       description: g.description || null,
       type: 'OBJECTIVE' as any,
-      status: (g.status || 'IN_PROGRESS') as any,
+      status: mapStatusFromPrisma(g.status || PrismaGoalStatus.NOT_STARTED) as any,
       category: 'General',
       targetValue: 100,
       currentValue: g.progress || 0,
@@ -34,6 +64,7 @@ export class GoalsRepository {
   }
 
   async findById(id: string): Promise<GoalEntity | null> {
+    if (!IS_UUID_REGEX.test(id)) return null;
     const goal = await db.goal.findFirst({
       where: { id, deletedAt: null },
     });
@@ -46,12 +77,15 @@ export class GoalsRepository {
     if (filter.userId) {
       where.userId = filter.userId;
     }
+    if ((filter as any).projectId) {
+      where.projectId = (filter as any).projectId;
+    }
     if (filter.status) {
-      where.status = filter.status as PrismaGoalStatus;
+      where.status = mapStatusToPrisma(filter.status as string);
     }
 
     const page = Math.max(1, filter.page || 1);
-    const limit = Math.max(1, Math.min(100, filter.limit || 20));
+    const limit = Math.max(1, Math.min(100, filter.limit || 50));
     const skip = (page - 1) * limit;
 
     const [items, total] = await Promise.all([
@@ -73,18 +107,54 @@ export class GoalsRepository {
     };
   }
 
-  async save(goal: Partial<GoalEntity> & { title: string; userId?: string }): Promise<GoalEntity> {
+  async save(
+    goal: Partial<GoalEntity> & { title: string; userId?: string; projectId?: string; workspaceId?: string },
+  ): Promise<GoalEntity> {
     let userId = goal.userId;
     if (!userId) {
       const firstUser = await db.user.findFirst();
-      userId = firstUser?.id || '00000000-0000-0000-0000-000000000000';
+      userId = firstUser?.id;
     }
 
-    // Get user's workspace
-    const membership = await db.workspaceMember.findFirst({ where: { userId } });
-    const workspaceId = membership?.workspaceId || '00000000-0000-0000-0000-000000000000';
+    if (!userId) {
+      const newUser = await db.user.create({
+        data: {
+          email: `user-${Date.now()}@aether.local`,
+          fullName: 'AETHER User',
+        },
+      });
+      userId = newUser.id;
+    }
 
-    if (goal.id) {
+    let workspaceId = goal.workspaceId;
+    if (!workspaceId) {
+      const membership = await db.workspaceMember.findFirst({ where: { userId } });
+      workspaceId = membership?.workspaceId;
+    }
+    if (!workspaceId) {
+      const firstWorkspace = await db.workspace.findFirst();
+      workspaceId = firstWorkspace?.id;
+    }
+    if (!workspaceId) {
+      const newWs = await db.workspace.create({
+        data: {
+          name: 'Personal Workspace',
+          slug: `workspace-${Date.now()}`,
+        },
+      });
+      workspaceId = newWs.id;
+      await db.workspaceMember.create({
+        data: {
+          workspaceId,
+          userId,
+          role: 'OWNER',
+        },
+      });
+    }
+
+    const targetProjectId = goal.projectId || (goal.linkedProjectIds && goal.linkedProjectIds.length > 0 ? goal.linkedProjectIds[0] : null);
+
+    if (goal.id && IS_UUID_REGEX.test(goal.id)) {
       const existing = await db.goal.findUnique({ where: { id: goal.id } });
       if (existing) {
         const updated = await db.goal.update({
@@ -92,9 +162,10 @@ export class GoalsRepository {
           data: {
             title: goal.title,
             description: goal.description,
-            status: goal.status as any,
-            progress: goal.currentValue,
+            status: mapStatusToPrisma(goal.status as string),
+            progress: goal.currentValue !== undefined ? goal.currentValue : existing.progress,
             targetDate: goal.deadline,
+            projectId: targetProjectId || existing.projectId,
           },
         });
         return this.mapToEntity(updated);
@@ -107,10 +178,10 @@ export class GoalsRepository {
         description: goal.description,
         userId,
         workspaceId,
-        status: (goal.status as any) || 'IN_PROGRESS',
+        status: mapStatusToPrisma(goal.status as string),
         progress: goal.currentValue || 0,
         targetDate: goal.deadline,
-        projectId: goal.linkedProjectIds && goal.linkedProjectIds.length > 0 ? goal.linkedProjectIds[0] : null,
+        projectId: targetProjectId,
       },
     });
 
@@ -118,6 +189,7 @@ export class GoalsRepository {
   }
 
   async delete(id: string): Promise<boolean> {
+    if (!IS_UUID_REGEX.test(id)) return false;
     try {
       await db.goal.update({
         where: { id },
@@ -129,3 +201,4 @@ export class GoalsRepository {
     }
   }
 }
+

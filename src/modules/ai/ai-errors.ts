@@ -287,7 +287,64 @@ export class PromptBuildFailedError extends AetherAIError {
   }
 }
 
-// ─── Error Guard ──────────────────────────────────────────────────────────────
+// ─── Provider & Fallback Errors ───────────────────────────────────────────────
+
+export class RateLimitError extends AetherAIError {
+  constructor(provider: string, cause?: Error) {
+    super(
+      'RATE_LIMIT',
+      `Rate limit exceeded for provider "${provider}".`,
+      { retryable: true, details: { provider }, cause },
+    );
+    this.name = 'RateLimitError';
+  }
+}
+
+export class QuotaExceededError extends AetherAIError {
+  constructor(provider: string, cause?: Error) {
+    super(
+      'QUOTA_EXCEEDED',
+      `Quota or credit limit exceeded for provider "${provider}".`,
+      { retryable: true, details: { provider }, cause },
+    );
+    this.name = 'QuotaExceededError';
+  }
+}
+
+export class ProviderUnavailableError extends AetherAIError {
+  constructor(provider: string, reason?: string, cause?: Error) {
+    super(
+      'PROVIDER_UNAVAILABLE',
+      `AI Provider "${provider}" is unavailable${reason ? `: ${reason}` : ''}.`,
+      { retryable: true, details: { provider, reason }, cause },
+    );
+    this.name = 'ProviderUnavailableError';
+  }
+}
+
+export class NetworkError extends AetherAIError {
+  constructor(provider: string, reason: string, cause?: Error) {
+    super(
+      'NETWORK_ERROR',
+      `Network failure connecting to AI provider "${provider}": ${reason}`,
+      { retryable: true, details: { provider, reason }, cause },
+    );
+    this.name = 'NetworkError';
+  }
+}
+
+export class AuthError extends AetherAIError {
+  constructor(provider: string, reason?: string) {
+    super(
+      'AUTH_ERROR',
+      `Authentication/API key invalid for provider "${provider}"${reason ? `: ${reason}` : ''}.`,
+      { retryable: false, details: { provider, reason } },
+    );
+    this.name = 'AuthError';
+  }
+}
+
+// ─── Error Guard & Fallback Helper ─────────────────────────────────────────────
 
 export function isAetherAIError(error: unknown): error is AetherAIError {
   return error instanceof AetherAIError;
@@ -299,4 +356,32 @@ export function toAetherAIError(error: unknown): AetherAIError {
     return new InternalError(error.message, error);
   }
   return new InternalError(String(error));
+}
+
+/**
+ * Determines whether an error is a recoverable provider-level error
+ * that warrants fallback to a secondary AI provider.
+ */
+export function isRecoverableProviderError(error: unknown): boolean {
+  let code: string | undefined;
+  if (isAetherAIError(error)) {
+    code = error.code;
+  } else if (error && typeof error === 'object' && 'code' in error && typeof (error as any).code === 'string') {
+    code = (error as any).code;
+  } else {
+    code = toAetherAIError(error).code;
+  }
+  const recoverableCodes: string[] = [
+    'RATE_LIMIT',
+    'QUOTA_EXCEEDED',
+    'PROVIDER_UNAVAILABLE',
+    'RUNTIME_UNAVAILABLE',
+    'MODEL_UNAVAILABLE',
+    'NETWORK_ERROR',
+    'TIMEOUT',
+    'STREAM_FAILED',
+    'GENERATION_FAILED',
+    'AUTH_ERROR',
+  ];
+  return !!code && recoverableCodes.includes(code);
 }

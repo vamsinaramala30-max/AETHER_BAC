@@ -75,12 +75,15 @@ export class UploadController {
   public async downloadFile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
+      const inline = req.query.inline === 'true';
       const fileRecord = await uploadService.getFileById(id);
       if (!fileRecord || !fileRecord.fullPath || !fs.existsSync(fileRecord.fullPath)) {
         throw new AppError('File not found', 404, 'FILE_NOT_FOUND');
       }
-      res.setHeader('Content-Type', fileRecord.mimeType || 'application/octet-stream');
-      res.setHeader('Content-Disposition', `attachment; filename="${fileRecord.filename}"`);
+      const mimeType = fileRecord.mimeType || 'application/octet-stream';
+      const dispositionType = inline ? 'inline' : 'attachment';
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `${dispositionType}; filename="${encodeURIComponent(fileRecord.filename)}"`);
       fs.createReadStream(fileRecord.fullPath).pipe(res);
     } catch (err) {
       next(err);
