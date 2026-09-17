@@ -90,3 +90,46 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     });
   }
 };
+
+/**
+ * Middleware providing optional JWT Authentication.
+ * If Bearer token is present and valid, attaches decoded user to req.user.
+ * Otherwise, assigns a default anonymous user context.
+ */
+export const optionalAuthenticate = (req: Request, _res: Response, next: NextFunction): void => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      req.user = {
+        id: 'anonymous-user',
+        email: 'guest@aether.local',
+        role: 'user',
+        fullName: 'Anonymous User',
+      };
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+      req.user = {
+        id: 'anonymous-user',
+        email: 'guest@aether.local',
+        role: 'user',
+        fullName: 'Anonymous User',
+      };
+      return next();
+    }
+
+    const decoded = jwt.verify(token, securityConfig.jwt.secret) as AuthenticatedUser;
+    req.user = decoded;
+    next();
+  } catch {
+    req.user = {
+      id: 'anonymous-user',
+      email: 'guest@aether.local',
+      role: 'user',
+      fullName: 'Anonymous User',
+    };
+    next();
+  }
+};

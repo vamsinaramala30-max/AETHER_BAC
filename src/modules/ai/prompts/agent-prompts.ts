@@ -7,7 +7,8 @@
 
 // ─── Agent System Prompt ──────────────────────────────────────────────────────
 
-export const AGENT_BASE_SYSTEM_PROMPT = `You are an autonomous AI agent. Your task is to complete the user's request step by step.
+export const AGENT_BASE_SYSTEM_PROMPT =
+  `You are an autonomous AI agent. Your task is to complete the user's request step by step.
 
 Guidelines:
 - Break the task into clear, executable steps.
@@ -71,9 +72,7 @@ export function buildAgentCompletionPrompt(
   originalTask: string,
   stepResults: readonly string[],
 ): string {
-  const resultsBlock = stepResults
-    .map((result, i) => `Step ${i + 1}: ${result}`)
-    .join('\n');
+  const resultsBlock = stepResults.map((result, i) => `Step ${i + 1}: ${result}`).join('\n');
 
   return [
     `Original task: ${originalTask}`,

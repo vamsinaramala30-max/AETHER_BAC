@@ -1,12 +1,20 @@
-import { AIEngine, buildDefaultAIConfig } from '../../../ai/index.js';
+import type { IAIEngine } from '../../../ai/index.js';
 import { logger } from '../../../../config';
 
 export class AIAdapter {
-  private engine: AIEngine;
+  private _engine?: IAIEngine;
 
-  constructor() {
-    const config = buildDefaultAIConfig();
-    this.engine = new AIEngine(config);
+  constructor(engine?: IAIEngine) {
+    this._engine = engine;
+  }
+
+  private get engine(): IAIEngine {
+    if (this._engine) {
+      return this._engine;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { globalAiEngine } = require('../../../ai/core/ai-engine.js');
+    return globalAiEngine;
   }
 
   public async askAether(prompt: string, context?: Record<string, unknown>): Promise<string> {
@@ -26,7 +34,9 @@ export class AIAdapter {
       }
       return `Processed prompt: ${prompt}`;
     } catch (err) {
-      logger.warn(`[AIAdapter] Ask Aether fallback triggered due to error: ${(err as Error).message}`);
+      logger.warn(
+        `[AIAdapter] Ask Aether fallback triggered due to error: ${(err as Error).message}`,
+      );
       return `AI Response to prompt: "${prompt}". Context summary evaluated successfully.`;
     }
   }
@@ -59,10 +69,13 @@ export class AIAdapter {
   public async extract(text: string, targetEntities: string[]): Promise<Record<string, unknown>> {
     logger.info(`[AIAdapter] Extracting entities: ${targetEntities.join(', ')}`);
     return {
-      extracted: targetEntities.reduce((acc, entity) => {
-        acc[entity] = `Extracted ${entity} value`;
-        return acc;
-      }, {} as Record<string, string>),
+      extracted: targetEntities.reduce(
+        (acc, entity) => {
+          acc[entity] = `Extracted ${entity} value`;
+          return acc;
+        },
+        {} as Record<string, string>,
+      ),
       textSnippet: text.slice(0, 100),
     };
   }

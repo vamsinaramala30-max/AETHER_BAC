@@ -18,7 +18,12 @@ export interface IDocumentService {
 
   getDocument(id: string): Promise<KnowledgeDocument | undefined>;
   listDocuments(collectionId?: string): Promise<readonly KnowledgeDocument[]>;
-  updateStatus(id: string, status: KnowledgeDocument['status'], chunkCount?: number, errorMessage?: string): Promise<KnowledgeDocument | undefined>;
+  updateStatus(
+    id: string,
+    status: KnowledgeDocument['status'],
+    chunkCount?: number,
+    errorMessage?: string,
+  ): Promise<KnowledgeDocument | undefined>;
   deleteDocument(id: string): Promise<boolean>;
 }
 

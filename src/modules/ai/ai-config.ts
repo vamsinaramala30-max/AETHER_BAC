@@ -5,6 +5,9 @@
  */
 
 import type { ModelId } from './ai-types.js';
+import { DEFAULT_OBSERVABILITY_CONFIG, type ObservabilityConfig } from './observability/observability-types.js';
+
+
 
 // ─── Runtime Configuration ────────────────────────────────────────────────────
 
@@ -27,10 +30,7 @@ export interface NoRuntimeConfig {
   readonly type: 'none';
 }
 
-export type LLMRuntimeConfig =
-  | OllamaRuntimeConfig
-  | LlamaCppRuntimeConfig
-  | NoRuntimeConfig;
+export type LLMRuntimeConfig = OllamaRuntimeConfig | LlamaCppRuntimeConfig | NoRuntimeConfig;
 
 // ─── Model Configuration ──────────────────────────────────────────────────────
 
@@ -107,8 +107,8 @@ export interface StreamingConfig {
 // ─── Provider Configuration ──────────────────────────────────────────────────
 
 export interface ProvidersConfig {
-  readonly primaryProvider: 'gemini' | 'openai' | 'ollama';
-  readonly fallbackProvider: 'openai' | 'gemini' | 'ollama' | 'none';
+  readonly primaryProvider: 'aether' | 'gemini' | 'openai' | 'ollama';
+  readonly fallbackProvider: 'none' | 'aether' | 'openai' | 'gemini' | 'ollama';
   readonly geminiApiKey?: string;
   readonly openaiApiKey?: string;
   readonly localLlmBaseUrl: string;
@@ -127,6 +127,7 @@ export interface AIConfig {
   readonly memory: MemoryConfig;
   readonly safety: SafetyConfig;
   readonly streaming: StreamingConfig;
+  readonly observability: ObservabilityConfig;
 }
 
 // ─── Default Configuration ────────────────────────────────────────────────────
@@ -134,22 +135,24 @@ export interface AIConfig {
 export function buildDefaultAIConfig(overrides?: Partial<AIConfig>): AIConfig {
   const defaultConfig: AIConfig = {
     providers: {
-      primaryProvider: (process.env['AI_PRIMARY_PROVIDER'] as any) || 'gemini',
-      fallbackProvider: (process.env['AI_FALLBACK_PROVIDER'] as any) || 'openai',
+      primaryProvider: (process.env['AI_PRIMARY_PROVIDER'] as any) || 'aether',
+      fallbackProvider: (process.env['AI_FALLBACK_PROVIDER'] as any) || 'none',
       geminiApiKey: process.env['GEMINI_API_KEY'],
       openaiApiKey: process.env['OPENAI_API_KEY'],
-      localLlmBaseUrl: process.env['LOCAL_LLM_BASE_URL'] ?? 'http://localhost:11434',
-      localLlmModel: process.env['LOCAL_LLM_MODEL'] ?? 'llama3.2',
+      localLlmBaseUrl:
+        process.env['AETHER_MODEL_BASE_URL'] ??
+        process.env['AETHER_MODEL_URL'] ??
+        process.env['LOCAL_LLM_BASE_URL'] ??
+        'http://localhost:5002',
+      localLlmModel: process.env['LOCAL_LLM_MODEL'] ?? 'aether-v1-authoritative',
       localLlmTimeoutMs: Number(process.env['LOCAL_LLM_TIMEOUT']) || 120_000,
     },
     runtime: {
-      type: 'ollama',
-      baseUrl: process.env['LOCAL_LLM_BASE_URL'] ?? process.env['OLLAMA_BASE_URL'] ?? 'http://localhost:11434',
-      timeoutMs: Number(process.env['LOCAL_LLM_TIMEOUT']) || 120_000,
-      keepAliveMs: 300_000,
+      type: 'none',
     },
     model: {
-      defaultModelId: process.env['LOCAL_LLM_MODEL'] ?? process.env['AETHER_DEFAULT_MODEL'] ?? 'llama3.2',
+      defaultModelId:
+        process.env['LOCAL_LLM_MODEL'] ?? process.env['AETHER_DEFAULT_MODEL'] ?? 'llama3.2',
       embeddingModelId: process.env['AETHER_EMBEDDING_MODEL'] ?? 'nomic-embed-text',
       maxContextTokens: 8192,
       defaultTemperature: 0.7,
@@ -200,12 +203,28 @@ export function buildDefaultAIConfig(overrides?: Partial<AIConfig>): AIConfig {
       maxChunkSize: 256,
       heartbeatIntervalMs: 15_000,
     },
+    observability: {
+      ...DEFAULT_OBSERVABILITY_CONFIG,
+      serviceName: 'aether-bac',
+      environment: (process.env['NODE_ENV'] as any) || 'development',
+      logLevel: (process.env['LOG_LEVEL'] as any) || 'info',
+      promptsLogged: process.env['PROMPTS_LOGGED'] === 'true',
+      outputsLogged: process.env['OUTPUTS_LOGGED'] === 'true',
+      chainOfThoughtLogged: false,
+      redactSensitiveData: true,
+      traceSampleRate: Number(process.env['TRACE_SAMPLE_RATE']) || 1.0,
+      maxSpansInMemory: Number(process.env['MAX_SPANS_IN_MEMORY']) || 1000,
+      metricsEnabled: true,
+      healthCheckTimeoutMs: Number(process.env['HEALTH_CHECK_TIMEOUT_MS']) || 2000,
+    },
   };
 
   if (!overrides) return defaultConfig;
 
   return {
-    providers: overrides.providers ? { ...defaultConfig.providers, ...overrides.providers } : defaultConfig.providers,
+    providers: overrides.providers
+      ? { ...defaultConfig.providers, ...overrides.providers }
+      : defaultConfig.providers,
     runtime: overrides.runtime ?? defaultConfig.runtime,
     model: overrides.model ? { ...defaultConfig.model, ...overrides.model } : defaultConfig.model,
     embedding: overrides.embedding
@@ -221,8 +240,14 @@ export function buildDefaultAIConfig(overrides?: Partial<AIConfig>): AIConfig {
     streaming: overrides.streaming
       ? { ...defaultConfig.streaming, ...overrides.streaming }
       : defaultConfig.streaming,
+    observability: overrides.observability
+      ? { ...defaultConfig.observability, ...overrides.observability }
+      : defaultConfig.observability,
   };
 }
+
+export const getDefaultAIConfig = buildDefaultAIConfig;
+export const createDefaultAIConfig = buildDefaultAIConfig;
 
 // ─── Config Validation ────────────────────────────────────────────────────────
 

@@ -131,7 +131,13 @@ export class OllamaProvider implements ILLMProvider {
       if (err instanceof Error && err.name === 'AbortError') {
         return fail(new TimeoutError('ollama.generate', timeoutMs));
       }
-      return fail(new NetworkError('ollama', err instanceof Error ? err.message : String(err), err instanceof Error ? err : undefined));
+      return fail(
+        new NetworkError(
+          'ollama',
+          err instanceof Error ? err.message : String(err),
+          err instanceof Error ? err : undefined,
+        ),
+      );
     }
   }
 
@@ -233,12 +239,24 @@ export class OllamaProvider implements ILLMProvider {
       if (err instanceof Error && err.name === 'AbortError') {
         return fail(new TimeoutError('ollama.generateStream', timeoutMs));
       }
-      return fail(new NetworkError('ollama', err instanceof Error ? err.message : String(err), err instanceof Error ? err : undefined));
+      return fail(
+        new NetworkError(
+          'ollama',
+          err instanceof Error ? err.message : String(err),
+          err instanceof Error ? err : undefined,
+        ),
+      );
     }
   }
 
   private resolveModelId(requested?: string): string {
-    if (!requested || requested === 'auto' || requested === 'default' || requested.includes('gemini') || requested.includes('gpt')) {
+    if (
+      !requested ||
+      requested === 'auto' ||
+      requested === 'default' ||
+      requested.includes('gemini') ||
+      requested.includes('gpt')
+    ) {
       return this.defaultModel;
     }
     return requested;

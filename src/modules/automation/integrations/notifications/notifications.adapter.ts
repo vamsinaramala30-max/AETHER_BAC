@@ -19,7 +19,9 @@ export class NotificationsAdapter {
     link?: string;
     metadata?: Record<string, unknown>;
   }) {
-    logger.info(`[NotificationsAdapter] Sending notification '${params.title}' to user '${params.userId}'`);
+    logger.info(
+      `[NotificationsAdapter] Sending notification '${params.title}' to user '${params.userId}'`,
+    );
     return this.notificationService.createNotification({
       userId: params.userId,
       title: params.title,

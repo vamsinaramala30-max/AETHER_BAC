@@ -43,17 +43,12 @@ export class PromptBuilder implements IPromptBuilder {
       // ─── System Prompt ───────────────────────────────────────────────
 
       const hasRAGContext =
-        includeRAG &&
-        context.ragContext !== undefined &&
-        context.ragContext.documents.length > 0;
+        includeRAG && context.ragContext !== undefined && context.ragContext.documents.length > 0;
 
       const systemText = buildSystemPrompt({
         includeRAGInstruction: hasRAGContext,
-        includeMemoryInstruction:
-          includeMemory &&
-          (context.longTermMemory?.length ?? 0) > 0,
-        includeNoKnowledgeInstruction:
-          includeRAG && !hasRAGContext,
+        includeMemoryInstruction: includeMemory && (context.longTermMemory?.length ?? 0) > 0,
+        includeNoKnowledgeInstruction: includeRAG && !hasRAGContext,
         customInstructions: options.customSystemInstructions ?? context.systemInstructions,
       });
 
@@ -94,10 +89,7 @@ export class PromptBuilder implements IPromptBuilder {
 
       // ─── Working Memory Context ──────────────────────────────────────
 
-      if (
-        context.workingMemory &&
-        context.workingMemory.items.length > 0
-      ) {
+      if (context.workingMemory && context.workingMemory.items.length > 0) {
         const workingMemBlock = context.workingMemory.items
           .map((item) => `${item.key}: ${item.value}`)
           .join('\n');
@@ -131,10 +123,7 @@ export class PromptBuilder implements IPromptBuilder {
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
       return fail(
-        new PromptBuildFailedError(
-          error instanceof Error ? error.message : String(error),
-          cause,
-        ),
+        new PromptBuildFailedError(error instanceof Error ? error.message : String(error), cause),
       );
     }
   }

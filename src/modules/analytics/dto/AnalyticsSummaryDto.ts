@@ -1,4 +1,3 @@
-
 export interface AnalyticsSummaryResponse {
   productivityScore: number;
   productivityScoreChange: number;

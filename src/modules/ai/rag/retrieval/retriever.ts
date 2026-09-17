@@ -50,6 +50,13 @@ export class Retriever implements IRetriever {
     }
 
     try {
+      const scope = {
+        userId: query.userId,
+        workspaceId: query.workspaceId,
+        projectId: query.projectId,
+        collectionIds: query.collectionIds,
+      };
+
       // Embed the query
       const embeddingResult = await this.embeddingEngine.embed(query.text);
 
@@ -61,12 +68,13 @@ export class Retriever implements IRetriever {
           query.text,
           query.topK * 2,
           query.collectionIds,
+          scope,
         );
 
         if (keywordResults.length === 0) return ok([]);
 
         const chunkIds = keywordResults.map((r) => r.chunkId);
-        retrievedChunks = await this.resolveChunks(chunkIds);
+        retrievedChunks = await this.resolveChunks(chunkIds, scope);
       } else {
         // Hybrid search: vector + keyword
         const [vectorResults, keywordResults] = await Promise.all([
@@ -75,24 +83,17 @@ export class Retriever implements IRetriever {
             query.topK * 2,
             query.scoreThreshold,
             query.collectionIds,
+            scope,
           ),
-          this.keywordIndex.search(
-            query.text,
-            query.topK * 2,
-            query.collectionIds,
-          ),
+          this.keywordIndex.search(query.text, query.topK * 2, query.collectionIds, scope),
         ]);
 
-        const hybridResults = this.hybridSearch.fuse(
-          vectorResults,
-          keywordResults,
-          query.topK * 2,
-        );
+        const hybridResults = this.hybridSearch.fuse(vectorResults, keywordResults, query.topK * 2);
 
         if (hybridResults.length === 0) return ok([]);
 
         const chunkIds = hybridResults.map((r) => r.chunkId);
-        retrievedChunks = await this.resolveChunks(chunkIds);
+        retrievedChunks = await this.resolveChunks(chunkIds, scope);
       }
 
       if (retrievedChunks.length === 0) return ok([]);
@@ -105,23 +106,37 @@ export class Retriever implements IRetriever {
       };
 
       const reranked = await this.reranker.rerank(rerankRequest);
-      return ok(reranked.map((r) => r.chunk));
+      return ok(
+        reranked.map((r) => ({
+          ...r.chunk,
+          metadata: {
+            ...r.chunk.metadata,
+            score: r.score,
+          },
+        })),
+      );
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
       return fail(
-        new RetrievalFailedError(
-          error instanceof Error ? error.message : String(error),
-          cause,
-        ),
+        new RetrievalFailedError(error instanceof Error ? error.message : String(error), cause),
       );
     }
   }
 
-  private async resolveChunks(chunkIds: readonly string[]): Promise<DocumentChunk[]> {
+  private async resolveChunks(
+    chunkIds: readonly string[],
+    scope?: { userId?: string; workspaceId?: string; projectId?: string },
+  ): Promise<DocumentChunk[]> {
     const chunks: DocumentChunk[] = [];
     for (const id of chunkIds) {
       const chunk = await this.chunkStore.getById(id);
-      if (chunk) chunks.push(chunk);
+      if (chunk) {
+        // Enforce user/workspace/project isolation
+        if (scope?.userId && chunk.userId && chunk.userId !== scope.userId) continue;
+        if (scope?.workspaceId && chunk.workspaceId && chunk.workspaceId !== scope.workspaceId) continue;
+        if (scope?.projectId && chunk.projectId && chunk.projectId !== scope.projectId) continue;
+        chunks.push(chunk);
+      }
     }
     return chunks;
   }

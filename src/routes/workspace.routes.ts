@@ -18,11 +18,19 @@ router.use(authenticate);
 
 // Focus session routes
 router.post('/focus/start', (req, res, next) => focusController.handleStart(req, res, next));
-router.post('/:workspaceId/focus/start', (req, res, next) => focusController.handleStart(req, res, next));
-router.post('/focus/:id/complete', (req, res, next) => focusController.handleComplete(req, res, next));
-router.post('/:workspaceId/focus/:id/complete', (req, res, next) => focusController.handleComplete(req, res, next));
+router.post('/:workspaceId/focus/start', (req, res, next) =>
+  focusController.handleStart(req, res, next),
+);
+router.post('/focus/:id/complete', (req, res, next) =>
+  focusController.handleComplete(req, res, next),
+);
+router.post('/:workspaceId/focus/:id/complete', (req, res, next) =>
+  focusController.handleComplete(req, res, next),
+);
 router.get('/focus/analytics', (req, res, next) => focusController.handleAnalytics(req, res, next));
-router.get('/:workspaceId/focus/analytics', (req, res, next) => focusController.handleAnalytics(req, res, next));
+router.get('/:workspaceId/focus/analytics', (req, res, next) =>
+  focusController.handleAnalytics(req, res, next),
+);
 
 // Workspace routes
 router.get('/', workspaceController.getUserWorkspaces);
@@ -33,4 +41,3 @@ router.delete('/:id', workspaceController.deleteWorkspace);
 router.post('/:id/members', validate(addWorkspaceMemberSchema), workspaceController.addMember);
 
 export const workspaceRoutes: Router = router;
-

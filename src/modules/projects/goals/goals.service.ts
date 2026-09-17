@@ -20,7 +20,11 @@ export class GoalsService {
 
     const goal: Partial<GoalEntity> & { projectId?: string; workspaceId?: string } = {
       userId: dto.userId,
-      projectId: (dto as any).projectId || (dto.linkedProjectIds && dto.linkedProjectIds.length > 0 ? dto.linkedProjectIds[0] : undefined),
+      projectId:
+        (dto as any).projectId ||
+        (dto.linkedProjectIds && dto.linkedProjectIds.length > 0
+          ? dto.linkedProjectIds[0]
+          : undefined),
       workspaceId: (dto as any).workspaceId,
       title: dto.title || 'Untitled Goal',
       description: dto.description || null,
@@ -32,7 +36,9 @@ export class GoalsService {
       unit: dto.unit || '%',
       deadline: deadlineDate,
       milestones: [],
-      linkedProjectIds: (dto as any).projectId ? [(dto as any).projectId] : dto.linkedProjectIds || [],
+      linkedProjectIds: (dto as any).projectId
+        ? [(dto as any).projectId]
+        : dto.linkedProjectIds || [],
       linkedTaskIds: dto.linkedTaskIds || [],
       isCompleted: false,
       completedAt: null,

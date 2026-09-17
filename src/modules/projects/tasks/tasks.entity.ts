@@ -20,6 +20,8 @@ export interface TaskComment {
 export interface TaskEntity {
   id: string;
   projectId: string;
+  workspaceId?: string;
+  creatorId?: string;
   listId: string | null;
   parentTaskId: string | null;
   title: string;

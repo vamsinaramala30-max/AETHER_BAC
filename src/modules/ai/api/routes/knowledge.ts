@@ -17,11 +17,20 @@ export async function handleKnowledgeRoute(ctx: RouteContext) {
   }
 
   if (ctx.method === 'POST' && ctx.path === '/ai/knowledge') {
-    const body = (ctx.body ?? {}) as { title: string; content: string; mimeType?: string; collectionId?: string };
+    const body = (ctx.body ?? {}) as {
+      title: string;
+      content: string;
+      mimeType?: string;
+      collectionId?: string;
+    };
     return knowledgeController.ingestDocument(body);
   }
 
-  if (ctx.params?.['id'] && ctx.method === 'DELETE' && ctx.path === `/ai/knowledge/${ctx.params['id']}`) {
+  if (
+    ctx.params?.['id'] &&
+    ctx.method === 'DELETE' &&
+    ctx.path === `/ai/knowledge/${ctx.params['id']}`
+  ) {
     return knowledgeController.deleteDocument(ctx.params['id']);
   }
 

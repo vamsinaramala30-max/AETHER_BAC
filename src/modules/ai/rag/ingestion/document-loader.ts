@@ -25,6 +25,10 @@ export interface TextDocumentSource {
   readonly type: 'text';
   readonly content: string;
   readonly filename?: string;
+  readonly id?: string;
+  readonly title?: string;
+  readonly userId?: string;
+  readonly workspaceId?: string;
   readonly metadata?: Partial<DocumentMetadata>;
 }
 
@@ -61,13 +65,18 @@ export class DocumentLoader implements IDocumentLoader {
         default: {
           const exhaustive: never = source;
           return fail(
-            new RAGFailedError('load', `Unknown document source type: ${JSON.stringify(exhaustive)}`),
+            new RAGFailedError(
+              'load',
+              `Unknown document source type: ${JSON.stringify(exhaustive)}`,
+            ),
           );
         }
       }
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
-      return fail(new RAGFailedError('load', error instanceof Error ? error.message : String(error), cause));
+      return fail(
+        new RAGFailedError('load', error instanceof Error ? error.message : String(error), cause),
+      );
     }
   }
 
@@ -83,14 +92,16 @@ export class DocumentLoader implements IDocumentLoader {
     }
 
     const metadata: DocumentMetadata = {
-      title: source.filename ?? 'Untitled',
+      title: source.title ?? source.filename ?? 'Untitled',
       source: source.filename,
       createdAt: Date.now(),
+      ...(source.userId ? { userId: source.userId } : {}),
+      ...(source.workspaceId ? { workspaceId: source.workspaceId } : {}),
       ...source.metadata,
     };
 
     return ok({
-      id: randomUUID(),
+      id: source.id ?? randomUUID(),
       content: source.content,
       mimeType: 'text/plain',
       filename: source.filename,

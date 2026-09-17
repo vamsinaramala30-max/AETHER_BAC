@@ -107,32 +107,25 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // ============================================================================
-// Request Logging Middleware
 // ============================================================================
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const start = Date.now();
-  res.on('finish', () => {
-    const duration = Date.now() - start;
-    logger.info(`HTTP ${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`, {
-      method: req.method,
-      url: req.originalUrl,
-      status: res.statusCode,
-      duration,
-      ip: req.ip,
-    });
-  });
-  next();
-});
+// Correlation & Distributed Tracing Middleware (Prompt 9)
+// ============================================================================
+import { correlationMiddleware } from './src/middleware/correlation.middleware';
+import { healthController } from './src/modules/health/health.controller';
+import { metrics } from './src/modules/ai/observability/metrics';
+
+app.use(correlationMiddleware);
 
 // ============================================================================
-// Health Check Endpoint
+// Standard Health Check & Metrics Endpoints (Prompt 9)
 // ============================================================================
-app.get('/health', (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'UP',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
+app.get('/health/live', (req: Request, res: Response) => healthController.getLiveness(req, res));
+app.get('/health/ready', (req: Request, res: Response) => healthController.getReadiness(req, res));
+app.get('/health', (req: Request, res: Response) => healthController.checkHealth(req, res));
+
+app.get('/metrics', (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/plain; version=0.0.4');
+  res.status(200).send(metrics.toPrometheus());
 });
 
 // ============================================================================

@@ -3,12 +3,8 @@
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "node",
-    "types": [
-      "node"
-    ],
-    "lib": [
-      "ES2022"
-    ],
+    "types": ["node"],
+    "lib": ["ES2022"],
     "rootDir": "./",
     "outDir": "./dist",
     "strict": true,
@@ -41,14 +37,6 @@
     "resolveJsonModule": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
-  "include": [
-    "server.ts",
-    "src/**/*.ts",
-    "prisma/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "coverage"
-  ]
+  "include": ["server.ts", "src/**/*.ts", "prisma/**/*.ts"],
+  "exclude": ["node_modules", "dist", "coverage"]
 }

@@ -18,12 +18,13 @@ export class KnowledgeAdapter {
     metadata?: Record<string, unknown>;
   }) {
     logger.info(`[KnowledgeAdapter] Creating knowledge item '${params.title}'`);
+    const userId = params.workspaceId || '00000000-0000-0000-0000-000000000000';
     return this.knowledgeService.notesService.createNote(
       {
         title: params.title,
         content: params.content,
       },
-      'system',
+      userId,
     );
   }
 
@@ -47,7 +48,9 @@ export class KnowledgeAdapter {
   }
 
   public async tagKnowledge(knowledgeId: string, tags: string[]) {
-    logger.info(`[KnowledgeAdapter] Tagging knowledge '${knowledgeId}' with tags: ${tags.join(', ')}`);
+    logger.info(
+      `[KnowledgeAdapter] Tagging knowledge '${knowledgeId}' with tags: ${tags.join(', ')}`,
+    );
     return this.prisma.knowledgeBase.update({
       where: { id: knowledgeId },
       data: {

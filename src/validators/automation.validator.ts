@@ -20,8 +20,14 @@ export const updateAutomationSchema = z.object({
     isActive: z.boolean().optional(),
     trigger: z.string().optional(),
     triggerType: z.string().optional(),
-    conditions: z.union([z.record(z.unknown()), z.array(z.unknown())]).nullable().optional(),
-    actions: z.union([z.record(z.unknown()), z.array(z.unknown())]).nullable().optional(),
+    conditions: z
+      .union([z.record(z.unknown()), z.array(z.unknown())])
+      .nullable()
+      .optional(),
+    actions: z
+      .union([z.record(z.unknown()), z.array(z.unknown())])
+      .nullable()
+      .optional(),
     nodes: z.array(z.unknown()).optional(),
     schedule: z.string().nullable().optional(),
     status: z.string().optional(),

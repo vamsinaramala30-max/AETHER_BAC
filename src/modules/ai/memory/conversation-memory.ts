@@ -4,7 +4,13 @@
  * User-scoped. Never cross-contaminates sessions or users.
  */
 
-import type { ContextMessage, UserId, SessionId, ConversationId, MessageRole } from '../ai-types.js';
+import type {
+  ContextMessage,
+  UserId,
+  SessionId,
+  ConversationId,
+  MessageRole,
+} from '../ai-types.js';
 import { MEMORY } from '../ai-constants.js';
 import { defaultTokenizer } from '../llm/tokenizer.js';
 
@@ -34,7 +40,7 @@ export class ConversationMemory implements IConversationMemory {
   private readonly sessions = new Map<string, ContextMessage[]>();
   private readonly windowSize: number;
 
-  constructor(windowSize = MEMORY.DEFAULT_WINDOW_SIZE) {
+  constructor(windowSize: number = MEMORY.DEFAULT_WINDOW_SIZE) {
     this.windowSize = Math.min(windowSize, MEMORY.MAX_WINDOW_SIZE);
   }
 
@@ -80,11 +86,7 @@ export class ConversationMemory implements IConversationMemory {
     return defaultTokenizer.trimMessages(messages, maxTokens);
   }
 
-  public clearSession(
-    userId: UserId,
-    sessionId: SessionId,
-    conversationId: ConversationId,
-  ): void {
+  public clearSession(userId: UserId, sessionId: SessionId, conversationId: ConversationId): void {
     const key = this.buildKey(userId, sessionId, conversationId);
     this.sessions.delete(key);
   }
@@ -97,11 +99,7 @@ export class ConversationMemory implements IConversationMemory {
     }
   }
 
-  private buildKey(
-    userId: UserId,
-    sessionId: SessionId,
-    conversationId: ConversationId,
-  ): string {
+  private buildKey(userId: UserId, sessionId: SessionId, conversationId: ConversationId): string {
     return `${userId}:${sessionId}:${conversationId}`;
   }
 }

@@ -1,5 +1,5 @@
 import { KnowledgeService } from './knowledge.service';
-import { NotesController } from './notes/notes.controller';
+import { NotesController } from './notes/notes/notes.controller';
 import { DocumentsController } from './documents/documents.controller';
 import { KnowledgeBaseController } from './knowledge-base/knowledge-base.controller';
 import { SearchController } from './search/search.controller';

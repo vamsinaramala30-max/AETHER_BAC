@@ -42,6 +42,17 @@ export class AetherAIError extends Error {
 
 // ─── LLM Errors ──────────────────────────────────────────────────────────────
 
+export class BlockedByWeightsError extends AetherAIError {
+  constructor(message = 'NATIVE AETHER AI IS BLOCKED BY TRAINED MODEL WEIGHTS', cause?: Error) {
+    super('BLOCKED_BY_WEIGHTS', message, {
+      retryable: false,
+      details: { has_trained_weights: false },
+      cause,
+    });
+    this.name = 'BlockedByWeightsError';
+  }
+}
+
 export class ModelUnavailableError extends AetherAIError {
   constructor(modelId?: string, cause?: Error) {
     super(
@@ -57,33 +68,33 @@ export class ModelUnavailableError extends AetherAIError {
 
 export class ModelLoadFailedError extends AetherAIError {
   constructor(modelId: string, reason: string, cause?: Error) {
-    super(
-      'MODEL_LOAD_FAILED',
-      `Failed to load model "${modelId}": ${reason}`,
-      { retryable: true, details: { modelId, reason }, cause },
-    );
+    super('MODEL_LOAD_FAILED', `Failed to load model "${modelId}": ${reason}`, {
+      retryable: true,
+      details: { modelId, reason },
+      cause,
+    });
     this.name = 'ModelLoadFailedError';
   }
 }
 
 export class GenerationFailedError extends AetherAIError {
   constructor(reason: string, cause?: Error) {
-    super(
-      'GENERATION_FAILED',
-      `Text generation failed: ${reason}`,
-      { retryable: true, details: { reason }, cause },
-    );
+    super('GENERATION_FAILED', `Text generation failed: ${reason}`, {
+      retryable: true,
+      details: { reason },
+      cause,
+    });
     this.name = 'GenerationFailedError';
   }
 }
 
 export class StreamFailedError extends AetherAIError {
   constructor(reason: string, cause?: Error) {
-    super(
-      'STREAM_FAILED',
-      `Streaming failed: ${reason}`,
-      { retryable: true, details: { reason }, cause },
-    );
+    super('STREAM_FAILED', `Streaming failed: ${reason}`, {
+      retryable: true,
+      details: { reason },
+      cause,
+    });
     this.name = 'StreamFailedError';
   }
 }
@@ -103,22 +114,17 @@ export class RuntimeUnavailableError extends AetherAIError {
 
 export class InvalidRequestError extends AetherAIError {
   constructor(reason: string, details?: unknown) {
-    super(
-      'INVALID_REQUEST',
-      `Invalid request: ${reason}`,
-      { retryable: false, details },
-    );
+    super('INVALID_REQUEST', `Invalid request: ${reason}`, { retryable: false, details });
     this.name = 'InvalidRequestError';
   }
 }
 
 export class UnauthorizedError extends AetherAIError {
   constructor(userId?: string) {
-    super(
-      'UNAUTHORIZED',
-      'Unauthorized: valid authentication is required to use the AI service.',
-      { retryable: false, details: { userId } },
-    );
+    super('UNAUTHORIZED', 'Unauthorized: valid authentication is required to use the AI service.', {
+      retryable: false,
+      details: { userId },
+    });
     this.name = 'UnauthorizedError';
   }
 }
@@ -149,44 +155,44 @@ export class ContextTooLargeError extends AetherAIError {
 
 export class RAGFailedError extends AetherAIError {
   constructor(stage: string, reason: string, cause?: Error) {
-    super(
-      'RAG_FAILED',
-      `RAG pipeline failed at stage "${stage}": ${reason}`,
-      { retryable: true, details: { stage, reason }, cause },
-    );
+    super('RAG_FAILED', `RAG pipeline failed at stage "${stage}": ${reason}`, {
+      retryable: true,
+      details: { stage, reason },
+      cause,
+    });
     this.name = 'RAGFailedError';
   }
 }
 
 export class EmbeddingFailedError extends AetherAIError {
   constructor(reason: string, cause?: Error) {
-    super(
-      'EMBEDDING_FAILED',
-      `Embedding generation failed: ${reason}`,
-      { retryable: true, details: { reason }, cause },
-    );
+    super('EMBEDDING_FAILED', `Embedding generation failed: ${reason}`, {
+      retryable: true,
+      details: { reason },
+      cause,
+    });
     this.name = 'EmbeddingFailedError';
   }
 }
 
 export class IndexingFailedError extends AetherAIError {
   constructor(documentId: string, reason: string, cause?: Error) {
-    super(
-      'INDEXING_FAILED',
-      `Failed to index document "${documentId}": ${reason}`,
-      { retryable: true, details: { documentId, reason }, cause },
-    );
+    super('INDEXING_FAILED', `Failed to index document "${documentId}": ${reason}`, {
+      retryable: true,
+      details: { documentId, reason },
+      cause,
+    });
     this.name = 'IndexingFailedError';
   }
 }
 
 export class RetrievalFailedError extends AetherAIError {
   constructor(reason: string, cause?: Error) {
-    super(
-      'RETRIEVAL_FAILED',
-      `Document retrieval failed: ${reason}`,
-      { retryable: true, details: { reason }, cause },
-    );
+    super('RETRIEVAL_FAILED', `Document retrieval failed: ${reason}`, {
+      retryable: true,
+      details: { reason },
+      cause,
+    });
     this.name = 'RetrievalFailedError';
   }
 }
@@ -195,11 +201,11 @@ export class RetrievalFailedError extends AetherAIError {
 
 export class MemoryFailedError extends AetherAIError {
   constructor(operation: string, reason: string, cause?: Error) {
-    super(
-      'MEMORY_FAILED',
-      `Memory operation "${operation}" failed: ${reason}`,
-      { retryable: true, details: { operation, reason }, cause },
-    );
+    super('MEMORY_FAILED', `Memory operation "${operation}" failed: ${reason}`, {
+      retryable: true,
+      details: { operation, reason },
+      cause,
+    });
     this.name = 'MemoryFailedError';
   }
 }
@@ -208,11 +214,10 @@ export class MemoryFailedError extends AetherAIError {
 
 export class SafetyCheckFailedError extends AetherAIError {
   constructor(reason: string) {
-    super(
-      'SAFETY_CHECK_FAILED',
-      `Safety check failed: ${reason}`,
-      { retryable: false, details: { reason } },
-    );
+    super('SAFETY_CHECK_FAILED', `Safety check failed: ${reason}`, {
+      retryable: false,
+      details: { reason },
+    });
     this.name = 'SafetyCheckFailedError';
   }
 }
@@ -221,22 +226,20 @@ export class SafetyCheckFailedError extends AetherAIError {
 
 export class TimeoutError extends AetherAIError {
   constructor(operation: string, timeoutMs: number) {
-    super(
-      'TIMEOUT',
-      `Operation "${operation}" timed out after ${timeoutMs}ms.`,
-      { retryable: true, details: { operation, timeoutMs } },
-    );
+    super('TIMEOUT', `Operation "${operation}" timed out after ${timeoutMs}ms.`, {
+      retryable: true,
+      details: { operation, timeoutMs },
+    });
     this.name = 'TimeoutError';
   }
 }
 
 export class CancelledError extends AetherAIError {
   constructor(operation: string) {
-    super(
-      'CANCELLED',
-      `Operation "${operation}" was cancelled by the client.`,
-      { retryable: false, details: { operation } },
-    );
+    super('CANCELLED', `Operation "${operation}" was cancelled by the client.`, {
+      retryable: false,
+      details: { operation },
+    });
     this.name = 'CancelledError';
   }
 }
@@ -256,33 +259,33 @@ export class NotConfiguredError extends AetherAIError {
 
 export class InternalError extends AetherAIError {
   constructor(reason: string, cause?: Error) {
-    super(
-      'INTERNAL_ERROR',
-      `Internal AI error: ${reason}`,
-      { retryable: false, details: { reason }, cause },
-    );
+    super('INTERNAL_ERROR', `Internal AI error: ${reason}`, {
+      retryable: false,
+      details: { reason },
+      cause,
+    });
     this.name = 'InternalError';
   }
 }
 
 export class IntentFailedError extends AetherAIError {
   constructor(reason: string, cause?: Error) {
-    super(
-      'INTENT_FAILED',
-      `Intent classification failed: ${reason}`,
-      { retryable: true, details: { reason }, cause },
-    );
+    super('INTENT_FAILED', `Intent classification failed: ${reason}`, {
+      retryable: true,
+      details: { reason },
+      cause,
+    });
     this.name = 'IntentFailedError';
   }
 }
 
 export class PromptBuildFailedError extends AetherAIError {
   constructor(reason: string, cause?: Error) {
-    super(
-      'PROMPT_BUILD_FAILED',
-      `Prompt construction failed: ${reason}`,
-      { retryable: false, details: { reason }, cause },
-    );
+    super('PROMPT_BUILD_FAILED', `Prompt construction failed: ${reason}`, {
+      retryable: false,
+      details: { reason },
+      cause,
+    });
     this.name = 'PromptBuildFailedError';
   }
 }
@@ -291,22 +294,22 @@ export class PromptBuildFailedError extends AetherAIError {
 
 export class RateLimitError extends AetherAIError {
   constructor(provider: string, cause?: Error) {
-    super(
-      'RATE_LIMIT',
-      `Rate limit exceeded for provider "${provider}".`,
-      { retryable: true, details: { provider }, cause },
-    );
+    super('RATE_LIMIT', `Rate limit exceeded for provider "${provider}".`, {
+      retryable: true,
+      details: { provider },
+      cause,
+    });
     this.name = 'RateLimitError';
   }
 }
 
 export class QuotaExceededError extends AetherAIError {
   constructor(provider: string, cause?: Error) {
-    super(
-      'QUOTA_EXCEEDED',
-      `Quota or credit limit exceeded for provider "${provider}".`,
-      { retryable: true, details: { provider }, cause },
-    );
+    super('QUOTA_EXCEEDED', `Quota or credit limit exceeded for provider "${provider}".`, {
+      retryable: true,
+      details: { provider },
+      cause,
+    });
     this.name = 'QuotaExceededError';
   }
 }
@@ -324,11 +327,11 @@ export class ProviderUnavailableError extends AetherAIError {
 
 export class NetworkError extends AetherAIError {
   constructor(provider: string, reason: string, cause?: Error) {
-    super(
-      'NETWORK_ERROR',
-      `Network failure connecting to AI provider "${provider}": ${reason}`,
-      { retryable: true, details: { provider, reason }, cause },
-    );
+    super('NETWORK_ERROR', `Network failure connecting to AI provider "${provider}": ${reason}`, {
+      retryable: true,
+      details: { provider, reason },
+      cause,
+    });
     this.name = 'NetworkError';
   }
 }
@@ -366,12 +369,18 @@ export function isRecoverableProviderError(error: unknown): boolean {
   let code: string | undefined;
   if (isAetherAIError(error)) {
     code = error.code;
-  } else if (error && typeof error === 'object' && 'code' in error && typeof (error as any).code === 'string') {
+  } else if (
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    typeof (error as any).code === 'string'
+  ) {
     code = (error as any).code;
   } else {
     code = toAetherAIError(error).code;
   }
   const recoverableCodes: string[] = [
+    'BLOCKED_BY_WEIGHTS',
     'RATE_LIMIT',
     'QUOTA_EXCEEDED',
     'PROVIDER_UNAVAILABLE',

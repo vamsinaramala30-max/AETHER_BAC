@@ -33,10 +33,7 @@ export interface GenerationOptions {
 // ─── IGeneration Interface ────────────────────────────────────────────────────
 
 export interface IGeneration {
-  generate(
-    requestId: string,
-    options: GenerationOptions,
-  ): Promise<Result<GenerationResponse>>;
+  generate(requestId: string, options: GenerationOptions): Promise<Result<GenerationResponse>>;
 
   generateStream(
     requestId: string,

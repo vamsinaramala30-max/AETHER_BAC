@@ -48,5 +48,6 @@ router.use('/settings', settingsRoutes);
 router.use('/admin', adminRoutes);
 router.use('/favorites', favoritesRoutes);
 router.use('/contact', contactRoutes);
+router.use('/feedback', contactRoutes);
 
 export const apiRoutes: Router = router;

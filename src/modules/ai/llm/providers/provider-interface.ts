@@ -11,14 +11,10 @@ import type {
   LLMStreamingChunk,
 } from '../llm-types.js';
 
-export type ProviderName = 'gemini' | 'openai' | 'ollama';
+export type ProviderName = 'aether' | 'gemini' | 'openai' | 'ollama';
 
 export type ProviderStatusState =
-  | 'available'
-  | 'unavailable'
-  | 'rate_limited'
-  | 'timeout'
-  | 'config_error';
+  'available' | 'unavailable' | 'rate_limited' | 'timeout' | 'config_error';
 
 export interface ProviderStatus {
   readonly name: ProviderName;

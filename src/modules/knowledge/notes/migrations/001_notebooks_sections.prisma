@@ -1,0 +1,63 @@
+// ASSUMPTION: I was not given the real schema.prisma, so this is inferred
+// from the fields notes.repository.ts already reads/writes (db.note,
+// db.user, db.searchIndex, db.userFavorite). Review field types/relations
+// against your actual schema before running `prisma migrate dev`.
+//
+// Merge these additions into your existing schema.prisma. Do not paste this
+// file in as-is if names collide with existing models.
+
+model Notebook {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  color       String?   @default("indigo")
+  order       Int       @default(0)
+  isDefault   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections Section[]
+  notes    Note[]
+
+  @@index([userId])
+}
+
+model Section {
+  id         String    @id @default(uuid())
+  notebookId String
+  userId     String
+  name       String
+  order      Int       @default(0)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  notes    Note[]
+
+  @@index([notebookId])
+  @@index([userId])
+}
+
+// Additive changes to the EXISTING Note model — add these fields to your
+// current model rather than redefining it:
+//
+//   notebookId      String?
+//   sectionId       String?
+//   order           Int      @default(0)
+//   category        String?  @default("General")
+//   formattedContent String?
+//   isArchived      Boolean  @default(false)
+//   isQuickNote     Boolean  @default(false)
+//   attachmentIds   String[] @default([])
+//   sharedWithUserIds String[] @default([])
+//   aiSummary       String?
+//
+//   notebook Notebook? @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+//   section  Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+//
+//   @@index([notebookId])
+//   @@index([sectionId])

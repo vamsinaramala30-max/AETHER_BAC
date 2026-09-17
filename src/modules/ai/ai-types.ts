@@ -4,6 +4,11 @@
  * All sub-systems reference these types.
  */
 
+import type { ActionPlan, AgentPlan } from './planning/planning-types.js';
+import type { AuthenticationContext } from './tools/tool-types.js';
+
+export type { AuthenticationContext };
+
 // ─── Identifiers ─────────────────────────────────────────────────────────────
 
 export type UserId = string;
@@ -23,10 +28,14 @@ export interface AIRequest {
   readonly userId: UserId;
   readonly sessionId: SessionId;
   readonly conversationId: ConversationId;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
+  readonly scope?: MemoryScope;
   readonly message: string;
   readonly attachments?: readonly Attachment[];
   readonly options?: AIRequestOptions;
   readonly signal?: AbortSignal;
+  readonly auth?: AuthenticationContext;
   readonly timestamp: number;
 }
 
@@ -37,7 +46,7 @@ export interface AIRequestOptions {
   readonly topP?: number;
   readonly timeout?: number;
   readonly modelId?: ModelId;
-  readonly providerMode?: 'auto' | 'gemini' | 'openai' | 'ollama';
+  readonly providerMode?: 'auto' | 'aether' | 'gemini' | 'openai' | 'ollama';
   readonly enableMemory?: boolean;
   readonly enableRAG?: boolean;
   readonly ragCollectionIds?: readonly string[];
@@ -56,6 +65,14 @@ export interface AIResponse {
   readonly status: AIResponseStatus;
   readonly confidence?: ConfidenceLevel;
   readonly confirmationRequest?: ConfirmationRequest;
+  readonly plan?: ActionPlan;
+  readonly agentPlan?: AgentPlan;
+  readonly task?: AgentTask;
+  readonly assessment?: ReasoningAssessment;
+  readonly verificationStatus?: VerificationStatus;
+  readonly evidence?: readonly EvidenceItem[];
+  readonly multiConfidence?: MultiDimensionalConfidence;
+  readonly turnPayload?: StructuredConversationTurnPayload;
   readonly activeProvider?: string;
   readonly usedFallback?: boolean;
   readonly fallbackReason?: string;
@@ -73,27 +90,74 @@ export type AIResponseStatus =
   | 'context_too_large'
   | 'timeout'
   | 'cancelled'
-  | 'internal_error'
+  | 'ready'
+  | 'handed_off'
+  | 'blocked'
   | 'clarification_required'
   | 'confirmation_required'
   | 'insufficient_information'
   | 'unsupported'
   | 'permission_denied'
   | 'action_completed'
-  | 'action_failed';
+  | 'action_failed'
+  | 'internal_error';
+
+// ─── Verification & Reliability (Prompt 25) ──────────────────────────────────
+
+export type VerificationStatus =
+  | 'UNVERIFIED'
+  | 'PENDING'
+  | 'VERIFIED'
+  | 'FAILED'
+  | 'PARTIALLY_VERIFIED'
+  | 'NOT_VERIFIABLE';
+
+export type VerificationType =
+  | 'TOOL_ACTION'
+  | 'KNOWLEDGE_EVIDENCE'
+  | 'STATE_CHANGE'
+  | 'OUTPUT_INTEGRITY';
+
+export type EvidenceSourceType =
+  | 'user_input'
+  | 'conversation_context'
+  | 'approved_memory'
+  | 'retrieved_knowledge'
+  | 'tool_result'
+  | 'model_knowledge';
+
+export interface EvidenceItem {
+  readonly sourceType: EvidenceSourceType;
+  readonly sourceId?: string;
+  readonly content: string;
+  readonly relevance: number;
+  readonly verified: boolean;
+  readonly verificationStatus?: VerificationStatus;
+  readonly metadata?: Record<string, unknown>;
+}
+
+export interface ExecutionReliabilityState {
+  readonly plan?: ActionPlan;
+  readonly toolResults?: readonly unknown[];
+  readonly evidence?: readonly EvidenceItem[];
+  readonly verificationStatus: VerificationStatus;
+  readonly errors?: readonly string[];
+  readonly toolExecuted: boolean;
+  readonly toolSuccess: boolean;
+  readonly verifiedStepsCount: number;
+  readonly totalStepsCount: number;
+}
 
 // ─── Confidence ───────────────────────────────────────────────────────────────
 
 export type ConfidenceLevel =
-  | 'HIGH_CONFIDENCE'
-  | 'MEDIUM_CONFIDENCE'
-  | 'LOW_CONFIDENCE'
-  | 'INSUFFICIENT_INFORMATION';
+  'HIGH_CONFIDENCE' | 'MEDIUM_CONFIDENCE' | 'LOW_CONFIDENCE' | 'INSUFFICIENT_INFORMATION';
 
 export interface ConfidenceAssessment {
   readonly level: ConfidenceLevel;
   readonly score: number;
   readonly reasoning: string;
+  readonly verificationStatus?: VerificationStatus;
 }
 
 // ─── Confirmation Request ────────────────────────────────────────────────────
@@ -117,15 +181,53 @@ export interface StreamingChunk {
   readonly timestamp: number;
 }
 
-export type StreamingStatus =
-  | 'streaming'
-  | 'completed'
-  | 'cancelled'
-  | 'failed';
+export type StreamingStatus = 'streaming' | 'completed' | 'cancelled' | 'failed';
 
 // ─── Intent ───────────────────────────────────────────────────────────────────
 
 export type IntentType =
+  // ─── Phase 14 Core Taxonomy (20 Standard Intents) ───────────────────────────
+  | 'GREETING'
+  | 'GENERAL_QUESTION'
+  | 'INFORMATION_REQUEST'
+  | 'TASK_MANAGEMENT'
+  | 'TASK_CREATION'
+  | 'TASK_PRIORITIZATION'
+  | 'WEEKLY_PLANNING'
+  | 'PROJECT_PLANNING'
+  | 'PROJECT_MANAGEMENT'
+  | 'PRODUCTIVITY'
+  | 'EXPLANATION'
+  | 'SUMMARIZATION'
+  | 'MEMORY_STORE'
+  | 'MEMORY_RECALL'
+  | 'MEMORY_FORGET'
+  | 'KNOWLEDGE_REQUEST'
+  | 'TOOL_REQUEST'
+  | 'RAG_REQUEST'
+  | 'FOLLOW_UP'
+  | 'CLARIFICATION'
+  | 'UNKNOWN'
+  // ─── Backward-Compatible Intent Aliases & Extensions ───────────────────────
+  | 'CONVERSATION'
+  | 'QUESTION'
+  | 'KNOWLEDGE_SEARCH'
+  | 'REASONING'
+  | 'PLANNING'
+  | 'TASK_EXECUTION'
+  | 'AUTOMATION'
+  | 'CODING'
+  | 'RESEARCH_LOOKUP'
+  | 'WRITING_CREATION'
+  | 'ANALYSIS'
+  | 'PLANNING_DECISION'
+  | 'TASK_ACTION'
+  | 'WORKSPACE_PROJECT'
+  | 'MEMORY_REQUEST'
+  | 'AUTOMATION_REQUEST'
+  | 'CONVERSATIONAL'
+  | 'CLARIFICATION_REQUIRED'
+  | 'UNSUPPORTED'
   | 'NORMAL_RESPONSE'
   | 'RAG_REQUIRED'
   | 'MEMORY_REQUIRED'
@@ -134,23 +236,99 @@ export type IntentType =
   | 'AETHER_PRODUCT_QUESTION'
   | 'USER_DATA_QUESTION'
   | 'KNOWLEDGE_QUESTION'
-  | 'AUTOMATION_REQUEST'
   | 'PROJECT_WORKSPACE_TASK'
   | 'GENERAL_REASONING'
   | 'WRITING'
   | 'CODING_TECHNICAL'
   | 'ANALYTICAL'
-  | 'AMBIGUOUS'
-  | 'UNSUPPORTED';
+  | 'AMBIGUOUS';
+
+// ─── Phase 14 Conversation State & Turns ──────────────────────────────────────
+
+export type ConversationState =
+  | 'IDLE'
+  | 'ACTIVE_CONVERSATION'
+  | 'ACTIVE_PLANNING'
+  | 'AWAITING_CLARIFICATION'
+  | 'EXECUTING_TASKS'
+  | 'FOLLOW_UP';
+
+export interface ConversationTurn {
+  readonly turnId: string;
+  readonly conversationId: string;
+  readonly turnNumber: number;
+  readonly userMessage: string;
+  readonly role?: 'user' | 'assistant';
+  readonly assistantMessage?: string;
+  readonly assistantResponse?: string;
+  readonly intent: Intent;
+  readonly goal?: string | null;
+  readonly state: ConversationState;
+  readonly entities: readonly Entity[];
+  readonly contextSummary?: Record<string, unknown>;
+  readonly timestamp: number;
+}
+
+export interface StructuredConversationTurnPayload {
+  readonly conversation_id: string;
+  readonly turn_id: string;
+  readonly turnId?: string;
+  readonly user_message: string;
+  readonly conversation_history: Array<{ role: string; content: string; turn_id?: string }>;
+  readonly current_goal: string | null;
+  readonly userGoal?: string | null;
+  readonly state?: ConversationState;
+  readonly intent: string;
+  readonly entities: Record<string, unknown>;
+  readonly context: Record<string, unknown>;
+  readonly requires_clarification: boolean;
+  readonly clarification_question: string | null;
+}
+
+// ─── Phase 14 Multi-Dimensional Confidence ───────────────────────────────────
+
+export interface MultiDimensionalConfidence {
+  readonly intentConfidence: number;
+  readonly contextConfidence: number;
+  readonly knowledgeConfidence: number;
+  readonly generationConfidence: number;
+  readonly overallConfidence: number;
+  readonly overallLevel: ConfidenceLevel;
+  readonly reasoning: string;
+}
+
+export type AgentTaskType =
+  | 'SIMPLE'
+  | 'CONTEXTUAL'
+  | 'MULTI_STEP'
+  | 'TOOL_REQUIRED'
+  | 'LONG_RUNNING';
+
+export interface RequiredContext {
+  readonly conversation: boolean;
+  readonly memory: boolean;
+  readonly rag: boolean;
+  readonly project: boolean;
+  readonly workspace: boolean;
+  readonly tools: boolean;
+  readonly system: boolean;
+}
 
 export interface Intent {
   readonly type: IntentType;
+  readonly primaryIntent?: IntentType;
+  readonly secondaryIntent?: IntentType;
   readonly confidence: number;
+  readonly confidenceLevel?: ConfidenceLevel;
   readonly reasoning?: string;
   readonly requiresRAG: boolean;
   readonly requiresMemory: boolean;
   readonly requiresTool: boolean;
   readonly requiresAgent: boolean;
+  readonly requiredContext?: RequiredContext;
+  readonly requestedAction?: string;
+  readonly requiresClarification?: boolean;
+  readonly clarificationPrompt?: string;
   readonly entities?: readonly Entity[];
 }
 
@@ -160,7 +338,74 @@ export interface Entity {
   readonly confidence: number;
 }
 
+// ─── Agent Task Decision Object ──────────────────────────────────────────────
+
+export interface AgentTask {
+  readonly id: string;
+  readonly userRequest: string;
+  readonly intent: Intent;
+  readonly taskType: AgentTaskType;
+  readonly contextRequirements: RequiredContext;
+  readonly memoryRequired: boolean;
+  readonly knowledgeRequired: boolean;
+  readonly toolsRequired: boolean;
+  readonly planningRequired: boolean;
+  readonly clarificationRequired: boolean;
+  readonly status:
+  | 'pending'
+  | 'planning'
+  | 'running'
+  | 'waiting'
+  | 'verifying'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+  readonly createdAt: number;
+}
+
 // ─── Reasoning ───────────────────────────────────────────────────────────────
+
+export type ReasoningComplexity =
+  | 'SIMPLE'
+  | 'COMPLEX'
+  | 'MULTI_STEP'
+  | 'AMBIGUOUS'
+  | 'UNSUPPORTED';
+
+export type ResponseStrategy =
+  | 'DIRECT_ANSWER'
+  | 'STRUCTURED_PLAN'
+  | 'ANALYTICAL_BREAKDOWN'
+  | 'RESEARCH_SYNTHESIS'
+  | 'CLARIFICATION'
+  | 'CONFIRMATION'
+  | 'UNSUPPORTED'
+  | 'FAILURE';
+
+export interface ReasoningAssessment {
+  readonly complexity: ReasoningComplexity;
+  readonly strategy: ResponseStrategy;
+  readonly isSimple: boolean;
+  readonly requiresPlan: boolean;
+  readonly informationSufficient: boolean;
+  readonly missingInformation?: readonly string[];
+  readonly clarificationReason?: string;
+  readonly requiredCapabilities?: readonly string[];
+  readonly suggestedExecutionMode?: 'sequential' | 'parallel' | 'conditional' | 'direct';
+  readonly rationale: string;
+}
+
+export type ReasoningState =
+  | 'request_received'
+  | 'intent_identified'
+  | 'context_assembled'
+  | 'reasoning_in_progress'
+  | 'plan_created'
+  | 'plan_executing'
+  | 'plan_completed'
+  | 'plan_failed'
+  | 'clarification_required'
+  | 'confirmation_required';
 
 export type ReasoningStatus =
   | 'thinking'
@@ -172,6 +417,7 @@ export type ReasoningStatus =
 
 export interface ReasoningTrace {
   readonly status: ReasoningStatus;
+  readonly state?: ReasoningState;
   readonly step: number;
   readonly description: string;
   readonly timestamp: number;
@@ -190,16 +436,63 @@ export type SafetySeverity = 'low' | 'medium' | 'high' | 'critical';
 
 // ─── Context ──────────────────────────────────────────────────────────────────
 
+export type ContextSourceType =
+  | 'request'
+  | 'conversation_history'
+  | 'working_memory'
+  | 'long_term_memory'
+  | 'rag_knowledge'
+  | 'project_intelligence'
+  | 'workspace'
+  | 'system';
+
+export interface ContextSourceMetadata {
+  readonly id?: string;
+  readonly source: ContextSourceType;
+  readonly relevanceScore: number;
+  readonly priority: number;
+  readonly tokenCount: number;
+  readonly scope: string;
+  readonly timestamp?: number;
+  readonly description?: string;
+}
+
+export interface ProjectContextSummary {
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly status: string;
+  readonly progress: number;
+  readonly activeTasks: readonly { title: string; status: string; priority: string }[];
+  readonly upcomingMilestones: readonly { title: string; dueDate?: Date | null }[];
+  readonly goals: readonly { title: string; progress: number }[];
+  readonly recentNotes: readonly { title: string; content?: string | null }[];
+  readonly summaryText: string;
+}
+
+export interface WorkspaceContextSummary {
+  readonly workspaceId: string;
+  readonly name: string;
+  readonly role?: string;
+  readonly activeModuleName?: string;
+  readonly summaryText?: string;
+}
+
 export interface AIContext {
   readonly userId: UserId;
   readonly sessionId: SessionId;
   readonly conversationId: ConversationId;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
   readonly conversationHistory?: readonly ContextMessage[];
   readonly ragContext?: RAGContext;
   readonly workingMemory?: WorkingMemoryContext;
   readonly longTermMemory?: readonly MemoryItem[];
   readonly systemInstructions?: string;
   readonly tokenBudget: TokenBudget;
+  readonly projectContext?: ProjectContextSummary;
+  readonly workspaceContext?: WorkspaceContextSummary;
+  readonly activeEntities?: readonly Entity[];
+  readonly sourcesMetadata?: readonly ContextSourceMetadata[];
 }
 
 export interface ContextMessage {
@@ -277,31 +570,39 @@ export interface DocumentMetadata {
 
 // ─── Memory ───────────────────────────────────────────────────────────────────
 
+export type MemoryScope = 'GLOBAL_USER' | 'CONVERSATION' | 'WORKSPACE' | 'PROJECT';
+
+export type MemoryConfidence = 'confirmed' | 'user_provided' | 'inferred' | 'temporary';
+
 export interface MemoryItem {
   readonly id: MemoryId;
   readonly userId: UserId;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
   readonly type: MemoryType;
+  readonly scope?: MemoryScope;
   readonly content: string;
   readonly embedding?: readonly number[];
   readonly importance: number;
+  readonly confidence?: MemoryConfidence;
+  readonly version?: number;
   readonly accessCount: number;
   readonly createdAt: number;
   readonly updatedAt: number;
+  readonly lastAccessedAt?: number;
   readonly expiresAt?: number;
   readonly metadata?: MemoryMetadata;
 }
 
-export type MemoryType =
-  | 'conversation'
-  | 'fact'
-  | 'preference'
-  | 'summary'
-  | 'working';
+export type MemoryType = 'conversation' | 'fact' | 'preference' | 'summary' | 'working' | 'workspace' | 'project';
 
 export interface MemoryMetadata {
   readonly conversationId?: ConversationId;
   readonly sessionId?: SessionId;
   readonly source?: string;
+  readonly status?: 'active' | 'superseded' | 'deleted';
+  readonly confidence?: MemoryConfidence;
+  readonly supersededBy?: string;
   readonly tags?: readonly string[];
   readonly [key: string]: unknown;
 }
@@ -335,13 +636,7 @@ export interface PromptTemplate {
 }
 
 export type PromptType =
-  | 'system'
-  | 'rag'
-  | 'reasoning'
-  | 'agent'
-  | 'safety'
-  | 'summarization'
-  | 'classification';
+  'system' | 'rag' | 'reasoning' | 'agent' | 'safety' | 'summarization' | 'classification';
 
 export interface BuiltPrompt {
   readonly system: string;
@@ -357,10 +652,10 @@ export interface PromptMessage {
 // ─── Result Type ──────────────────────────────────────────────────────────────
 
 export type Result<T, E extends AIErrorCode = AIErrorCode> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: AIError<E> };
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: AIError<E> };
 
 export type AIErrorCode =
+  | 'BLOCKED_BY_WEIGHTS'
   | 'MODEL_UNAVAILABLE'
   | 'MODEL_LOAD_FAILED'
   | 'GENERATION_FAILED'
@@ -415,3 +710,53 @@ export function ok<T>(value: T): Result<T> {
 export function fail<E extends AIErrorCode>(error: AIError<E>): Result<never, E> {
   return { ok: false, error };
 }
+
+// ─── Future-Compatible Agent Interfaces (Section 10) ──────────────────────────
+
+export interface IIntentAnalyzer {
+  classify(message: string, context?: unknown): Result<Intent>;
+  classifyTaskType?(intent: Intent, message?: string): AgentTaskType;
+}
+
+export interface IMemoryProvider {
+  store?(userId: string, key: string, value: string, category?: string): Promise<boolean>;
+  recall?(userId: string, query: string): Promise<string | undefined>;
+}
+
+export interface IKnowledgeProvider {
+  search?(query: string, limit?: number): Promise<readonly EvidenceItem[]>;
+}
+
+export interface IPlannerProvider {
+  createPlan?(task: AgentTask, context: unknown): Promise<Result<ActionPlan>>;
+}
+
+export interface IToolRegistryProvider {
+  hasTool(name: string): boolean;
+  executeTool(name: string, args: Record<string, unknown>, auth?: AuthenticationContext): Promise<unknown>;
+}
+
+export interface IResponseGenerator {
+  generate(input: unknown): Promise<AIResponse>;
+}
+
+// ─── Canonical Prompt 7 Planning Re-exports ──────────────────────────────────
+export type {
+  AgentPlan,
+  AgentPlanStep,
+  PlanStatus,
+  PlanStepType,
+  PlanStepStatus,
+  PlanGoal,
+  PlanConstraint,
+  PlanConstraintType,
+  PlanAssumption,
+  PlanDependency,
+  ClarificationRequest,
+  ClarificationOption,
+  PlanValidationError,
+  PlanValidationWarning,
+  PlanComplexityLimits,
+} from './planning/planning-types.js';
+
+

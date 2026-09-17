@@ -20,7 +20,16 @@ export interface SendNotificationDTO {
   message: string;
   category: keyof NotificationPreferencesData;
   channels: NotificationChannel[];
-  type?: 'SYSTEM' | 'PROJECT' | 'TASK' | 'CALENDAR' | 'AI' | 'AUTOMATION' | 'SECURITY' | 'KNOWLEDGE' | 'WORKSPACE';
+  type?:
+    | 'SYSTEM'
+    | 'PROJECT'
+    | 'TASK'
+    | 'CALENDAR'
+    | 'AI'
+    | 'AUTOMATION'
+    | 'SECURITY'
+    | 'KNOWLEDGE'
+    | 'WORKSPACE';
   link?: string;
   metadata?: Record<string, unknown>;
 }

@@ -87,11 +87,7 @@ export class OllamaEmbeddingModel implements IEmbeddingModel {
       if (error instanceof Error && error.name === 'AbortError') {
         return fail(new EmbeddingFailedError('Ollama embedding request timed out'));
       }
-      return fail(
-        new EmbeddingFailedError(
-          error instanceof Error ? error.message : String(error),
-        ),
-      );
+      return fail(new EmbeddingFailedError(error instanceof Error ? error.message : String(error)));
     }
   }
 
@@ -159,9 +155,7 @@ export class LlamaCppEmbeddingModel implements IEmbeddingModel {
       if (error instanceof Error && error.name === 'AbortError') {
         return fail(new EmbeddingFailedError('llama.cpp embedding request timed out'));
       }
-      return fail(
-        new EmbeddingFailedError(error instanceof Error ? error.message : String(error)),
-      );
+      return fail(new EmbeddingFailedError(error instanceof Error ? error.message : String(error)));
     }
   }
 
@@ -205,11 +199,7 @@ export function createEmbeddingModel(
 ): IEmbeddingModel | null {
   switch (config.provider) {
     case 'ollama':
-      return new OllamaEmbeddingModel(
-        runtimeBaseUrl,
-        config.modelId,
-        config.dimensions,
-      );
+      return new OllamaEmbeddingModel(runtimeBaseUrl, config.modelId, config.dimensions);
     case 'llamacpp':
       return new LlamaCppEmbeddingModel(runtimeBaseUrl, config.dimensions);
     case 'none':

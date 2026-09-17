@@ -5,11 +5,7 @@
  * (e.g., Qdrant, Weaviate, Chroma) by implementing IVectorStore.
  */
 
-import type {
-  IVectorStore,
-  VectorSearchResult,
-  DocumentChunk,
-} from '../rag-types.js';
+import type { IVectorStore, VectorSearchResult, DocumentChunk } from '../rag-types.js';
 import type { ChunkId } from '../../ai-types.js';
 import { cosineSimilarity } from '../embeddings/embedding-engine.js';
 
@@ -20,6 +16,9 @@ interface StoredVector {
   readonly documentId: string;
   readonly embedding: readonly number[];
   readonly collectionId?: string;
+  readonly userId?: string;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
 }
 
 export class InMemoryVectorStore implements IVectorStore {
@@ -35,6 +34,9 @@ export class InMemoryVectorStore implements IVectorStore {
         documentId: chunk.documentId,
         embedding: chunk.embedding,
         collectionId: chunk.metadata.collectionId,
+        userId: chunk.userId || (chunk.metadata?.userId as string | undefined),
+        workspaceId: chunk.workspaceId || (chunk.metadata?.workspaceId as string | undefined),
+        projectId: chunk.projectId || (chunk.metadata?.projectId as string | undefined),
       });
     }
   }
@@ -44,16 +46,34 @@ export class InMemoryVectorStore implements IVectorStore {
     topK: number,
     scoreThreshold: number,
     collectionIds?: readonly string[],
+    scope?: {
+      userId?: string;
+      workspaceId?: string;
+      projectId?: string;
+      collectionIds?: readonly string[];
+    },
   ): Promise<readonly VectorSearchResult[]> {
     if (this.vectors.size === 0) return [];
     if (queryEmbedding.length === 0) return [];
 
+    const effectiveCollectionIds = scope?.collectionIds ?? collectionIds;
     const results: Array<{ chunkId: ChunkId; documentId: string; score: number }> = [];
 
     for (const stored of this.vectors.values()) {
+      // Scope filters: strict user isolation, workspace isolation, project isolation
+      if (scope?.userId && stored.userId && stored.userId !== scope.userId) {
+        continue;
+      }
+      if (scope?.workspaceId && stored.workspaceId && stored.workspaceId !== scope.workspaceId) {
+        continue;
+      }
+      if (scope?.projectId && stored.projectId && stored.projectId !== scope.projectId) {
+        continue;
+      }
+
       // Filter by collection if specified
-      if (collectionIds && collectionIds.length > 0) {
-        if (!stored.collectionId || !collectionIds.includes(stored.collectionId)) {
+      if (effectiveCollectionIds && effectiveCollectionIds.length > 0) {
+        if (!stored.collectionId || !effectiveCollectionIds.includes(stored.collectionId)) {
           continue;
         }
       }

@@ -1,4 +1,4 @@
-import { agentRegistry, AgentEngine } from '../../../ai/index.js';
+import type { AgentEngine } from '../../../ai/index.js';
 import { logger } from '../../../../config';
 
 export class AgentsAdapter {
@@ -7,11 +7,16 @@ export class AgentsAdapter {
     task: string;
     context?: Record<string, unknown>;
   }) {
-    logger.info(`[AgentsAdapter] Triggering agent '${params.agentId}' for task: "${params.task.slice(0, 50)}..."`);
+    logger.info(
+      `[AgentsAdapter] Triggering agent '${params.agentId}' for task: "${params.task.slice(0, 50)}..."`,
+    );
+
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { agentRegistry, AgentEngine: EngineClass } = require('../../../ai/index.js');
     const agentConfig = agentRegistry.get(params.agentId);
 
     if (agentConfig) {
-      const engine = new AgentEngine(agentRegistry);
+      const engine: AgentEngine = new EngineClass(agentRegistry);
       const auth = {
         userId: 'system',
         sessionId: 'automation',
@@ -27,7 +32,9 @@ export class AgentsAdapter {
       };
     }
 
-    logger.warn(`[AgentsAdapter] Agent '${params.agentId}' not found in registry. Executing fallback execution.`);
+    logger.warn(
+      `[AgentsAdapter] Agent '${params.agentId}' not found in registry. Executing fallback execution.`,
+    );
     return {
       agentId: params.agentId,
       status: 'completed',

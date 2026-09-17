@@ -4,7 +4,11 @@
  */
 
 import type { ModelId } from '../ai-types.js';
-import type { ModelInfo as Part1ModelInfo, ModelStatus as Part1ModelStatus, RuntimeStatus } from '../llm/llm-types.js';
+import type {
+  ModelInfo as Part1ModelInfo,
+  ModelStatus as Part1ModelStatus,
+  RuntimeStatus,
+} from '../llm/llm-types.js';
 
 export type ModelProviderType = 'ollama' | 'llamacpp' | 'local_file';
 

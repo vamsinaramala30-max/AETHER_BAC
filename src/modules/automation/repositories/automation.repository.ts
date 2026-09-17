@@ -5,12 +5,15 @@ import { CreateAutomationInput, UpdateAutomationInput } from '../automation.type
 export class AutomationRepository extends PrismaService {
   public async create(input: CreateAutomationInput) {
     const actionsJson = (input.actions || []) as unknown as Prisma.InputJsonValue;
-    const conditionsJson = input.conditions ? (input.conditions as unknown as Prisma.InputJsonValue) : Prisma.JsonNull;
+    const conditionsJson = input.conditions
+      ? (input.conditions as unknown as Prisma.InputJsonValue)
+      : Prisma.JsonNull;
 
     let wsId = input.workspaceId;
-    const isValidUuid = (id?: string) => id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+    const isUuid = (id?: string) =>
+      Boolean(id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
 
-    if (!isValidUuid(wsId)) {
+    if (!isUuid(wsId)) {
       let ws = await this.prisma.workspace.findFirst();
       if (!ws) {
         ws = await this.prisma.workspace.create({
@@ -20,10 +23,29 @@ export class AutomationRepository extends PrismaService {
       wsId = ws.id;
     }
 
+    let validUserId: string | undefined = undefined;
+    if (isUuid(input.userId)) {
+      let user = await this.prisma.user.findUnique({ where: { id: input.userId } });
+      if (!user) {
+        try {
+          user = await this.prisma.user.create({
+            data: {
+              id: input.userId!,
+              email: `user-${input.userId!.substring(0, 8)}@aether.local`,
+              fullName: 'Automation User',
+            },
+          });
+        } catch {
+          // ignore
+        }
+      }
+      validUserId = user ? user.id : undefined;
+    }
+
     return this.prisma.automation.create({
       data: {
         workspaceId: wsId!,
-        userId: isValidUuid(input.userId) ? input.userId : undefined,
+        userId: validUserId,
         name: input.name,
         description: input.description,
         trigger: input.trigger,
@@ -97,10 +119,14 @@ export class AutomationRepository extends PrismaService {
     if (input.isEnabled !== undefined) updateData.isEnabled = input.isEnabled;
     if (input.status !== undefined) updateData.status = input.status as AutomationStatus;
     if (input.actions !== undefined) {
-      updateData.actions = input.actions ? (input.actions as unknown as Prisma.InputJsonValue) : Prisma.JsonNull;
+      updateData.actions = input.actions
+        ? (input.actions as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull;
     }
     if (input.conditions !== undefined) {
-      updateData.conditions = input.conditions ? (input.conditions as unknown as Prisma.InputJsonValue) : Prisma.JsonNull;
+      updateData.conditions = input.conditions
+        ? (input.conditions as unknown as Prisma.InputJsonValue)
+        : Prisma.JsonNull;
     }
 
     return this.prisma.automation.update({

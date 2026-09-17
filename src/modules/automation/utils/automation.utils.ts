@@ -15,12 +15,18 @@ export function isValidUuid(id: string): boolean {
 }
 
 export function sanitizeMetadata(data: unknown): Record<string, unknown> {
-  if (!data || typeof data !== 'object') return {};
+  if (!data || typeof data !== 'object' || data === null) return {};
   const cleaned: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
-    // Redact sensitive keys
-    if (/password|secret|token|authorization|apikey|jwt/i.test(key)) {
+    // Redact sensitive keys according to requirement 32
+    if (
+      /password|secret|token|authorization|apikey|api_key|access_token|refresh_token|credential|private_key|session_secret|jwt/i.test(
+        key,
+      )
+    ) {
       cleaned[key] = '[REDACTED]';
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      cleaned[key] = sanitizeMetadata(value);
     } else if (typeof value === 'function') {
       cleaned[key] = '[Function]';
     } else {

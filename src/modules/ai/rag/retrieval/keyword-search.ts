@@ -14,6 +14,9 @@ interface TermEntry {
   readonly documentId: string;
   readonly termFrequency: number;
   readonly collectionId?: string;
+  readonly userId?: string;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
 }
 
 // ─── In-Memory Keyword Index ──────────────────────────────────────────────────
@@ -40,6 +43,10 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
       this.chunkDocs.set(chunk.id, chunk.documentId);
       this.chunkCollections.set(chunk.id, chunk.metadata.collectionId);
 
+      const userId = chunk.userId || (chunk.metadata?.userId as string | undefined);
+      const workspaceId = chunk.workspaceId || (chunk.metadata?.workspaceId as string | undefined);
+      const projectId = chunk.projectId || (chunk.metadata?.projectId as string | undefined);
+
       for (const [term, tf] of termFreqMap) {
         const existing = this.invertedIndex.get(term) ?? [];
         existing.push({
@@ -47,6 +54,9 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
           documentId: chunk.documentId,
           termFrequency: tf,
           collectionId: chunk.metadata.collectionId,
+          userId,
+          workspaceId,
+          projectId,
         });
         this.invertedIndex.set(term, existing);
       }
@@ -57,12 +67,19 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
     query: string,
     topK: number,
     collectionIds?: readonly string[],
+    scope?: {
+      userId?: string;
+      workspaceId?: string;
+      projectId?: string;
+      collectionIds?: readonly string[];
+    },
   ): Promise<readonly KeywordSearchResult[]> {
     if (!query || query.trim().length === 0) return [];
 
     const queryTerms = this.tokenize(query);
     if (queryTerms.length === 0) return [];
 
+    const effectiveCollectionIds = scope?.collectionIds ?? collectionIds;
     const scores = new Map<ChunkId, number>();
     const matchedTermsMap = new Map<ChunkId, Set<string>>();
     const N = this.docLengths.size;
@@ -71,12 +88,20 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
     for (const term of new Set(queryTerms)) {
       const postings = this.invertedIndex.get(term) ?? [];
 
-      // Filter by collection
-      const filteredPostings = collectionIds && collectionIds.length > 0
-        ? postings.filter(
-            (p) => p.collectionId !== undefined && collectionIds.includes(p.collectionId),
-          )
-        : postings;
+      // Filter by collection and multi-tenant scopes
+      const filteredPostings = postings.filter((p) => {
+        if (scope?.userId && p.userId && p.userId !== scope.userId) return false;
+        if (scope?.workspaceId && p.workspaceId && p.workspaceId !== scope.workspaceId) return false;
+        if (scope?.projectId && p.projectId && p.projectId !== scope.projectId) return false;
+        if (
+          effectiveCollectionIds &&
+          effectiveCollectionIds.length > 0 &&
+          (!p.collectionId || !effectiveCollectionIds.includes(p.collectionId))
+        ) {
+          return false;
+        }
+        return true;
+      });
 
       if (filteredPostings.length === 0) continue;
 
@@ -86,7 +111,8 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
       for (const posting of filteredPostings) {
         const docLen = this.docLengths.get(posting.chunkId) ?? 1;
         const tf = posting.termFrequency;
-        const tfNorm = (tf * (this.k1 + 1)) / (tf + this.k1 * (1 - this.b + this.b * (docLen / avgDocLength)));
+        const tfNorm =
+          (tf * (this.k1 + 1)) / (tf + this.k1 * (1 - this.b + this.b * (docLen / avgDocLength)));
         const bm25 = idf * tfNorm;
 
         scores.set(posting.chunkId, (scores.get(posting.chunkId) ?? 0) + bm25);

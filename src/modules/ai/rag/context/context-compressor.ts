@@ -17,11 +17,7 @@ export interface IContextCompressor {
 // ─── Extractive Context Compressor ───────────────────────────────────────────
 
 export class ExtractiveContextCompressor implements IContextCompressor {
-  public compress(
-    context: BuiltRAGContext,
-    targetTokens: number,
-    query: string,
-  ): BuiltRAGContext {
+  public compress(context: BuiltRAGContext, targetTokens: number, query: string): BuiltRAGContext {
     const currentTokens = context.estimatedTokens;
     if (currentTokens <= targetTokens) return context;
 
@@ -33,11 +29,7 @@ export class ExtractiveContextCompressor implements IContextCompressor {
       if (usedTokens >= targetTokens) break;
 
       const budget = targetTokens - usedTokens;
-      const compressedContent = this.extractRelevantSentences(
-        doc.content,
-        queryTerms,
-        budget,
-      );
+      const compressedContent = this.extractRelevantSentences(doc.content, queryTerms, budget);
 
       if (!compressedContent || compressedContent.trim().length === 0) continue;
 
@@ -62,11 +54,7 @@ export class ExtractiveContextCompressor implements IContextCompressor {
     };
   }
 
-  private extractRelevantSentences(
-    text: string,
-    queryTerms: string[],
-    maxTokens: number,
-  ): string {
+  private extractRelevantSentences(text: string, queryTerms: string[], maxTokens: number): string {
     const sentences = text.match(/[^.!?\n]+[.!?\n]*/g) ?? [text];
     const queryTermSet = new Set(queryTerms);
 

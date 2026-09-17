@@ -81,9 +81,7 @@ export class SafetyEngine implements ISafetyEngine {
     const reasons: string[] = [];
 
     if (text.length > this.config.maxOutputLength) {
-      reasons.push(
-        `Output exceeds maximum length of ${this.config.maxOutputLength} characters`,
-      );
+      reasons.push(`Output exceeds maximum length of ${this.config.maxOutputLength} characters`);
     }
 
     if (reasons.length > 0) {
@@ -101,9 +99,15 @@ export class SafetyEngine implements ISafetyEngine {
   private getHarmfulPatterns(): Array<{ pattern: RegExp; category: string }> {
     return [
       { pattern: /how to (make|build|create) (a )?(bomb|explosive|weapon)/i, category: 'weapons' },
-      { pattern: /how to (kill|murder|harm|attack) (a )?(person|human|people)/i, category: 'violence' },
+      {
+        pattern: /how to (kill|murder|harm|attack) (a )?(person|human|people)/i,
+        category: 'violence',
+      },
       { pattern: /\b(child|minor).{0,20}(sexual|nude|naked|porn)/i, category: 'csam' },
-      { pattern: /\b(synthesize|produce|manufacture).{0,20}(drug|meth|fentanyl|heroin)/i, category: 'drugs' },
+      {
+        pattern: /\b(synthesize|produce|manufacture).{0,20}(drug|meth|fentanyl|heroin)/i,
+        category: 'drugs',
+      },
     ];
   }
 

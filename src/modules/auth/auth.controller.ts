@@ -9,11 +9,7 @@ export class AuthController {
   /**
    * Register a new user.
    */
-  public async register(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  public async register(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await authService.register(req.body);
 
@@ -30,11 +26,7 @@ export class AuthController {
   /**
    * Login with email/password.
    */
-  public async login(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  public async login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const result = await authService.login(req.body);
 
@@ -51,11 +43,7 @@ export class AuthController {
   /**
    * Refresh access token.
    */
-  public async refreshToken(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  public async refreshToken(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const refreshToken = req.body?.refreshToken;
 
@@ -85,11 +73,7 @@ export class AuthController {
   /**
    * Logout.
    */
-  public async logout(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  public async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const refreshToken = req.body?.refreshToken;
 
@@ -110,11 +94,7 @@ export class AuthController {
   /**
    * Get current authenticated user's profile.
    */
-  public async getProfile(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  public async getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req.user as any)?.id;
 
@@ -144,11 +124,7 @@ export class AuthController {
   /**
    * Update current user's profile.
    */
-  public async updateProfile(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> {
+  public async updateProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req.user as any)?.id;
 
@@ -184,9 +160,7 @@ export class AuthController {
     const frontendUrl = env.FRONTEND_URL?.trim();
 
     if (!frontendUrl) {
-      throw new Error(
-        'FRONTEND_URL is not configured in the backend environment.',
-      );
+      throw new Error('FRONTEND_URL is not configured in the backend environment.');
     }
 
     return frontendUrl.replace(/\/+$/, '');
@@ -195,20 +169,12 @@ export class AuthController {
   /**
    * Safely create a frontend redirect URL.
    */
-  private getFrontendRedirect(
-    path: string,
-    params?: Record<string, string>,
-  ): string {
+  private getFrontendRedirect(path: string, params?: Record<string, string>): string {
     const frontendUrl = this.getFrontendUrl();
 
-    const normalizedPath = path.startsWith('/')
-      ? path
-      : `/${path}`;
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
 
-    const url = new URL(
-      normalizedPath,
-      `${frontendUrl}/`,
-    );
+    const url = new URL(normalizedPath, `${frontendUrl}/`);
 
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -224,15 +190,10 @@ export class AuthController {
    *
    * GET /api/v1/auth/google
    */
-  public googleAuth(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): void {
+  public googleAuth(req: Request, res: Response, next: NextFunction): void {
     try {
       const clientId = env.GOOGLE_CLIENT_ID?.trim();
-      const clientSecret =
-        env.GOOGLE_CLIENT_SECRET?.trim();
+      const clientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
 
       if (!clientId || !clientSecret) {
         logger.error(
@@ -248,19 +209,14 @@ export class AuthController {
         return;
       }
 
-      logger.info(
-        'Starting Google OAuth authentication.',
-      );
+      logger.info('Starting Google OAuth authentication.');
 
       passport.authenticate('google', {
         scope: ['profile', 'email'],
         session: false,
       })(req, res, next);
     } catch (error) {
-      logger.error(
-        'Google OAuth initialization failed:',
-        error,
-      );
+      logger.error('Google OAuth initialization failed:', error);
 
       next(error);
     }
@@ -271,18 +227,11 @@ export class AuthController {
    *
    * GET /api/v1/auth/google/callback
    */
-  public googleCallback(
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): void {
+  public googleCallback(req: Request, res: Response, next: NextFunction): void {
     try {
       this.getFrontendUrl();
     } catch (error) {
-      logger.error(
-        'Google OAuth callback failed because FRONTEND_URL is missing:',
-        error,
-      );
+      logger.error('Google OAuth callback failed because FRONTEND_URL is missing:', error);
 
       next(error);
       return;
@@ -293,18 +242,12 @@ export class AuthController {
       {
         session: false,
       },
-      async (
-        error: any,
-        user: any,
-      ): Promise<void> => {
+      async (error: any, user: any): Promise<void> => {
         /**
          * Passport strategy error.
          */
         if (error) {
-          logger.error(
-            'Google OAuth strategy failed:',
-            error,
-          );
+          logger.error('Google OAuth strategy failed:', error);
 
           try {
             res.redirect(
@@ -323,9 +266,7 @@ export class AuthController {
          * Passport returned no user.
          */
         if (!user) {
-          logger.error(
-            'Google OAuth returned no authenticated user.',
-          );
+          logger.error('Google OAuth returned no authenticated user.');
 
           try {
             res.redirect(
@@ -345,45 +286,32 @@ export class AuthController {
            * Generate application JWT tokens only after
            * Passport has successfully resolved the user.
            */
-          const authResponse =
-            await authService.generateAuthResponse({
-              id: user.id,
-              email: user.email,
-              fullName: user.fullName,
-              role: user.role || 'USER',
-              avatarUrl: user.avatarUrl,
-            });
+          const authResponse = await authService.generateAuthResponse({
+            id: user.id,
+            email: user.email,
+            fullName: user.fullName,
+            role: user.role || 'USER',
+            avatarUrl: user.avatarUrl,
+          });
 
-          const accessToken =
-            authResponse.tokens.accessToken;
+          const accessToken = authResponse.tokens.accessToken;
 
           if (!accessToken) {
-            throw new Error(
-              'Authentication succeeded but no access token was generated.',
-            );
+            throw new Error('Authentication succeeded but no access token was generated.');
           }
 
-          logger.info(
-            `Google OAuth successful for ${user.email}.`,
-          );
+          logger.info(`Google OAuth successful for ${user.email}.`);
 
           /**
            * Redirect to frontend authentication success page.
            */
-          const redirectUrl =
-            this.getFrontendRedirect(
-              '/auth/success',
-              {
-                token: accessToken,
-              },
-            );
+          const redirectUrl = this.getFrontendRedirect('/auth/success', {
+            token: accessToken,
+          });
 
           res.redirect(redirectUrl);
         } catch (authError) {
-          logger.error(
-            'Failed to generate authentication response after Google OAuth:',
-            authError,
-          );
+          logger.error('Failed to generate authentication response after Google OAuth:', authError);
 
           try {
             res.redirect(
@@ -400,5 +328,4 @@ export class AuthController {
   }
 }
 
-export const authController =
-  new AuthController();
+export const authController = new AuthController();

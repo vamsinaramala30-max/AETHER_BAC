@@ -31,6 +31,16 @@ export class ToolValidator implements IToolValidator {
 
     const inputObj = input as Record<string, unknown>;
 
+    // Security: Check prototype pollution attempts
+    for (const key of Object.keys(inputObj)) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        return {
+          valid: false,
+          errors: [`Dangerous parameter key "${key}" rejected for security reasons.`],
+        };
+      }
+    }
+
     // Check required fields
     if (schema.required) {
       for (const reqKey of schema.required) {

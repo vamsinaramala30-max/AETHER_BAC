@@ -1,9 +1,5 @@
 import passport from 'passport';
-import {
-  Strategy as GoogleStrategy,
-  Profile,
-  VerifyCallback,
-} from 'passport-google-oauth20';
+import { Strategy as GoogleStrategy, Profile, VerifyCallback } from 'passport-google-oauth20';
 
 import { env, logger } from '../config';
 import { AuthService } from '../modules/auth/auth.service';
@@ -29,58 +25,41 @@ const authService = new AuthService();
  * are enabled elsewhere in the application.
  */
 
-passport.serializeUser(
-  (user: any, done) => {
-    try {
-      const userId =
-        user?.user?.id ||
-        user?.id;
+passport.serializeUser((user: any, done) => {
+  try {
+    const userId = user?.user?.id || user?.id;
 
-      if (!userId) {
-        return done(
-          new Error(
-            'Unable to serialize user: user ID is missing.',
-          ),
-        );
-      }
-
-      done(null, userId);
-    } catch (error) {
-      done(error);
+    if (!userId) {
+      return done(new Error('Unable to serialize user: user ID is missing.'));
     }
-  },
-);
 
-passport.deserializeUser(
-  async (
-    id: string,
-    done,
-  ) => {
-    try {
-      if (!id) {
-        done(null, false);
-        return;
-      }
+    done(null, userId);
+  } catch (error) {
+    done(error);
+  }
+});
 
-      const user =
-        await authService.findUserById(id);
-
-      if (!user) {
-        done(null, false);
-        return;
-      }
-
-      done(null, user);
-    } catch (error) {
-      logger.error(
-        'Passport deserializeUser failed:',
-        error,
-      );
-
-      done(error);
+passport.deserializeUser(async (id: string, done) => {
+  try {
+    if (!id) {
+      done(null, false);
+      return;
     }
-  },
-);
+
+    const user = await authService.findUserById(id);
+
+    if (!user) {
+      done(null, false);
+      return;
+    }
+
+    done(null, user);
+  } catch (error) {
+    logger.error('Passport deserializeUser failed:', error);
+
+    done(error);
+  }
+});
 
 /**
  * --------------------------------------------------------------------------
@@ -88,31 +67,22 @@ passport.deserializeUser(
  * --------------------------------------------------------------------------
  */
 
-const googleClientId =
-  env.GOOGLE_CLIENT_ID?.trim();
+const googleClientId = env.GOOGLE_CLIENT_ID?.trim();
 
-const googleClientSecret =
-  env.GOOGLE_CLIENT_SECRET?.trim();
+const googleClientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
 
-const googleCallbackUrl =
-  env.GOOGLE_CALLBACK_URL?.trim();
+const googleCallbackUrl = env.GOOGLE_CALLBACK_URL?.trim();
 
 if (!googleClientId) {
-  logger.warn(
-    'GOOGLE_CLIENT_ID is not configured. Google OAuth will not work.',
-  );
+  logger.warn('GOOGLE_CLIENT_ID is not configured. Google OAuth will not work.');
 }
 
 if (!googleClientSecret) {
-  logger.warn(
-    'GOOGLE_CLIENT_SECRET is not configured. Google OAuth will not work.',
-  );
+  logger.warn('GOOGLE_CLIENT_SECRET is not configured. Google OAuth will not work.');
 }
 
 if (!googleCallbackUrl) {
-  logger.warn(
-    'GOOGLE_CALLBACK_URL is not configured. Google OAuth will not work.',
-  );
+  logger.warn('GOOGLE_CALLBACK_URL is not configured. Google OAuth will not work.');
 }
 
 /**
@@ -122,13 +92,9 @@ passport.use(
   'google',
   new GoogleStrategy(
     {
-      clientID:
-        googleClientId ||
-        'missing-google-client-id',
+      clientID: googleClientId || 'missing-google-client-id',
 
-      clientSecret:
-        googleClientSecret ||
-        'missing-google-client-secret',
+      clientSecret: googleClientSecret || 'missing-google-client-secret',
 
       /**
        * IMPORTANT:
@@ -137,9 +103,7 @@ passport.use(
        *
        * https://aether-bac.onrender.com/api/v1/auth/google/callback
        */
-      callbackURL:
-        googleCallbackUrl ||
-        'https://aether-bac.onrender.com/api/v1/auth/google/callback',
+      callbackURL: googleCallbackUrl || 'http://localhost:5001/api/auth/google/callback',
 
       scope: ['profile', 'email'],
 
@@ -150,37 +114,24 @@ passport.use(
       passReqToCallback: false,
     },
 
-    async (
-      accessToken: string,
-      refreshToken: string,
-      profile: Profile,
-      done: VerifyCallback,
-    ) => {
+    async (accessToken: string, refreshToken: string, profile: Profile, done: VerifyCallback) => {
       try {
         /**
          * Google profile ID.
          */
-        const googleId =
-          profile.id?.trim();
+        const googleId = profile.id?.trim();
 
         if (!googleId) {
-          throw new Error(
-            'Google profile ID is missing.',
-          );
+          throw new Error('Google profile ID is missing.');
         }
 
         /**
          * Google email.
          */
-        const email =
-          profile.emails?.[0]?.value
-            ?.trim()
-            .toLowerCase();
+        const email = profile.emails?.[0]?.value?.trim().toLowerCase();
 
         if (!email) {
-          throw new Error(
-            'No email found in Google profile.',
-          );
+          throw new Error('No email found in Google profile.');
         }
 
         /**
@@ -188,17 +139,13 @@ passport.use(
          */
         const fullName =
           profile.displayName?.trim() ||
-          `${profile.name?.givenName || ''} ${profile.name?.familyName || ''
-            }`
-            .trim() ||
+          `${profile.name?.givenName || ''} ${profile.name?.familyName || ''}`.trim() ||
           email.split('@')[0];
 
         /**
          * Google profile picture.
          */
-        const avatarUrl =
-          profile.photos?.[0]?.value ||
-          undefined;
+        const avatarUrl = profile.photos?.[0]?.value || undefined;
 
         /**
          * Convert Google data to the application's
@@ -212,9 +159,7 @@ passport.use(
           avatarUrl,
         };
 
-        logger.info(
-          `Google OAuth profile received for ${email}.`,
-        );
+        logger.info(`Google OAuth profile received for ${email}.`);
 
         /**
          * Find existing user or create a new user.
@@ -223,40 +168,23 @@ passport.use(
          * This returns the actual database user,
          * not LoginResponse.
          */
-        const user =
-          await authService.findOrCreateOAuthUser(
-            oauthPayload,
-          );
+        const user = await authService.findOrCreateOAuthUser(oauthPayload);
 
         if (!user) {
-          throw new Error(
-            'OAuth user could not be resolved.',
-          );
+          throw new Error('OAuth user could not be resolved.');
         }
 
-        logger.info(
-          `Google OAuth user resolved successfully: ${email}.`,
-        );
+        logger.info(`Google OAuth user resolved successfully: ${email}.`);
 
         /**
          * Passport receives the database user.
          */
-        return done(
-          null,
-          user as any,
-        );
+        return done(null, user as any);
       } catch (error) {
-        logger.error(
-          'Google OAuth strategy error:',
-          error,
-        );
+        logger.error('Google OAuth strategy error:', error);
 
         return done(
-          error instanceof Error
-            ? error
-            : new Error(
-              'Google OAuth authentication failed.',
-            ),
+          error instanceof Error ? error : new Error('Google OAuth authentication failed.'),
           undefined,
         );
       }
@@ -264,8 +192,6 @@ passport.use(
   ),
 );
 
-logger.info(
-  'Google OAuth Passport strategy initialized.',
-);
+logger.info('Google OAuth Passport strategy initialized.');
 
 export default passport;

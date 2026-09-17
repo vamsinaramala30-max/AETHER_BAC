@@ -34,10 +34,7 @@ import type { RuntimeStatus, ModelInfo, ModelStatus } from '../llm/llm-types.js'
 export interface IAIEngine {
   initialize(): Promise<void>;
   process(request: AIRequest): Promise<Result<AIResponse>>;
-  processStream(
-    request: AIRequest,
-    subscriber: StreamSubscriber,
-  ): Promise<Result<void>>;
+  processStream(request: AIRequest, subscriber: StreamSubscriber): Promise<Result<void>>;
   getRuntimeStatus(): Promise<RuntimeStatus>;
   listModels(): Promise<Result<readonly ModelInfo[]>>;
   getModelStatus(modelId: string): Promise<ModelStatus>;
@@ -64,9 +61,7 @@ export class AIEngine implements IAIEngine {
     const validation = validateAIConfig(config);
 
     if (!validation.valid) {
-      throw new Error(
-        `Invalid AI configuration: ${validation.errors.join(', ')}`,
-      );
+      throw new Error(`Invalid AI configuration: ${validation.errors.join(', ')}`);
     }
 
     if (validation.warnings.length > 0) {
@@ -156,3 +151,5 @@ export class AIEngine implements IAIEngine {
     this.initialized = false;
   }
 }
+
+export const globalAiEngine = new AIEngine();

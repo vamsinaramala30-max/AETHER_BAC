@@ -6,20 +6,19 @@
 
 import type { IToolRegistry } from './tool-registry.js';
 import { toolRegistry } from './tool-registry.js';
-import type { ToolDefinition } from './tool-types.js';
+import type { ToolDefinition, ToolDescriptor, AuthenticationContext } from './tool-types.js';
+import { toolPermissions } from './tool-permissions.js';
 
 // ─── IToolRouter Interface ───────────────────────────────────────────────────
 
 export interface IToolRouter {
-  route(
-    toolName: string,
-    availableToolNames?: readonly string[],
-  ): ToolDefinition | undefined;
+  route(toolName: string, availableToolNames?: readonly string[]): ToolDefinition | undefined;
 
-  routeByIntent(
-    intent: string,
-    availableToolNames?: readonly string[],
-  ): ToolDefinition | undefined;
+  routeByIntent(intent: string, availableToolNames?: readonly string[]): ToolDefinition | undefined;
+
+  routeAuthorized(toolName: string, auth: AuthenticationContext): ToolDefinition | undefined;
+
+  discoverTools(query?: string, auth?: AuthenticationContext): readonly ToolDescriptor[];
 }
 
 // ─── Tool Router Implementation ──────────────────────────────────────────────
@@ -38,6 +37,20 @@ export class ToolRouter implements IToolRouter {
       return undefined;
     }
     return this.registry.get(toolName);
+  }
+
+  /**
+   * Routes to tool only if user has required permissions.
+   */
+  public routeAuthorized(
+    toolName: string,
+    auth: AuthenticationContext,
+  ): ToolDefinition | undefined {
+    const tool = this.registry.get(toolName);
+    if (!tool) return undefined;
+
+    const check = toolPermissions.checkPermissions(tool.requiredPermissions, auth);
+    return check.allowed ? tool : undefined;
   }
 
   /**
@@ -72,6 +85,35 @@ export class ToolRouter implements IToolRouter {
     }
 
     return undefined;
+  }
+
+  /**
+   * Discovers available tools, optionally filtered by keyword query and user authorization.
+   */
+  public discoverTools(
+    query?: string,
+    auth?: AuthenticationContext,
+  ): readonly ToolDescriptor[] {
+    let tools = this.registry.list();
+
+    if (auth) {
+      tools = tools.filter((t) => {
+        const check = toolPermissions.checkPermissions(t.requiredPermissions, auth);
+        return check.allowed;
+      });
+    }
+
+    if (query && query.trim().length > 0) {
+      const q = query.toLowerCase().trim();
+      tools = tools.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.description.toLowerCase().includes(q) ||
+          t.category.toLowerCase().includes(q),
+      );
+    }
+
+    return tools;
   }
 }
 

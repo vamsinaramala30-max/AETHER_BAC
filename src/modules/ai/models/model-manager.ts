@@ -32,24 +32,38 @@ export class ModelManager implements IModelManager {
   public async listModels(): Promise<readonly ModelMetadata[]> {
     if (this.llmEngine) {
       const llmModels = await this.llmEngine.listModels();
-      if (llmModels.ok) {
+      if (llmModels.ok && llmModels.value.length > 0) {
         const activeId = await this.getActiveModelId();
         return llmModels.value.map((info) => ({
           id: info.id,
           name: info.name,
-          provider: 'ollama',
-          family: info.familyName,
+          provider: 'aether' as any,
+          family: info.familyName || 'aether',
           parameterCount: info.parameterCount,
-          contextLength: info.contextLength,
+          contextLength: info.contextLength || 8192,
           quantization: info.quantization,
           sizeBytes: info.sizeBytes,
-          isDefault: info.id === this.llmEngine?.getDefaultModelId(),
-          isActive: info.id === activeId,
+          isDefault: info.id === this.llmEngine?.getDefaultModelId() || info.id === 'aether-v1-authoritative',
+          isActive: info.id === activeId || (!activeId && info.id === 'aether-v1-authoritative'),
         }));
       }
     }
 
-    return this.storage.listMetadata();
+    const stored = await this.storage.listMetadata();
+    if (stored && stored.length > 0) {
+      return stored;
+    }
+
+    const nativeDefault: ModelMetadata = {
+      id: 'aether-v1-authoritative',
+      name: 'Aether Model Authoritative',
+      provider: 'aether' as any,
+      family: 'transformer',
+      contextLength: 8192,
+      isDefault: true,
+      isActive: true,
+    };
+    return [nativeDefault];
   }
 
   public async getActiveModel(): Promise<ModelMetadata | undefined> {
@@ -57,15 +71,17 @@ export class ModelManager implements IModelManager {
     if (!activeId) return undefined;
 
     const models = await this.listModels();
-    return models.find((m) => m.id === activeId) ?? {
-      id: activeId,
-      name: activeId,
-      provider: 'ollama',
-      family: 'llama',
-      contextLength: 8192,
-      isDefault: true,
-      isActive: true,
-    };
+    return (
+      models.find((m) => m.id === activeId) ?? {
+        id: activeId,
+        name: activeId,
+        provider: 'ollama',
+        family: 'llama',
+        contextLength: 8192,
+        isDefault: true,
+        isActive: true,
+      }
+    );
   }
 
   public async setActiveModel(modelId: string): Promise<ModelMetadata> {

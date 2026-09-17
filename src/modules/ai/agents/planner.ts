@@ -1,15 +1,21 @@
 /**
- * AETHER AI — Agent Planner
- * Constructs an execution plan for an agent goal.
- * Uses structured decomposition into actionable steps.
+ * AETHER AI — Agent Planner (DEPRECATED)
+ * @deprecated Deprecated in Prompt 7. Use authoritative PlanningEngine in src/modules/ai/planning/planning-engine.ts.
+ * AETHER_CORE remains the sole authoritative planning coordinator.
  */
 
 import type { AgentConfig, ExecutionPlan, PlanStep } from './agent-types.js';
 
+/**
+ * @deprecated Use IPlanningEngine from src/modules/ai/planning/planning-engine.js instead.
+ */
 export interface IAgentPlanner {
   createPlan(goal: string, config: AgentConfig): Promise<ExecutionPlan>;
 }
 
+/**
+ * @deprecated Use PlanningEngine from src/modules/ai/planning/planning-engine.js instead.
+ */
 export class AgentPlanner implements IAgentPlanner {
   public async createPlan(goal: string, config: AgentConfig): Promise<ExecutionPlan> {
     const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;

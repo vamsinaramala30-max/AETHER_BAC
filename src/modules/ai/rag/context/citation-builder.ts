@@ -47,9 +47,7 @@ export class CitationBuilder implements ICitationBuilder {
       chunkId: doc.chunkId,
       title: String(doc.metadata.title ?? doc.documentId),
       source: String(doc.metadata.source ?? doc.documentId),
-      pageNumber: typeof doc.metadata.pageNumber === 'number'
-        ? doc.metadata.pageNumber
-        : undefined,
+      pageNumber: typeof doc.metadata.pageNumber === 'number' ? doc.metadata.pageNumber : undefined,
       excerpt: doc.content.slice(0, 200).replace(/\s+/g, ' ').trim(),
       relevanceScore: doc.score,
     };

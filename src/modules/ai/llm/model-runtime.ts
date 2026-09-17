@@ -173,9 +173,7 @@ export class OllamaRuntime implements IModelRuntime {
     }
   }
 
-  public async generate(
-    request: GenerationRequest,
-  ): Promise<Result<GenerationResponse>> {
+  public async generate(request: GenerationRequest): Promise<Result<GenerationResponse>> {
     const start = Date.now();
     const controller = new AbortController();
     const timeoutMs = request.timeoutMs ?? this.timeoutMs;
@@ -220,13 +218,14 @@ export class OllamaRuntime implements IModelRuntime {
         requestId: request.requestId,
         modelId: request.modelId,
         content: data.message.content,
-        usage: data.eval_count !== undefined
-          ? {
-              promptTokens: data.prompt_eval_count ?? 0,
-              completionTokens: data.eval_count,
-              totalTokens: (data.prompt_eval_count ?? 0) + data.eval_count,
-            }
-          : undefined,
+        usage:
+          data.eval_count !== undefined
+            ? {
+                promptTokens: data.prompt_eval_count ?? 0,
+                completionTokens: data.eval_count,
+                totalTokens: (data.prompt_eval_count ?? 0) + data.eval_count,
+              }
+            : undefined,
         finishReason: data.done ? 'stop' : 'error',
         latencyMs,
       });
@@ -310,13 +309,14 @@ export class OllamaRuntime implements IModelRuntime {
             delta: parsed.message.content,
             index: index++,
             isLast: parsed.done,
-            usage: parsed.done && parsed.eval_count !== undefined
-              ? {
-                  promptTokens: parsed.prompt_eval_count ?? 0,
-                  completionTokens: parsed.eval_count,
-                  totalTokens: (parsed.prompt_eval_count ?? 0) + parsed.eval_count,
-                }
-              : undefined,
+            usage:
+              parsed.done && parsed.eval_count !== undefined
+                ? {
+                    promptTokens: parsed.prompt_eval_count ?? 0,
+                    completionTokens: parsed.eval_count,
+                    totalTokens: (parsed.prompt_eval_count ?? 0) + parsed.eval_count,
+                  }
+                : undefined,
             finishReason: parsed.done ? 'stop' : undefined,
           };
 
@@ -343,10 +343,7 @@ export class OllamaRuntime implements IModelRuntime {
     // No persistent connections to clean up for fetch-based Ollama client
   }
 
-  private mergeSignals(
-    external?: AbortSignal,
-    internal?: AbortSignal,
-  ): AbortSignal {
+  private mergeSignals(external?: AbortSignal, internal?: AbortSignal): AbortSignal {
     if (!external) return internal ?? AbortSignal.timeout(this.timeoutMs);
     const controller = new AbortController();
     const abortHandler = (): void => controller.abort();
@@ -452,9 +449,7 @@ export class LlamaCppRuntime implements IModelRuntime {
     }
   }
 
-  public async generate(
-    request: GenerationRequest,
-  ): Promise<Result<GenerationResponse>> {
+  public async generate(request: GenerationRequest): Promise<Result<GenerationResponse>> {
     const start = Date.now();
     const controller = new AbortController();
     const timeoutMs = request.timeoutMs ?? this.timeoutMs;
@@ -501,9 +496,7 @@ export class LlamaCppRuntime implements IModelRuntime {
               totalTokens: data.usage.total_tokens,
             }
           : undefined,
-        finishReason: (choice.finish_reason === 'stop' ? 'stop' : 'length') as
-          | 'stop'
-          | 'length',
+        finishReason: (choice.finish_reason === 'stop' ? 'stop' : 'length') as 'stop' | 'length',
         latencyMs: Date.now() - start,
       });
     } catch (error) {
@@ -613,10 +606,7 @@ export class LlamaCppRuntime implements IModelRuntime {
     // No persistent connections to clean up
   }
 
-  private mergeSignals(
-    external?: AbortSignal,
-    internal?: AbortSignal,
-  ): AbortSignal {
+  private mergeSignals(external?: AbortSignal, internal?: AbortSignal): AbortSignal {
     if (!external) return internal ?? AbortSignal.timeout(this.timeoutMs);
     const controller = new AbortController();
     const abortHandler = (): void => controller.abort();
@@ -649,12 +639,7 @@ export class NoOpRuntime implements IModelRuntime {
 
   public async listModels(): Promise<Result<readonly ModelInfo[]>> {
     return fail(
-      makeError(
-        'NOT_CONFIGURED' as AIErrorCode,
-        'No LLM runtime is configured.',
-        undefined,
-        false,
-      ),
+      makeError('NOT_CONFIGURED' as AIErrorCode, 'No LLM runtime is configured.', undefined, false),
     );
   }
 

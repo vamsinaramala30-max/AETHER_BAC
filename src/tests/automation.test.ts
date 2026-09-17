@@ -68,25 +68,64 @@ describe('Aether Automation Engine Unit Tests', () => {
     it('evaluates equals and not_equals conditions', () => {
       const context = { trigger: { data: { status: 'COMPLETED', priority: 'HIGH' } } };
 
-      expect(engine.evaluate({ field: 'trigger.data.status', operator: 'equals', value: 'COMPLETED' }, context)).toBe(true);
-      expect(engine.evaluate({ field: 'trigger.data.status', operator: 'not_equals', value: 'FAILED' }, context)).toBe(true);
-      expect(engine.evaluate({ field: 'trigger.data.status', operator: 'equals', value: 'PENDING' }, context)).toBe(false);
+      expect(
+        engine.evaluate(
+          { field: 'trigger.data.status', operator: 'equals', value: 'COMPLETED' },
+          context,
+        ),
+      ).toBe(true);
+      expect(
+        engine.evaluate(
+          { field: 'trigger.data.status', operator: 'not_equals', value: 'FAILED' },
+          context,
+        ),
+      ).toBe(true);
+      expect(
+        engine.evaluate(
+          { field: 'trigger.data.status', operator: 'equals', value: 'PENDING' },
+          context,
+        ),
+      ).toBe(false);
     });
 
     it('evaluates contains and does_not_contain conditions', () => {
       const context = { trigger: { data: { tags: ['urgent', 'backend'], title: 'Critical Fix' } } };
 
-      expect(engine.evaluate({ field: 'trigger.data.title', operator: 'contains', value: 'Critical' }, context)).toBe(true);
-      expect(engine.evaluate({ field: 'trigger.data.tags', operator: 'contains', value: 'urgent' }, context)).toBe(true);
-      expect(engine.evaluate({ field: 'trigger.data.title', operator: 'does_not_contain', value: 'Feature' }, context)).toBe(true);
+      expect(
+        engine.evaluate(
+          { field: 'trigger.data.title', operator: 'contains', value: 'Critical' },
+          context,
+        ),
+      ).toBe(true);
+      expect(
+        engine.evaluate(
+          { field: 'trigger.data.tags', operator: 'contains', value: 'urgent' },
+          context,
+        ),
+      ).toBe(true);
+      expect(
+        engine.evaluate(
+          { field: 'trigger.data.title', operator: 'does_not_contain', value: 'Feature' },
+          context,
+        ),
+      ).toBe(true);
     });
 
     it('evaluates greater_than and less_than conditions', () => {
       const context = { trigger: { data: { score: 85, count: 3 } } };
 
-      expect(engine.evaluate({ field: 'trigger.data.score', operator: 'greater_than', value: 50 }, context)).toBe(true);
-      expect(engine.evaluate({ field: 'trigger.data.count', operator: 'less_than', value: 10 }, context)).toBe(true);
-      expect(engine.evaluate({ field: 'trigger.data.score', operator: 'less_than', value: 10 }, context)).toBe(false);
+      expect(
+        engine.evaluate(
+          { field: 'trigger.data.score', operator: 'greater_than', value: 50 },
+          context,
+        ),
+      ).toBe(true);
+      expect(
+        engine.evaluate({ field: 'trigger.data.count', operator: 'less_than', value: 10 }, context),
+      ).toBe(true);
+      expect(
+        engine.evaluate({ field: 'trigger.data.score', operator: 'less_than', value: 10 }, context),
+      ).toBe(false);
     });
 
     it('evaluates compound AND / OR / NOT conditions', () => {
@@ -180,6 +219,38 @@ describe('Aether Automation Engine Unit Tests', () => {
       expect(templates[0]).toHaveProperty('id');
       expect(templates[0]).toHaveProperty('name');
       expect(templates[0]).toHaveProperty('actions');
+    });
+  });
+
+  describe('AutomationIntentParserService', () => {
+    it('parses task completion request correctly without unrelated calendar steps', () => {
+      const service = new AutomationService();
+      const parsed = service.parseIntent('Complete all my tasks and make them done');
+
+      expect(parsed.supported).toBe(true);
+      expect(parsed.name).toBe('Complete Pending Tasks');
+      expect(parsed.trigger).toBe('MANUAL');
+      expect(parsed.actions?.[0].type).toBe('TASK_COMPLETE_ALL');
+      expect(parsed.steps).toContain("Find user's incomplete tasks");
+      expect(parsed.steps).toContain('Mark eligible tasks as completed');
+    });
+
+    it('parses calendar briefing request correctly', () => {
+      const service = new AutomationService();
+      const parsed = service.parseIntent('Every morning summarize my calendar');
+
+      expect(parsed.supported).toBe(true);
+      expect(parsed.name).toBe('Daily Calendar Briefing');
+      expect(parsed.trigger).toBe('SCHEDULE');
+      expect(parsed.actions?.[0].type).toBe('CALENDAR_SUMMARIZE');
+    });
+
+    it('handles unsupported requests with explanatory reason', () => {
+      const service = new AutomationService();
+      const parsed = service.parseIntent('Order pizza for the team at lunch');
+
+      expect(parsed.supported).toBe(false);
+      expect(parsed.unsupportedReason).toContain('does not currently support');
     });
   });
 });

@@ -14,7 +14,12 @@ export const createConversationSchema: ToolInputSchema = {
 export const updateConversationSchema: ToolInputSchema = {
   type: 'object',
   properties: {
-    title: { type: 'string', description: 'Updated conversation title', minLength: 1, maxLength: 200 },
+    title: {
+      type: 'string',
+      description: 'Updated conversation title',
+      minLength: 1,
+      maxLength: 200,
+    },
   },
   required: ['title'],
 };

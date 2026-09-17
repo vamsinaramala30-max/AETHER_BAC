@@ -94,7 +94,9 @@ export class DocumentCleaner implements IDocumentCleaner {
       });
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
-      return fail(new RAGFailedError('clean', error instanceof Error ? error.message : String(error), cause));
+      return fail(
+        new RAGFailedError('clean', error instanceof Error ? error.message : String(error), cause),
+      );
     }
   }
 }

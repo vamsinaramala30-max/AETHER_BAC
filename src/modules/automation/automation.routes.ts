@@ -14,6 +14,10 @@ const router: Router = Router();
 
 router.use(authenticate);
 
+// Intent Parser & Dashboard Stats
+router.post('/parse-intent', automationController.parseIntent.bind(automationController));
+router.get('/stats', automationController.getStats.bind(automationController));
+
 // Activity audit logs & Templates
 router.get('/automation-activity', automationController.getAllActivity.bind(automationController));
 router.get('/automation-templates', automationController.getTemplates.bind(automationController));

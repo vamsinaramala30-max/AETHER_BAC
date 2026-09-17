@@ -18,7 +18,9 @@ export class NotificationWorker {
   }): Promise<void> {
     setImmediate(async () => {
       try {
-        logger.info(`[NotificationWorker] Dispatching async notification to user '${payload.userId}'`);
+        logger.info(
+          `[NotificationWorker] Dispatching async notification to user '${payload.userId}'`,
+        );
         await this.notificationsAdapter.createNotification(payload);
       } catch (err) {
         logger.error('[NotificationWorker] Failed to dispatch async notification:', err);

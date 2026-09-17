@@ -49,7 +49,9 @@ export class ProjectsAdapter {
     description?: string;
     dueDate?: string | Date;
   }) {
-    logger.info(`[ProjectsAdapter] Creating milestone '${params.title}' for project '${params.projectId}'`);
+    logger.info(
+      `[ProjectsAdapter] Creating milestone '${params.title}' for project '${params.projectId}'`,
+    );
     return this.prisma.milestone.create({
       data: {
         projectId: params.projectId,

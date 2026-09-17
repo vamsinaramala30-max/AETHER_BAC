@@ -58,9 +58,7 @@ export class MemorySummarizer implements IMemorySummarizer {
       );
     }
 
-    const transcript = messages
-      .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-      .join('\n');
+    const transcript = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
 
     const summaryPrompt = [
       {

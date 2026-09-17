@@ -13,10 +13,7 @@ export interface ValidationMiddlewareResult {
   readonly errors: readonly string[];
 }
 
-export function validateInput(
-  input: unknown,
-  schema: ToolInputSchema,
-): ValidationMiddlewareResult {
+export function validateInput(input: unknown, schema: ToolInputSchema): ValidationMiddlewareResult {
   const result = validator.validate(input, schema);
   return {
     valid: result.valid,

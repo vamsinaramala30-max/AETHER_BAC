@@ -40,9 +40,7 @@ export class MemoryWriter implements IMemoryWriter {
         return fail(new MemoryFailedError('write', 'userId is required'));
       }
 
-      const importance = this.clampImportance(
-        request.importance ?? MEMORY.MIN_IMPORTANCE_SCORE,
-      );
+      const importance = this.clampImportance(request.importance ?? MEMORY.MIN_IMPORTANCE_SCORE);
       const now = Date.now();
       const expiresAt = request.ttlMs ? now + request.ttlMs : undefined;
 
@@ -59,15 +57,29 @@ export class MemoryWriter implements IMemoryWriter {
       const item: MemoryItem = {
         id: randomUUID(),
         userId: request.userId,
+        workspaceId: request.workspaceId,
+        projectId: request.projectId,
         type: request.type,
+        scope: request.scope ?? (request.projectId ? 'PROJECT' : request.workspaceId ? 'WORKSPACE' : 'GLOBAL_USER'),
         content: request.content,
         embedding,
         importance,
+        confidence:
+          request.confidence ??
+          (request.metadata?.confidence as any) ??
+          (request.metadata?.source === 'user_explicit' ? 'confirmed' : 'user_provided'),
+        version: 1,
         accessCount: 0,
         createdAt: now,
         updatedAt: now,
         expiresAt,
-        metadata: request.metadata,
+        metadata: {
+          status: 'active',
+          confidence:
+            (request.metadata?.confidence as any) ||
+            (request.metadata?.source === 'user_explicit' ? 'confirmed' : 'user_provided'),
+          ...request.metadata,
+        },
       };
 
       await this.store.create(item);
@@ -75,7 +87,11 @@ export class MemoryWriter implements IMemoryWriter {
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
       return fail(
-        new MemoryFailedError('write', error instanceof Error ? error.message : String(error), cause),
+        new MemoryFailedError(
+          'write',
+          error instanceof Error ? error.message : String(error),
+          cause,
+        ),
       );
     }
   }
@@ -110,13 +126,16 @@ export class MemoryWriter implements IMemoryWriter {
         const embResult = await this.embeddingEngine.embed(request.content);
         if (embResult.ok) newEmbedding = embResult.value;
       }
-      const newImportance = request.importance !== undefined ? this.clampImportance(request.importance) : undefined;
+      const newImportance =
+        request.importance !== undefined ? this.clampImportance(request.importance) : undefined;
       const newMetadata = request.metadata !== undefined ? request.metadata : undefined;
 
       const patch: Partial<MemoryItem> = {
         ...(newContent !== undefined && { content: newContent }),
         ...(newEmbedding !== undefined && { embedding: newEmbedding }),
         ...(newImportance !== undefined && { importance: newImportance }),
+        ...(request.workspaceId !== undefined && { workspaceId: request.workspaceId }),
+        ...(request.projectId !== undefined && { projectId: request.projectId }),
         ...(newMetadata !== undefined && { metadata: newMetadata }),
         updatedAt: Date.now(),
       };
@@ -131,7 +150,11 @@ export class MemoryWriter implements IMemoryWriter {
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
       return fail(
-        new MemoryFailedError('update', error instanceof Error ? error.message : String(error), cause),
+        new MemoryFailedError(
+          'update',
+          error instanceof Error ? error.message : String(error),
+          cause,
+        ),
       );
     }
   }
@@ -161,7 +184,11 @@ export class MemoryWriter implements IMemoryWriter {
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
       return fail(
-        new MemoryFailedError('delete', error instanceof Error ? error.message : String(error), cause),
+        new MemoryFailedError(
+          'delete',
+          error instanceof Error ? error.message : String(error),
+          cause,
+        ),
       );
     }
   }
@@ -176,15 +203,16 @@ export class MemoryWriter implements IMemoryWriter {
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
       return fail(
-        new MemoryFailedError('deleteByUser', error instanceof Error ? error.message : String(error), cause),
+        new MemoryFailedError(
+          'deleteByUser',
+          error instanceof Error ? error.message : String(error),
+          cause,
+        ),
       );
     }
   }
 
   private clampImportance(value: number): number {
-    return Math.max(
-      MEMORY.MIN_IMPORTANCE_SCORE,
-      Math.min(MEMORY.MAX_IMPORTANCE_SCORE, value),
-    );
+    return Math.max(MEMORY.MIN_IMPORTANCE_SCORE, Math.min(MEMORY.MAX_IMPORTANCE_SCORE, value));
   }
 }

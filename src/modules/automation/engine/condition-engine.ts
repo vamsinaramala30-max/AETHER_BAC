@@ -5,7 +5,10 @@ export class ConditionEngine {
   /**
    * Evaluates condition logic against an execution context object.
    */
-  public evaluate(conditions: ConditionConfig | null | undefined, context: Record<string, unknown>): boolean {
+  public evaluate(
+    conditions: ConditionConfig | null | undefined,
+    context: Record<string, unknown>,
+  ): boolean {
     if (!conditions) return true; // No conditions means pass through
 
     if (Array.isArray(conditions)) {
@@ -16,7 +19,10 @@ export class ConditionEngine {
     return this.evaluateItem(conditions, context);
   }
 
-  private evaluateItem(cond: SingleCondition | CompoundCondition, context: Record<string, unknown>): boolean {
+  private evaluateItem(
+    cond: SingleCondition | CompoundCondition,
+    context: Record<string, unknown>,
+  ): boolean {
     if ('logicalOperator' in cond && cond.logicalOperator) {
       return this.evaluateCompound(cond as CompoundCondition, context);
     }
@@ -47,7 +53,8 @@ export class ConditionEngine {
     if (!field) return true;
 
     const actualVal = VariableEngine.getPathValue(context, field);
-    const expectedVal = typeof value === 'string' ? VariableEngine.interpolate(value, context) : value;
+    const expectedVal =
+      typeof value === 'string' ? VariableEngine.interpolate(value, context) : value;
 
     const op = String(operator).toLowerCase();
 
@@ -72,7 +79,9 @@ export class ConditionEngine {
           return actualVal.toLowerCase().includes(String(expectedVal).toLowerCase());
         }
         if (Array.isArray(actualVal)) {
-          return actualVal.some((item) => String(item).toLowerCase() === String(expectedVal).toLowerCase());
+          return actualVal.some(
+            (item) => String(item).toLowerCase() === String(expectedVal).toLowerCase(),
+          );
         }
         return false;
 
@@ -83,7 +92,9 @@ export class ConditionEngine {
           return !actualVal.toLowerCase().includes(String(expectedVal).toLowerCase());
         }
         if (Array.isArray(actualVal)) {
-          return !actualVal.some((item) => String(item).toLowerCase() === String(expectedVal).toLowerCase());
+          return !actualVal.some(
+            (item) => String(item).toLowerCase() === String(expectedVal).toLowerCase(),
+          );
         }
         return true;
 

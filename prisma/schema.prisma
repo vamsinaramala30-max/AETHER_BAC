@@ -112,21 +112,28 @@ enum AutomationStatus {
 // ============================================================================
 
 model User {
-  id              String            @id @default(uuid()) @db.Uuid
-  email           String            @unique
-  passwordHash    String?
-  fullName        String?
-  avatarUrl       String?
-  bio             String?
-  phone           String?
-  company         String?
-  timezone        String?           @default("UTC")
-  language        String?           @default("en")
-  role            Role              @default(USER)
-  isEmailVerified Boolean           @default(false)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  deletedAt       DateTime?
+  id                      String            @id @default(uuid()) @db.Uuid
+  email                   String            @unique
+  username                String?           @unique
+  passwordHash            String?
+  fullName                String?
+  avatarUrl               String?
+  bio                     String?
+  phone                   String?
+  company                 String?
+  timezone                String?           @default("UTC")
+  language                String?           @default("en")
+  country                 String?           @default("United States")
+  role                    Role              @default(USER)
+  isEmailVerified         Boolean           @default(false)
+  is2FAEnabled            Boolean           @default(false)
+  twoFactorSecret         String?
+  twoFactorRecoveryCodes  String[]          @default([])
+  lastLoginAt             DateTime?
+  passwordLastChangedAt   DateTime?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  deletedAt               DateTime?
 
   // Existing relations
   memberships     WorkspaceMember[]
@@ -138,6 +145,7 @@ model User {
   conversations   Conversation[]
   messages        Message[]
   oauthAccounts   OAuthAccount[]
+  feedbacks       Feedback[]
 
   // New relations
   tasksAssigned   Task[]            @relation("TaskAssignee")
@@ -147,6 +155,7 @@ model User {
   calendarEvents  CalendarEvent[]
   settings        UserSettings?
   notes           Note[]
+  notebooks       Notebook[]
   folders         Folder[]
   activities      ActivityLog[]
   favorites       UserFavorite[]
@@ -154,8 +163,12 @@ model User {
   automations          Automation[]
   automationExecutions AutomationExecution[]
   automationActivities AutomationActivity[]
+  aiMemories           AIMemory[]
+  agentPlans           AgentPlan[]
+  agentExecutions      AgentExecution[]
 
   @@index([email])
+  @@index([username])
   @@map("users")
 }
 
@@ -500,25 +513,126 @@ model Document {
   @@map("documents")
 }
 
-model Note {
-  id          String    @id @default(uuid()) @db.Uuid
-  workspaceId String    @db.Uuid
-  userId      String    @db.Uuid
-  title       String    @default("Untitled Note")
-  content     String?
-  isPinned    Boolean   @default(false)
-  isFavorite  Boolean   @default(false)
-  tags        String[]  @default([])
-  folderId    String?   @db.Uuid
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deletedAt   DateTime?
+model AIMemory {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  workspaceId    String?   @db.Uuid
+  projectId      String?   @db.Uuid
+  category       String    @default("FACT")
+  content        String
+  importance     Float     @default(0.5)
+  confidence     String    @default("user_provided")
+  source         String?
+  scope          String    @default("user")
+  status         String    @default("active")
+  version        Int       @default(1)
+  metadata       Json?
+  accessCount    Int       @default(0)
+  lastAccessedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  expiresAt      DateTime?
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder      Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, category])
+  @@index([userId, projectId])
+  @@index([userId, workspaceId, status])
+  @@index([userId, scope, status])
+  @@map("ai_memories")
+}
+
+model DocumentChunk {
+  id          String   @id @default(uuid()) @db.Uuid
+  documentId  String?  @db.Uuid
+  workspaceId String?  @db.Uuid
+  projectId   String?  @db.Uuid
+  userId      String   @db.Uuid
+  content     String
+  tokenCount  Int      @default(0)
+  chunkIndex  Int      @default(0)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([workspaceId, userId])
+  @@index([documentId])
+  @@index([projectId])
+  @@map("document_chunks")
+}
+
+model Note {
+  id                String    @id @default(uuid()) @db.Uuid
+  workspaceId       String    @db.Uuid
+  userId            String    @db.Uuid
+  title             String    @default("Untitled Note")
+  content           String?
+  formattedContent  String?
+  category          String?   @default("General")
+  isPinned          Boolean   @default(false)
+  isFavorite        Boolean   @default(false)
+  isArchived        Boolean   @default(false)
+  isQuickNote       Boolean   @default(false)
+  order             Int       @default(0)
+  tags              String[]  @default([])
+  attachmentIds     String[]  @default([])
+  sharedWithUserIds String[]  @default([])
+  aiSummary         String?
+  notebookId        String?   @db.Uuid
+  sectionId         String?   @db.Uuid
+  folderId          String?   @db.Uuid
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder   Folder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  notebook Notebook? @relation(fields: [notebookId], references: [id], onDelete: SetNull)
+  section  Section?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, userId])
+  @@index([notebookId])
+  @@index([sectionId])
   @@map("notes")
+}
+
+model Notebook {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  name        String
+  description String?
+  color       String?   @default("indigo")
+  order       Int       @default(0)
+  isDefault   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sections Section[]
+  notes    Note[]
+
+  @@index([userId])
+  @@map("notebooks")
+}
+
+model Section {
+  id         String    @id @default(uuid()) @db.Uuid
+  notebookId String    @db.Uuid
+  userId     String    @db.Uuid
+  name       String
+  order      Int       @default(0)
+  deletedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  notebook Notebook @relation(fields: [notebookId], references: [id], onDelete: Cascade)
+  notes    Note[]
+
+  @@index([notebookId])
+  @@index([userId])
+  @@map("sections")
 }
 
 model Folder {
@@ -771,3 +885,230 @@ model UserCalendar {
   @@index([userId])
   @@map("user_calendars")
 }
+
+// ============================================================================
+// Feedback & Support Submissions
+// ============================================================================
+
+enum FeedbackStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+model Feedback {
+  id        String         @id @default(uuid()) @db.Uuid
+  userId    String?        @db.Uuid
+  name      String
+  email     String
+  category  String
+  subject   String
+  message   String
+  status    FeedbackStatus @default(NEW)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@map("feedbacks")
+}
+
+// ============================================================================
+// Agent Reasoning & Planning Models (Prompt 7)
+// ============================================================================
+
+model AgentPlan {
+  id                String                 @id @default(uuid()) @db.Uuid
+  version           Int                    @default(1)
+  userId            String                 @db.Uuid
+  workspaceId       String?                @db.Uuid
+  projectId         String?                @db.Uuid
+  conversationId    String?                @db.Uuid
+  correlationId     String
+  status            String                 @default("DRAFT")
+  goal              Json
+  constraints       Json                   @default("[]")
+  assumptions       Json                   @default("[]")
+  confidence        Float?
+  planHash          String?
+  requiresUserInput Boolean                @default(false)
+  metadata          Json?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps             AgentPlanStep[]
+  dependencies      AgentPlanDependency[]
+
+  @@index([userId, status])
+  @@index([workspaceId, userId])
+  @@index([correlationId])
+  @@map("agent_plans")
+}
+
+model AgentPlanStep {
+  id                   String     @id @default(uuid()) @db.Uuid
+  planId               String     @db.Uuid
+  order                Int
+  title                String
+  description          String
+  type                 String     @default("TOOL")
+  toolName             String?
+  toolVersion          String?
+  input                Json?
+  expectedOutcome      String?
+  requiresConfirmation Boolean    @default(false)
+  status               String     @default("PENDING")
+  createdAt            DateTime   @default(now())
+
+  plan                 AgentPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, order])
+  @@map("agent_plan_steps")
+}
+
+model AgentPlanDependency {
+  id              String     @id @default(uuid()) @db.Uuid
+  planId          String     @db.Uuid
+  stepId          String
+  dependsOnStepId String
+  type            String     @default("BLOCKS")
+  createdAt       DateTime   @default(now())
+
+  plan            AgentPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("agent_plan_dependencies")
+}
+
+
+// ============================================================================
+// Agent Execution Models (Prompt 8)
+// ============================================================================
+
+enum AgentExecutionStatus {
+  PENDING
+  VALIDATING
+  AUTHORIZED
+  RUNNING
+  WAITING_FOR_INPUT
+  WAITING_FOR_APPROVAL
+  VERIFYING
+  RECOVERING
+  COMPLETED
+  PARTIALLY_COMPLETED
+  FAILED
+  TIMED_OUT
+  CANCELLED
+  BLOCKED
+}
+
+enum AgentExecutionStepStatus {
+  PENDING
+  RUNNING
+  WAITING_FOR_INPUT
+  WAITING_FOR_APPROVAL
+  VERIFYING
+  COMPLETED
+  FAILED
+  TIMED_OUT
+  CANCELLED
+  BLOCKED
+  SKIPPED
+}
+
+model AgentExecution {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  planId              String                 @db.Uuid
+  planVersion         Int
+  planHash            String
+  correlationId       String
+  handoffId           String?
+  userId              String                 @db.Uuid
+  workspaceId         String?                @db.Uuid
+  projectId           String?                @db.Uuid
+  conversationId      String?                @db.Uuid
+  status              AgentExecutionStatus   @default(PENDING)
+  currentStepId       String?
+  completedStepIds    String[]               @default([])
+  failedStepIds       String[]               @default([])
+  blockedStepIds      String[]               @default([])
+  failureReason       String?
+  failureCategory     String?
+  replanningRequired  Boolean                @default(false)
+  previousExecutionId String?                @db.Uuid
+  idempotencyKey      String?                @unique
+  totalSteps          Int                    @default(0)
+  completedStepsCount Int                    @default(0)
+  failedStepsCount    Int                    @default(0)
+  metadata            Json?
+  startedAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  completedAt         DateTime?
+
+  user                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  steps               AgentExecutionStep[]
+
+  @@index([userId, status])
+  @@index([workspaceId, userId])
+  @@index([projectId])
+  @@index([planId])
+  @@index([correlationId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("agent_executions")
+}
+
+model AgentExecutionStep {
+  id                  String                      @id @default(uuid()) @db.Uuid
+  executionId         String                      @db.Uuid
+  stepId              String
+  planStepOrder       Int
+  title               String
+  description         String
+  toolName            String?
+  toolVersion         String?
+  idempotencyKey      String?
+  status              AgentExecutionStepStatus    @default(PENDING)
+  attemptCount        Int                         @default(0)
+  maxAttempts         Int                         @default(3)
+  input               Json?
+  toolResult          Json?
+  verified            Boolean?
+  verificationStatus  String?
+  verificationDetails String?
+  failureReason       String?
+  failureCategory     String?
+  startedAt           DateTime?
+  completedAt         DateTime?
+  durationMs          Float?
+
+  execution           AgentExecution              @relation(fields: [executionId], references: [id], onDelete: Cascade)
+  attempts            AgentExecutionAttempt[]
+
+  @@unique([executionId, stepId])
+  @@index([executionId])
+  @@index([executionId, status])
+  @@map("agent_execution_steps")
+}
+
+model AgentExecutionAttempt {
+  id          String   @id @default(uuid()) @db.Uuid
+  stepId      String   @db.Uuid
+  attempt     Int
+  status      String
+  toolResult  Json?
+  error       String?
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  durationMs  Float?
+
+  step        AgentExecutionStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  @@unique([stepId, attempt])
+  @@index([stepId])
+  @@map("agent_execution_attempts")
+}
+

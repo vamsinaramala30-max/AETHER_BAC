@@ -93,7 +93,11 @@ export class WorkspaceRepository {
     });
   }
 
-  async addMember(workspaceId: string, userId: string, role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' = 'MEMBER') {
+  async addMember(
+    workspaceId: string,
+    userId: string,
+    role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER' = 'MEMBER',
+  ) {
     return db.workspaceMember.create({
       data: {
         workspaceId,

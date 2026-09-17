@@ -34,7 +34,10 @@ export class MessageService implements IMessageService {
     return msg;
   }
 
-  public async getMessages(conversationId: string, userId: string): Promise<readonly ConversationMessage[]> {
+  public async getMessages(
+    conversationId: string,
+    userId: string,
+  ): Promise<readonly ConversationMessage[]> {
     return this.repo.getByConversation(conversationId, userId);
   }
 

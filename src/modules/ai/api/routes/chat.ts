@@ -19,7 +19,10 @@ export async function handleChatRoute(ctx: RouteContext, streamSubscriber?: Stre
 
   if (ctx.method === 'POST' && ctx.path === '/ai/chat/stream') {
     if (!streamSubscriber) {
-      return { success: false, error: { code: 'INVALID_REQUEST', message: 'Stream subscriber required for streaming.' } };
+      return {
+        success: false,
+        error: { code: 'INVALID_REQUEST', message: 'Stream subscriber required for streaming.' },
+      };
     }
     const body = (ctx.body ?? {}) as { message: string; conversationId?: string; modelId?: string };
     return chatController.chatStream(body, auth.userId, streamSubscriber);

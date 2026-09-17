@@ -9,7 +9,14 @@ describe('ConfidenceEngine', () => {
     userId: 'u1',
     sessionId: 's1',
     conversationId: 'c1',
-    tokenBudget: { total: 4096, system: 500, history: 1000, context: 1000, response: 1000, remaining: 596 },
+    tokenBudget: {
+      total: 4096,
+      system: 500,
+      history: 1000,
+      context: 1000,
+      response: 1000,
+      remaining: 596,
+    },
   };
 
   it('should return HIGH_CONFIDENCE when tool execution succeeds', () => {
@@ -21,7 +28,14 @@ describe('ConfidenceEngine', () => {
       requiresTool: true,
       requiresAgent: false,
     };
-    const res = engine.assess('list automations', intent, dummyContext, 'Automations list', true, true);
+    const res = engine.assess(
+      'list automations',
+      intent,
+      dummyContext,
+      'Automations list',
+      true,
+      true,
+    );
     expect(res.level).toBe('HIGH_CONFIDENCE');
     expect(res.score).toBeGreaterThan(0.9);
   });

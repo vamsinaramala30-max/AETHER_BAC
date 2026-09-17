@@ -13,6 +13,8 @@ import type {
   MemoryId,
   TokenUsage,
   AIResponseStatus,
+  VerificationStatus,
+  EvidenceItem,
 } from '../ai-types.js';
 import type { GenerationResponse } from '../llm/llm-types.js';
 import type { AIErrorCode } from '../ai-types.js';
@@ -28,6 +30,8 @@ export interface IResponseEngine {
     memoryIds?: readonly MemoryId[],
     reasoningStatus?: ReasoningStatus,
     startTime?: number,
+    verificationStatus?: VerificationStatus,
+    evidence?: readonly EvidenceItem[],
   ): AIResponse;
 
   buildError(
@@ -35,6 +39,7 @@ export interface IResponseEngine {
     intent: Intent,
     errorCode: AIErrorCode,
     startTime?: number,
+    verificationStatus?: VerificationStatus,
   ): AIResponse;
 }
 
@@ -74,6 +79,8 @@ export class ResponseEngine implements IResponseEngine {
     memoryIds?: readonly MemoryId[],
     reasoningStatus?: ReasoningStatus,
     startTime?: number,
+    verificationStatus?: VerificationStatus,
+    evidence?: readonly EvidenceItem[],
   ): AIResponse {
     const now = Date.now();
     const latencyMs = startTime ? now - startTime : generation.latencyMs;
@@ -89,6 +96,8 @@ export class ResponseEngine implements IResponseEngine {
       memoryIds: memoryIds && memoryIds.length > 0 ? memoryIds : undefined,
       intent,
       status: 'success',
+      verificationStatus,
+      evidence: evidence && evidence.length > 0 ? evidence : undefined,
       usage: generation.usage,
       latencyMs,
       timestamp: now,
@@ -100,6 +109,7 @@ export class ResponseEngine implements IResponseEngine {
     intent: Intent,
     errorCode: AIErrorCode,
     startTime?: number,
+    verificationStatus?: VerificationStatus,
   ): AIResponse {
     const now = Date.now();
     const latencyMs = startTime ? now - startTime : 0;
@@ -114,6 +124,7 @@ export class ResponseEngine implements IResponseEngine {
       reasoning: 'failed',
       intent,
       status,
+      verificationStatus: verificationStatus ?? 'FAILED',
       latencyMs,
       timestamp: now,
     };

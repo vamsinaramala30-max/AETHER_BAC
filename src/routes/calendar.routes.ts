@@ -170,7 +170,7 @@ router.get('/events', async (req: Request, res: Response, next: NextFunction) =>
 
     const mapped = events.map((e) => ({
       id: e.id,
-      calendarId: e.projectId ? '' : '',  // client resolves via its calendarId lookup
+      calendarId: e.projectId ? '' : '', // client resolves via its calendarId lookup
       title: e.title,
       start: e.startDate.toISOString(),
       end: e.endDate.toISOString(),
@@ -209,7 +209,18 @@ router.post('/events', async (req: Request, res: Response, next: NextFunction) =
       return;
     }
 
-    const { title, start, end, isAllDay, color, location, description, projectId, taskId, calendarId } = req.body;
+    const {
+      title,
+      start,
+      end,
+      isAllDay,
+      color,
+      location,
+      description,
+      projectId,
+      taskId,
+      calendarId,
+    } = req.body;
 
     // Resolve calendarId back to a UserCalendar if provided
     let resolvedCalendarId: string | null = null;

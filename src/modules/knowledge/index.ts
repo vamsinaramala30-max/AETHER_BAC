@@ -7,10 +7,25 @@ export * from './knowledge.routes';
 export * from './knowledge.constants';
 
 // Sub-Module Exports
-export * from './notes/notes.entity';
-export * from './notes/notes.dto';
-export * from './notes/notes.service';
-export * from './notes/notes.controller';
+export * from './notes/notes/notes.entity';
+export * from './notes/notes/notes.dto';
+export * from './notes/notes/notes.service';
+export * from './notes/notes/notes.controller';
+export * from './notes/notes/notes.repository';
+
+export * from './notes/notebooks/notebooks.entity';
+export * from './notes/notebooks/notebooks.dto';
+export * from './notes/notebooks/notebooks.service';
+export * from './notes/notebooks/notebooks.controller';
+export * from './notes/notebooks/notebooks.repository';
+
+export * from './notes/sections/sections.entity';
+export * from './notes/sections/sections.dto';
+export * from './notes/sections/sections.service';
+export * from './notes/sections/sections.controller';
+export * from './notes/sections/sections.repository';
+
+export * from './notes/ai/notes-ai.client';
 
 export * from './documents/documents.entity';
 export * from './documents/documents.dto';

@@ -47,7 +47,9 @@ export class ExecutionRepository extends PrismaService {
     }
     if (data.error !== undefined) {
       updateData.error = data.error
-        ? (typeof data.error === 'string' ? { message: data.error } : data.error) as Prisma.InputJsonValue
+        ? ((typeof data.error === 'string'
+            ? { message: data.error }
+            : data.error) as Prisma.InputJsonValue)
         : Prisma.JsonNull;
     }
     if (data.retryCount !== undefined) updateData.retryCount = data.retryCount;

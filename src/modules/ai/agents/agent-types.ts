@@ -4,12 +4,16 @@
  */
 
 import type { AuthenticationContext, ToolExecutionContext } from '../tools/tool-types.js';
+import type { AgentTask, AgentTaskType, VerificationStatus } from '../ai-types.js';
+
+export type { AgentTask, AgentTaskType, VerificationStatus };
 
 export type AgentStatus =
   | 'idle'
   | 'planning'
   | 'running'
   | 'waiting'
+  | 'verifying'
   | 'completed'
   | 'failed'
   | 'cancelled';

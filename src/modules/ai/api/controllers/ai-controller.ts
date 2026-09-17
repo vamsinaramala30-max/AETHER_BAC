@@ -4,15 +4,25 @@
  */
 
 import type { IAIEngine } from '../../core/ai-engine.js';
+import { globalAiEngine } from '../../core/ai-engine.js';
 import type { AIRequest } from '../../ai-types.js';
 import { handleAPIError } from '../middleware/error-handler.js';
 
 export class AIController {
-  constructor(private readonly aiEngine?: IAIEngine) {}
+  private readonly _aiEngine?: IAIEngine;
+
+  constructor(aiEngine?: IAIEngine) {
+    this._aiEngine = aiEngine;
+  }
+
+  private get aiEngine(): IAIEngine {
+    return this._aiEngine ?? globalAiEngine;
+  }
 
   public async processRequest(body: unknown, userId: string, sessionId: string) {
     try {
-      if (!this.aiEngine) {
+      const engine = this.aiEngine;
+      if (!engine) {
         return {
           success: false,
           error: { code: 'NOT_CONFIGURED', message: 'AI Engine is not initialized.' },
@@ -30,7 +40,7 @@ export class AIController {
         timestamp: Date.now(),
       };
 
-      const result = await this.aiEngine.process(request);
+      const result = await engine.process(request);
       if (!result.ok) {
         return handleAPIError(result.error);
       }

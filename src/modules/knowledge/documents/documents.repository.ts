@@ -195,11 +195,15 @@ export class DocumentsRepository {
 
       let filtered = data;
       if (query.category && query.category !== 'All Documents') {
-        filtered = filtered.filter((d) => d.category.toLowerCase() === query.category!.toLowerCase());
+        filtered = filtered.filter(
+          (d) => d.category.toLowerCase() === query.category!.toLowerCase(),
+        );
       }
       if (query.search) {
         const q = query.search.toLowerCase();
-        filtered = filtered.filter((d) => d.title.toLowerCase().includes(q) || d.description?.toLowerCase().includes(q));
+        filtered = filtered.filter(
+          (d) => d.title.toLowerCase().includes(q) || d.description?.toLowerCase().includes(q),
+        );
       }
 
       return { data: filtered, total: filtered.length };
@@ -208,4 +212,3 @@ export class DocumentsRepository {
     }
   }
 }
-

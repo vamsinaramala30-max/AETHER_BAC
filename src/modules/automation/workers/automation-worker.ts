@@ -19,7 +19,9 @@ export class AutomationWorker {
   ): Promise<void> {
     setImmediate(async () => {
       try {
-        logger.info(`[AutomationWorker] Processing background execution for automation '${automationId}'`);
+        logger.info(
+          `[AutomationWorker] Processing background execution for automation '${automationId}'`,
+        );
         await this.executionEngine.execute(automationId, triggerData, userId);
       } catch (err) {
         logger.error(`[AutomationWorker] Background execution error for '${automationId}':`, err);

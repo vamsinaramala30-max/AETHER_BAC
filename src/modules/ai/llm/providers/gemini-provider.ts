@@ -151,7 +151,13 @@ export class GeminiProvider implements ILLMProvider {
       if (err instanceof Error && err.name === 'AbortError') {
         return fail(new TimeoutError('gemini.generate', timeoutMs));
       }
-      return fail(new NetworkError('gemini', err instanceof Error ? err.message : String(err), err instanceof Error ? err : undefined));
+      return fail(
+        new NetworkError(
+          'gemini',
+          err instanceof Error ? err.message : String(err),
+          err instanceof Error ? err : undefined,
+        ),
+      );
     }
   }
 
@@ -249,12 +255,23 @@ export class GeminiProvider implements ILLMProvider {
       if (err instanceof Error && err.name === 'AbortError') {
         return fail(new TimeoutError('gemini.generateStream', timeoutMs));
       }
-      return fail(new NetworkError('gemini', err instanceof Error ? err.message : String(err), err instanceof Error ? err : undefined));
+      return fail(
+        new NetworkError(
+          'gemini',
+          err instanceof Error ? err.message : String(err),
+          err instanceof Error ? err : undefined,
+        ),
+      );
     }
   }
 
   private resolveModelId(requested?: string): string {
-    if (!requested || requested === 'auto' || requested === 'default' || requested.includes('llama')) {
+    if (
+      !requested ||
+      requested === 'auto' ||
+      requested === 'default' ||
+      requested.includes('llama')
+    ) {
       return this.defaultModel;
     }
     return requested;

@@ -36,12 +36,10 @@ export class AgentWorker {
     }
 
     try {
-      const result = await this.agentEngine.executeAgent(
-        task.agentId,
-        task.goal,
-        task.auth,
-        { signal, timeoutMs: task.timeoutMs },
-      );
+      const result = await this.agentEngine.executeAgent(task.agentId, task.goal, task.auth, {
+        signal,
+        timeoutMs: task.timeoutMs,
+      });
 
       return {
         taskId: task.taskId,

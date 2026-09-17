@@ -89,7 +89,8 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const formattedProjects = recentProjects.map((p) => {
       const totalTasks = p.tasks.length;
       const completedTasks = p.tasks.filter((t) => t.status === 'DONE').length;
-      const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : p.progress || 0;
+      const progress =
+        totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : p.progress || 0;
       return {
         id: p.id,
         name: p.name,
@@ -104,7 +105,12 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     const formattedChats = recentConversations.map((c) => {
       const diffMs = Date.now() - new Date(c.updatedAt).getTime();
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const timeStr = diffHours < 1 ? 'Just now' : diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+      const timeStr =
+        diffHours < 1
+          ? 'Just now'
+          : diffHours < 24
+            ? `${diffHours}h ago`
+            : `${Math.floor(diffHours / 24)}d ago`;
 
       return {
         id: c.id,
@@ -116,7 +122,10 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     });
 
     const formattedEvents = todayEvents.map((e) => {
-      const startTime = new Date(e.startDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const startTime = new Date(e.startDate).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
       return {
         id: e.id,
         title: e.title,

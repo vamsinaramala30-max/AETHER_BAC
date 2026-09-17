@@ -43,7 +43,9 @@ export class FocusRepository {
               durationMinutes: entity.durationMinutes,
               actualDurationSeconds: entity.actualDurationSeconds,
               distractionsCount: entity.distractionsCount,
-              startTime: entity.startTime ? entity.startTime.toISOString() : new Date().toISOString(),
+              startTime: entity.startTime
+                ? entity.startTime.toISOString()
+                : new Date().toISOString(),
             },
           },
         });
@@ -124,7 +126,10 @@ export class FocusRepository {
       });
 
       dbSessions = logs.map((log) => {
-        const m = (log.metadata && typeof log.metadata === 'object' ? log.metadata : {}) as Record<string, any>;
+        const m = (log.metadata && typeof log.metadata === 'object' ? log.metadata : {}) as Record<
+          string,
+          any
+        >;
         return new FocusSessionEntity({
           id: m.id || log.id,
           userId: log.userId,
@@ -152,4 +157,3 @@ export class FocusRepository {
     );
   }
 }
-

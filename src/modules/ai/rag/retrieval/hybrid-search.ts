@@ -4,11 +4,7 @@
  * alpha parameter controls vector vs keyword balance.
  */
 
-import type {
-  HybridSearchResult,
-  VectorSearchResult,
-  KeywordSearchResult,
-} from '../rag-types.js';
+import type { HybridSearchResult, VectorSearchResult, KeywordSearchResult } from '../rag-types.js';
 import type { ChunkId } from '../../ai-types.js';
 
 // ─── Hybrid Search Configuration ─────────────────────────────────────────────

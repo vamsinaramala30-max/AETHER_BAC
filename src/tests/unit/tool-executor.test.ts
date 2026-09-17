@@ -14,7 +14,7 @@ describe('ToolExecutor', () => {
     traceId: 'trace_1',
   };
 
-  const sampleTool: ToolDefinition<{}, { message: string }> = {
+  const sampleTool: ToolDefinition<Record<string, unknown>, { message: string }> = {
     name: 'test_tool',
     description: 'Sample test tool',
     category: 'system',

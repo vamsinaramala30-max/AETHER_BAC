@@ -8,6 +8,26 @@
 export const AETHER_AI_VERSION = '1.0.0' as const;
 export const AETHER_AI_MODULE = 'aether-ai' as const;
 
+// ─── Canonical Identity ───────────────────────────────────────────────────────
+
+export const AETHER_CANONICAL_IDENTITY = {
+  NAME: 'Aether',
+  CREATOR: 'Vamsi',
+  PRODUCT_TYPE: 'AI Life OS',
+  DESCRIPTION:
+    'Aether is an AI Life OS developed by Vamsi. Aether is an intelligent AI platform that helps users think, learn, organize, create, research, plan, manage projects, manage knowledge, remember useful context, and automate work.',
+  INTEGRATED_MODULES: [
+    'Assistant',
+    'Memory',
+    'Knowledge',
+    'Projects',
+    'Workspace',
+    'Automation',
+    'Agents',
+    'RAG',
+  ] as const,
+} as const;
+
 // ─── Token Limits ─────────────────────────────────────────────────────────────
 
 export const TOKEN_LIMITS = {
@@ -146,6 +166,69 @@ export const INTENT = {
     'steps',
     'automate',
   ] as readonly string[],
+  SUMMARIZATION_KEYWORDS: [
+    'summarize',
+    'summary',
+    'tl;dr',
+    'tldr',
+    'recap',
+    'condense',
+    'key points',
+    'brief overview',
+  ] as readonly string[],
+  WRITING_KEYWORDS: [
+    'write',
+    'draft',
+    'compose',
+    'create an email',
+    'rewrite',
+    'generate a post',
+    'author',
+  ] as readonly string[],
+  ANALYSIS_KEYWORDS: [
+    'analyze',
+    'analysis',
+    'compare',
+    'evaluate',
+    'benchmark',
+    'trade-offs',
+    'pros and cons',
+    'assess',
+  ] as readonly string[],
+  PLANNING_KEYWORDS: [
+    'plan',
+    'roadmap',
+    'schedule',
+    'strategy',
+    'break down',
+    'milestones',
+    'action plan',
+  ] as readonly string[],
+  WORKSPACE_KEYWORDS: [
+    'workspace',
+    'project status',
+    'project progress',
+    'milestones',
+    'goals',
+    'team members',
+  ] as readonly string[],
+} as const;
+
+// ─── Context Prioritization & Budgets (Phase 13 Hierarchy) ───────────────────
+
+export const CONTEXT_PRIORITY = {
+  CURRENT_REQUEST: 1,
+  CURRENT_TASK_STATE: 2,
+  RECENT_CONVERSATION: 3,
+  PROJECT_WORKSPACE: 4,
+  RELEVANT_MEMORY: 5,
+  RELEVANT_KNOWLEDGE: 6,
+  TOOL_OBSERVATIONS: 7,
+  // Backwards compatibility aliases
+  REQUEST: 1,
+  CONVERSATION_HISTORY: 3,
+  STORED_MEMORY_RAG: 5,
+  SYSTEM_INSTRUCTIONS: 8,
 } as const;
 
 // ─── Reasoning ────────────────────────────────────────────────────────────────

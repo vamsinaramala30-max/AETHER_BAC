@@ -5,7 +5,11 @@
  * Strictly user-scoped. No fake AI data.
  */
 
-import type { Conversation, ConversationMessage, SendMessageOptions } from './conversation-types.js';
+import type {
+  Conversation,
+  ConversationMessage,
+  SendMessageOptions,
+} from './conversation-types.js';
 import type { IConversationManager } from './conversation-manager.js';
 import { conversationManager } from './conversation-manager.js';
 import type { IMessageService } from './message-service.js';
@@ -13,6 +17,7 @@ import { messageService } from './message-service.js';
 import type { IHistoryManager } from './history-manager.js';
 import { historyManager } from './history-manager.js';
 import type { IAIEngine } from '../core/ai-engine.js';
+import { globalAiEngine } from '../core/ai-engine.js';
 import type { AIRequest } from '../ai-types.js';
 
 export interface ChatResponse {
@@ -23,12 +28,20 @@ export interface ChatResponse {
 }
 
 export class ConversationService {
+  private readonly _aiEngine?: IAIEngine;
+
   constructor(
     private readonly manager: IConversationManager = conversationManager,
     private readonly msgService: IMessageService = messageService,
     private readonly histManager: IHistoryManager = historyManager,
-    private readonly aiEngine?: IAIEngine,
-  ) {}
+    aiEngine?: IAIEngine,
+  ) {
+    this._aiEngine = aiEngine;
+  }
+
+  private get aiEngine(): IAIEngine {
+    return this._aiEngine ?? globalAiEngine;
+  }
 
   public async sendMessage(
     userId: string,
@@ -63,7 +76,8 @@ export class ConversationService {
     let assistantContent = '';
 
     // 3. Delegate to AIEngine if available
-    if (this.aiEngine) {
+    const engine = this.aiEngine;
+    if (engine) {
       const aiReq: AIRequest = {
         requestId: `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         userId,
@@ -81,7 +95,7 @@ export class ConversationService {
         timestamp: Date.now(),
       };
 
-      const result = await this.aiEngine.process(aiReq);
+      const result = await engine.process(aiReq);
       if (result.ok) {
         assistantContent = result.value.message;
       } else {

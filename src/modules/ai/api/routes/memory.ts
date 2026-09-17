@@ -18,11 +18,20 @@ export async function handleMemoryRoute(ctx: RouteContext) {
   }
 
   if (ctx.method === 'POST' && ctx.path === '/ai/memory') {
-    const body = (ctx.body ?? {}) as { type: MemoryType; content: string; importance?: number; ttlMs?: number };
+    const body = (ctx.body ?? {}) as {
+      type: MemoryType;
+      content: string;
+      importance?: number;
+      ttlMs?: number;
+    };
     return memoryController.createMemory(body, auth.userId);
   }
 
-  if (ctx.params?.['id'] && ctx.method === 'DELETE' && ctx.path === `/ai/memory/${ctx.params['id']}`) {
+  if (
+    ctx.params?.['id'] &&
+    ctx.method === 'DELETE' &&
+    ctx.path === `/ai/memory/${ctx.params['id']}`
+  ) {
     return memoryController.deleteMemory(ctx.params['id'], auth.userId);
   }
 

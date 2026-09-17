@@ -72,25 +72,16 @@ export class PromptEngine implements IPromptEngine {
     return all.filter((t) => t.type === type);
   }
 
-  public renderTemplate(
-    id: string,
-    variables: Record<string, string>,
-  ): Result<string> {
+  public renderTemplate(id: string, variables: Record<string, string>): Result<string> {
     const template = this.templates.get(id);
     if (!template) {
-      return fail(
-        new PromptBuildFailedError(`Prompt template "${id}" not found`),
-      );
+      return fail(new PromptBuildFailedError(`Prompt template "${id}" not found`));
     }
 
     // Validate all required variables are provided
     const missing = template.variables.filter((v) => !(v in variables));
     if (missing.length > 0) {
-      return fail(
-        new PromptBuildFailedError(
-          `Missing template variables: ${missing.join(', ')}`,
-        ),
-      );
+      return fail(new PromptBuildFailedError(`Missing template variables: ${missing.join(', ')}`));
     }
 
     let rendered = template.template;
@@ -102,9 +93,7 @@ export class PromptEngine implements IPromptEngine {
     const unreplaced = rendered.match(/\{\{[a-zA-Z_]+\}\}/g);
     if (unreplaced) {
       return fail(
-        new PromptBuildFailedError(
-          `Template has unreplaced variables: ${unreplaced.join(', ')}`,
-        ),
+        new PromptBuildFailedError(`Template has unreplaced variables: ${unreplaced.join(', ')}`),
       );
     }
 

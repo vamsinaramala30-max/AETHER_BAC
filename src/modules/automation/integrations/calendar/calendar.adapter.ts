@@ -23,7 +23,9 @@ export class CalendarAdapter {
     location?: string;
     allDay?: boolean;
   }) {
-    logger.info(`[CalendarAdapter] Creating calendar event '${params.title}' for user ${params.userId}`);
+    logger.info(
+      `[CalendarAdapter] Creating calendar event '${params.title}' for user ${params.userId}`,
+    );
     const start = new Date(params.startDate);
     const end = new Date(params.endDate);
 

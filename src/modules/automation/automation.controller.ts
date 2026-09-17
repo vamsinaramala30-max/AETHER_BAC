@@ -5,6 +5,28 @@ import { parsePaginationParams } from './utils/execution.utils';
 const automationService = new AutomationService();
 
 export class AutomationController {
+  public async parseIntent(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const prompt = req.body.prompt || req.body.userPrompt || '';
+      const result = automationService.parseIntent(prompt);
+      res.status(200).json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const workspaceId =
+        (req.headers['x-workspace-id'] as string) || (req as any).user?.workspaceId;
+      const userId = (req as any).user?.id;
+      const stats = await automationService.getStats(workspaceId, userId);
+      res.status(200).json({ success: true, data: stats });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public async createAutomation(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id;
@@ -114,7 +136,11 @@ export class AutomationController {
     }
   }
 
-  public async getAutomationActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  public async getAutomationActivity(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
       const { page, limit } = parsePaginationParams(req.query);
       const activity = await automationService.getAutomationActivity(req.params.id, page, limit);

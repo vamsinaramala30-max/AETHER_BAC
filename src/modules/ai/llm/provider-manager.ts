@@ -23,7 +23,9 @@ import { GeminiProvider } from './providers/gemini-provider.js';
 import { OpenAIProvider } from './providers/openai-provider.js';
 import { OllamaProvider } from './providers/ollama-provider.js';
 
-export type ProviderMode = 'auto' | 'gemini' | 'openai' | 'ollama';
+import { AetherModelProvider } from './providers/aether-provider.js';
+
+export type ProviderMode = 'auto' | 'aether' | 'gemini' | 'openai' | 'ollama';
 
 export interface ProviderExecutionResult<T> {
   readonly result: Result<T>;
@@ -33,6 +35,7 @@ export interface ProviderExecutionResult<T> {
 }
 
 export class ProviderManager {
+  private aetherProvider?: AetherModelProvider;
   private geminiProvider?: GeminiProvider;
   private openAIProvider?: OpenAIProvider;
   private ollamaProvider?: OllamaProvider;
@@ -41,6 +44,14 @@ export class ProviderManager {
 
   public getProvider(name: ProviderName): ILLMProvider {
     switch (name) {
+      case 'aether':
+        if (!this.aetherProvider) {
+          this.aetherProvider = new AetherModelProvider(
+            this.config.providers.localLlmBaseUrl || 'http://localhost:5002',
+            this.config.model.defaultTimeoutMs,
+          );
+        }
+        return this.aetherProvider;
       case 'gemini':
         if (!this.geminiProvider) {
           this.geminiProvider = new GeminiProvider(
@@ -72,11 +83,12 @@ export class ProviderManager {
   }
 
   public async getAllProviderStatuses(): Promise<Record<ProviderName, ProviderStatus>> {
+    const aether = await this.getProvider('aether').healthCheck();
     const gemini = await this.getProvider('gemini').healthCheck();
     const openai = await this.getProvider('openai').healthCheck();
     const ollama = await this.getProvider('ollama').healthCheck();
 
-    return { gemini, openai, ollama };
+    return { aether, gemini, openai, ollama };
   }
 
   public async generate(
@@ -93,9 +105,9 @@ export class ProviderManager {
       };
     }
 
-    // Auto Mode: Primary (Gemini) -> Fallback (OpenAI) -> Local (Ollama)
-    const primaryName = this.config.providers.primaryProvider || 'gemini';
-    const fallbackName = this.config.providers.fallbackProvider || 'openai';
+    // Auto Mode: Primary (Aether) -> Optional Fallback
+    const primaryName = this.config.providers.primaryProvider || 'aether';
+    const fallbackName = this.config.providers.fallbackProvider || 'none';
 
     const primaryProvider = this.getProvider(primaryName);
     const primaryRes = await primaryProvider.generate(request);
@@ -180,9 +192,9 @@ export class ProviderManager {
       };
     }
 
-    // Auto Mode: Primary (Gemini) -> Fallback (OpenAI) -> Local (Ollama)
-    const primaryName = this.config.providers.primaryProvider || 'gemini';
-    const fallbackName = this.config.providers.fallbackProvider || 'openai';
+    // Auto Mode: Primary (Aether) -> Optional Fallback
+    const primaryName = this.config.providers.primaryProvider || 'aether';
+    const fallbackName = this.config.providers.fallbackProvider || 'none';
 
     let chunkCount = 0;
     const trackingChunkHandler = (chunk: LLMStreamingChunk) => {

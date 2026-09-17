@@ -117,7 +117,26 @@ export class ActionEngine {
 
       case 'TASK_COMPLETE':
       case 'COMPLETE_TASK':
+        if (params.target === 'all_incomplete' || params.taskId === 'all' || params.id === 'all') {
+          return this.tasksAdapter.completeAllTasks(
+            String(context.userId || ''),
+            String(context.workspaceId || ''),
+          );
+        }
         return this.tasksAdapter.completeTask(String(params.taskId || params.id));
+
+      case 'TASK_COMPLETE_ALL':
+      case 'COMPLETE_ALL_TASKS':
+        return this.tasksAdapter.completeAllTasks(
+          String(context.userId || ''),
+          String(context.workspaceId || ''),
+        );
+
+      case 'TASK_SUMMARIZE':
+        return this.tasksAdapter.summarizeTasks(
+          String(context.userId || ''),
+          String(context.workspaceId || ''),
+        );
 
       case 'TASK_SET_PRIORITY':
       case 'SET_TASK_PRIORITY':
@@ -139,16 +158,17 @@ export class ActionEngine {
         return this.projectsAdapter.createProject({
           name: String(params.name || 'New Project'),
           description: params.description ? String(params.description) : undefined,
-          workspaceId: String(params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000'),
-          ownerId: String(params.ownerId || context.userId || '00000000-0000-0000-0000-000000000000'),
+          workspaceId: String(
+            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+          ),
+          ownerId: String(
+            params.ownerId || context.userId || '00000000-0000-0000-0000-000000000000',
+          ),
         });
 
       case 'PROJECT_UPDATE':
       case 'UPDATE_PROJECT':
-        return this.projectsAdapter.updateProject(
-          String(params.projectId || params.id),
-          params,
-        );
+        return this.projectsAdapter.updateProject(String(params.projectId || params.id), params);
 
       case 'PROJECT_ADD_TASK':
         return this.tasksAdapter.createTask({
@@ -159,10 +179,7 @@ export class ActionEngine {
 
       case 'PROJECT_UPDATE_GOAL':
       case 'UPDATE_GOAL':
-        return this.projectsAdapter.updateGoal(
-          String(params.goalId || params.id),
-          params,
-        );
+        return this.projectsAdapter.updateGoal(String(params.goalId || params.id), params);
 
       case 'PROJECT_CREATE_MILESTONE':
       case 'CREATE_MILESTONE':
@@ -177,7 +194,9 @@ export class ActionEngine {
       case 'CALENDAR_CREATE_EVENT':
       case 'CREATE_CALENDAR_EVENT':
         return this.calendarAdapter.createEvent({
-          workspaceId: String(params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000'),
+          workspaceId: String(
+            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+          ),
           userId: String(params.userId || context.userId || '00000000-0000-0000-0000-000000000000'),
           title: String(params.title || 'Automated Event'),
           description: params.description ? String(params.description) : undefined,
@@ -188,7 +207,9 @@ export class ActionEngine {
 
       case 'CALENDAR_CREATE_REMINDER':
         return this.calendarAdapter.createReminder({
-          workspaceId: String(params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000'),
+          workspaceId: String(
+            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+          ),
           userId: String(params.userId || context.userId || '00000000-0000-0000-0000-000000000000'),
           title: String(params.title || 'Reminder'),
           reminderTime: String(params.reminderTime || params.time || new Date().toISOString()),
@@ -198,14 +219,18 @@ export class ActionEngine {
       case 'KNOWLEDGE_CREATE_ITEM':
       case 'CREATE_KNOWLEDGE':
         return this.knowledgeAdapter.createKnowledgeItem({
-          workspaceId: String(params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000'),
+          workspaceId: String(
+            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+          ),
           title: String(params.title || 'Automated Knowledge Item'),
           content: String(params.content || ''),
         });
 
       case 'KNOWLEDGE_SAVE_AI_RESULT':
         return this.knowledgeAdapter.saveAIResult({
-          workspaceId: String(params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000'),
+          workspaceId: String(
+            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+          ),
           title: String(params.title || 'AI Generated Insights'),
           aiResponse: String(params.aiResponse || params.content || ''),
         });
@@ -258,7 +283,9 @@ export class ActionEngine {
         });
 
       default:
-        logger.warn(`[ActionEngine] Unhandled action type '${type}'. Executing generic parameters payload.`);
+        logger.warn(
+          `[ActionEngine] Unhandled action type '${type}'. Executing generic parameters payload.`,
+        );
         return {
           status: 'SUCCESS',
           actionType: type,

@@ -19,9 +19,7 @@ export class RateLimiter {
 
   public check(userId: string): RateLimitStatus {
     const now = Date.now();
-    const timestamps = (this.requests.get(userId) ?? []).filter(
-      (ts) => now - ts < this.windowMs,
-    );
+    const timestamps = (this.requests.get(userId) ?? []).filter((ts) => now - ts < this.windowMs);
 
     if (timestamps.length >= this.maxRequests) {
       const oldest = timestamps[0]!;

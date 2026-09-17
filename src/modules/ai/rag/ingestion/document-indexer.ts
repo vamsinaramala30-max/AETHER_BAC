@@ -7,7 +7,13 @@
 import type { Result } from '../../ai-types.js';
 import { ok, fail } from '../../ai-types.js';
 import { IndexingFailedError, EmbeddingFailedError } from '../../ai-errors.js';
-import type { DocumentChunk, IndexedDocument, IVectorStore, IChunkStore } from '../rag-types.js';
+import type {
+  DocumentChunk,
+  IndexedDocument,
+  IVectorStore,
+  IChunkStore,
+  IKeywordIndex,
+} from '../rag-types.js';
 import type { IEmbeddingEngine } from '../embeddings/embedding-engine.js';
 
 // ─── IDocumentIndexer Interface ───────────────────────────────────────────────
@@ -24,11 +30,10 @@ export class DocumentIndexer implements IDocumentIndexer {
     private readonly embeddingEngine: IEmbeddingEngine,
     private readonly vectorStore: IVectorStore,
     private readonly chunkStore: IChunkStore,
+    private readonly keywordIndex?: IKeywordIndex,
   ) {}
 
-  public async index(
-    chunks: readonly DocumentChunk[],
-  ): Promise<Result<IndexedDocument>> {
+  public async index(chunks: readonly DocumentChunk[]): Promise<Result<IndexedDocument>> {
     if (chunks.length === 0) {
       return fail(new IndexingFailedError('unknown', 'No chunks to index'));
     }
@@ -39,42 +44,33 @@ export class DocumentIndexer implements IDocumentIndexer {
     for (const chunk of chunks) {
       if (chunk.documentId !== documentId) {
         return fail(
-          new IndexingFailedError(
-            documentId,
-            'All chunks must belong to the same document',
-          ),
+          new IndexingFailedError(documentId, 'All chunks must belong to the same document'),
         );
       }
     }
 
-    // Embed all chunks
-    const embeddingResult = await this.embeddingEngine.embedBatch(
-      chunks.map((c) => c.text),
-    );
-    if (!embeddingResult.ok) {
-      return fail(
-        new IndexingFailedError(
-          documentId,
-          `Embedding failed: ${embeddingResult.error.message}`,
-        ),
-      );
+    // Embed all chunks (if embedding engine is unavailable/fails, store without embeddings for keyword-only retrieval)
+    let embeddedChunks: readonly DocumentChunk[] = chunks;
+    const isAvailable = await this.embeddingEngine.isAvailable();
+    if (isAvailable) {
+      const embeddingResult = await this.embeddingEngine.embedBatch(chunks.map((c) => c.text));
+      if (embeddingResult.ok) {
+        const embeddings = embeddingResult.value;
+        if (embeddings.length === chunks.length) {
+          const dims = this.embeddingEngine.getDimensions();
+          embeddedChunks = chunks.map((chunk, i) => ({
+            ...chunk,
+            embedding: embeddings[i]!,
+            metadata: {
+              ...chunk.metadata,
+              embeddingModel: 'authoritative-local',
+              embeddingVersion: '1.0',
+              embeddingDimension: dims,
+            },
+          }));
+        }
+      }
     }
-
-    const embeddings = embeddingResult.value;
-    if (embeddings.length !== chunks.length) {
-      return fail(
-        new IndexingFailedError(
-          documentId,
-          `Embedding count mismatch: expected ${chunks.length}, got ${embeddings.length}`,
-        ),
-      );
-    }
-
-    // Attach embeddings to chunks
-    const embeddedChunks: DocumentChunk[] = chunks.map((chunk, i) => ({
-      ...chunk,
-      embedding: embeddings[i]!,
-    }));
 
     // Save raw chunks to chunk store
     try {
@@ -90,9 +86,14 @@ export class DocumentIndexer implements IDocumentIndexer {
       );
     }
 
-    // Upsert into vector store
+    // Upsert into vector store if embeddings are present
     try {
-      await this.vectorStore.upsert(embeddedChunks);
+      const chunksWithEmbeddings = embeddedChunks.filter(
+        (c) => c.embedding && c.embedding.length > 0,
+      );
+      if (chunksWithEmbeddings.length > 0) {
+        await this.vectorStore.upsert(chunksWithEmbeddings);
+      }
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
       return fail(
@@ -117,6 +118,9 @@ export class DocumentIndexer implements IDocumentIndexer {
     try {
       await this.vectorStore.deleteByDocument(documentId);
       await this.chunkStore.deleteByDocument(documentId);
+      if (this.keywordIndex) {
+        await this.keywordIndex.deleteByDocument(documentId);
+      }
       return ok(undefined);
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;

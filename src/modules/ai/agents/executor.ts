@@ -14,7 +14,10 @@ export interface IAgentStepExecutor {
 export class AgentStepExecutor implements IAgentStepExecutor {
   constructor(private readonly toolExecutor?: IToolExecutor) {}
 
-  public async executeStep(step: PlanStep, context: ToolExecutionContext): Promise<AgentObservation> {
+  public async executeStep(
+    step: PlanStep,
+    context: ToolExecutionContext,
+  ): Promise<AgentObservation> {
     const timestamp = new Date().toISOString();
 
     if (step.toolName && this.toolExecutor) {

@@ -61,30 +61,74 @@ export class TriggerEngine {
    */
   private registerSystemEvents(): void {
     // Task events
-    eventBus.on('task.created', (payload) => this.dispatchEvent('TASK_CREATED', payload as Record<string, unknown>));
-    eventBus.on('task.completed', (payload) => this.dispatchEvent('TASK_COMPLETED', payload as Record<string, unknown>));
-    eventBus.on('task.overdue', (payload) => this.dispatchEvent('TASK_OVERDUE', payload as Record<string, unknown>));
+    eventBus.on('task.created', (payload) =>
+      this.dispatchEvent('TASK_CREATED', payload as Record<string, unknown>),
+    );
+    eventBus.on('task.completed', (payload) =>
+      this.dispatchEvent('TASK_COMPLETED', payload as Record<string, unknown>),
+    );
+    eventBus.on('task.overdue', (payload) =>
+      this.dispatchEvent('TASK_OVERDUE', payload as Record<string, unknown>),
+    );
 
-    // Calendar events
-    eventBus.on('calendar.event_created', (payload) => this.dispatchEvent('CALENDAR_EVENT_CREATED', payload as Record<string, unknown>));
-    eventBus.on('calendar.event_updated', (payload) => this.dispatchEvent('CALENDAR_EVENT_UPDATED', payload as Record<string, unknown>));
+    // Calendar & Focus events
+    eventBus.on('calendar.event_created', (payload) =>
+      this.dispatchEvent('CALENDAR_EVENT_CREATED', payload as Record<string, unknown>),
+    );
+    eventBus.on('calendar.event_updated', (payload) =>
+      this.dispatchEvent('CALENDAR_EVENT_UPDATED', payload as Record<string, unknown>),
+    );
+    eventBus.on('calendar.event', (payload) =>
+      this.dispatchEvent('CALENDAR_EVENT', payload as Record<string, unknown>),
+    );
+    eventBus.on('focus_session.completed', (payload) =>
+      this.dispatchEvent('FOCUS_SESSION_COMPLETED', payload as Record<string, unknown>),
+    );
 
     // Project & Goal events
-    eventBus.on('project.created', (payload) => this.dispatchEvent('PROJECT_CREATED', payload as Record<string, unknown>));
-    eventBus.on('project.updated', (payload) => this.dispatchEvent('PROJECT_UPDATED', payload as Record<string, unknown>));
-    eventBus.on('goal.updated', (payload) => this.dispatchEvent('GOAL_UPDATED', payload as Record<string, unknown>));
+    eventBus.on('project.created', (payload) =>
+      this.dispatchEvent('PROJECT_CREATED', payload as Record<string, unknown>),
+    );
+    eventBus.on('project.updated', (payload) =>
+      this.dispatchEvent('PROJECT_UPDATED', payload as Record<string, unknown>),
+    );
+    eventBus.on('project.completed', (payload) =>
+      this.dispatchEvent('PROJECT_COMPLETED', payload as Record<string, unknown>),
+    );
+    eventBus.on('goal.updated', (payload) =>
+      this.dispatchEvent('GOAL_UPDATED', payload as Record<string, unknown>),
+    );
 
-    // Knowledge & File events
-    eventBus.on('document.created', (payload) => this.dispatchEvent('DOCUMENT_CREATED', payload as Record<string, unknown>));
-    eventBus.on('document.updated', (payload) => this.dispatchEvent('DOCUMENT_UPDATED', payload as Record<string, unknown>));
-    eventBus.on('file.uploaded', (payload) => this.dispatchEvent('FILE_UPLOADED', payload as Record<string, unknown>));
+    // Knowledge & File & Note events
+    eventBus.on('document.created', (payload) =>
+      this.dispatchEvent('DOCUMENT_CREATED', payload as Record<string, unknown>),
+    );
+    eventBus.on('document.updated', (payload) =>
+      this.dispatchEvent('DOCUMENT_UPDATED', payload as Record<string, unknown>),
+    );
+    eventBus.on('note.created', (payload) =>
+      this.dispatchEvent('NOTE_CREATED', payload as Record<string, unknown>),
+    );
+    eventBus.on('file.uploaded', (payload) =>
+      this.dispatchEvent('FILE_UPLOADED', payload as Record<string, unknown>),
+    );
+    eventBus.on('knowledge.updated', (payload) =>
+      this.dispatchEvent('KNOWLEDGE_UPDATED', payload as Record<string, unknown>),
+    );
 
-    // AI & Agent events
-    eventBus.on('ai.event', (payload) => this.dispatchEvent('AI_EVENT', payload as Record<string, unknown>));
-    eventBus.on('agent.event', (payload) => this.dispatchEvent('AGENT_EVENT', payload as Record<string, unknown>));
-
-    // Notification events
-    eventBus.on('notification.event', (payload) => this.dispatchEvent('NOTIFICATION_EVENT', payload as Record<string, unknown>));
+    // AI, Agent & Automation events
+    eventBus.on('ai.event', (payload) =>
+      this.dispatchEvent('AI_EVENT', payload as Record<string, unknown>),
+    );
+    eventBus.on('agent.event', (payload) =>
+      this.dispatchEvent('AGENT_EVENT', payload as Record<string, unknown>),
+    );
+    eventBus.on('notification.event', (payload) =>
+      this.dispatchEvent('NOTIFICATION_EVENT', payload as Record<string, unknown>),
+    );
+    eventBus.on('automation.executed', (payload) =>
+      this.dispatchEvent('AUTOMATION_COMPLETED', payload as Record<string, unknown>),
+    );
   }
 }
 

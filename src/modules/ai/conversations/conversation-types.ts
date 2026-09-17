@@ -51,7 +51,7 @@ export interface AddMessageRequest {
 
 export interface SendMessageOptions {
   readonly modelId?: string;
-  readonly providerMode?: 'auto' | 'gemini' | 'openai' | 'ollama';
+  readonly providerMode?: 'auto' | 'aether' | 'gemini' | 'openai' | 'ollama';
   readonly enableMemory?: boolean;
   readonly enableRAG?: boolean;
   readonly ragCollectionIds?: readonly string[];

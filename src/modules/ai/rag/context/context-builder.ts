@@ -12,11 +12,7 @@ import { defaultTokenizer } from '../../llm/tokenizer.js';
 // ─── IContextBuilder Interface ────────────────────────────────────────────────
 
 export interface IContextBuilder {
-  build(
-    query: string,
-    chunks: readonly DocumentChunk[],
-    maxTokens: number,
-  ): BuiltRAGContext;
+  build(query: string, chunks: readonly DocumentChunk[], maxTokens: number): BuiltRAGContext;
 }
 
 // ─── Context Builder Implementation ──────────────────────────────────────────
@@ -52,13 +48,10 @@ export class ContextBuilder implements IContextBuilder {
         chunkId: chunk.id,
         title: String(chunk.metadata.title ?? chunk.documentId),
         source: String(chunk.metadata.source ?? chunk.documentId),
-        pageNumber: typeof chunk.metadata.pageNumber === 'number'
-          ? chunk.metadata.pageNumber
-          : undefined,
+        pageNumber:
+          typeof chunk.metadata.pageNumber === 'number' ? chunk.metadata.pageNumber : undefined,
         excerpt: chunk.text.slice(0, 200),
-        relevanceScore: typeof chunk.metadata.score === 'number'
-          ? chunk.metadata.score
-          : 0,
+        relevanceScore: typeof chunk.metadata.score === 'number' ? chunk.metadata.score : 0,
       };
 
       const retrieved: RetrievedDocument = {

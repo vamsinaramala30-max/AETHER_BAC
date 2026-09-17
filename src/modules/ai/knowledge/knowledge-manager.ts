@@ -4,7 +4,11 @@
  * Connects directly to Part 1 RAG Engine for query execution — does NOT duplicate RAG logic.
  */
 
-import type { KnowledgeCollection, KnowledgeSearchOptions, KnowledgeSearchResult } from './knowledge-types.js';
+import type {
+  KnowledgeCollection,
+  KnowledgeSearchOptions,
+  KnowledgeSearchResult,
+} from './knowledge-types.js';
 import type { IRAGEngine } from '../rag/rag-engine.js';
 import type { Result } from '../ai-types.js';
 
@@ -13,7 +17,10 @@ export interface IKnowledgeManager {
   getCollection(id: string): Promise<KnowledgeCollection | undefined>;
   listCollections(): Promise<readonly KnowledgeCollection[]>;
   deleteCollection(id: string): Promise<boolean>;
-  search(query: string, options?: KnowledgeSearchOptions): Promise<readonly KnowledgeSearchResult[]>;
+  search(
+    query: string,
+    options?: KnowledgeSearchOptions,
+  ): Promise<readonly KnowledgeSearchResult[]>;
 }
 
 export class KnowledgeManager implements IKnowledgeManager {
@@ -56,9 +63,7 @@ export class KnowledgeManager implements IKnowledgeManager {
       return [];
     }
 
-    const collectionIds = options.collectionId
-      ? [options.collectionId]
-      : options.collectionIds;
+    const collectionIds = options.collectionId ? [options.collectionId] : options.collectionIds;
 
     const result = await this.ragEngine.query({
       text: query,

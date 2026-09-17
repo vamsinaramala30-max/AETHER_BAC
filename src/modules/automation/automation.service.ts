@@ -7,9 +7,15 @@ import { ExecutionEngine } from './engine/execution-engine';
 import { AutomationScheduler } from './scheduler/automation-scheduler';
 import { AutomationWorker } from './workers/automation-worker';
 import { AppError } from '../../middleware/error.middleware';
-import { CreateAutomationInput, UpdateAutomationInput, AutomationTemplate } from './automation.types';
+import {
+  CreateAutomationInput,
+  UpdateAutomationInput,
+  AutomationTemplate,
+} from './automation.types';
 import { isValidUuid } from './utils/automation.utils';
 import { logger } from '../../config';
+
+import { automationIntentParser } from './services/intent-parser.service';
 
 export class AutomationService {
   private autoRepo: AutomationRepository;
@@ -18,8 +24,10 @@ export class AutomationService {
   private executionEngine: ExecutionEngine;
   private scheduler: AutomationScheduler;
   private worker: AutomationWorker;
+  private prisma: PrismaClient;
 
   constructor(prisma: PrismaClient = db) {
+    this.prisma = prisma;
     this.autoRepo = new AutomationRepository();
     this.execRepo = new ExecutionRepository();
     this.actRepo = new ActivityRepository();
@@ -29,6 +37,10 @@ export class AutomationService {
 
     // Initialize scheduled automations
     this.scheduler.initializeScheduledAutomations();
+  }
+
+  public parseIntent(prompt: string) {
+    return automationIntentParser.parsePrompt(prompt);
   }
 
   public async createAutomation(input: CreateAutomationInput) {
@@ -166,16 +178,90 @@ export class AutomationService {
   public async runAutomation(id: string, triggerData?: Record<string, unknown>, userId?: string) {
     const auto = await this.getAutomationById(id);
 
-    logger.info(`[AutomationService] Manually triggering automation '${id}' for user ${userId || 'system'}`);
+    logger.info(
+      `[AutomationService] Manually executing automation '${id}' for user ${userId || 'system'}`,
+    );
 
-    // Queue for background execution to prevent blocking HTTP response
-    await this.worker.queueExecution(auto.id, triggerData, userId);
+    const result = await this.executionEngine.execute(auto.id, triggerData, userId);
 
     return {
-      message: 'Automation execution queued successfully',
+      message: 'Automation executed successfully',
       automationId: auto.id,
-      status: 'QUEUED',
-      triggeredAt: new Date().toISOString(),
+      executionId: result.executionId,
+      status: result.status,
+      result: result.result,
+      executedAt: new Date().toISOString(),
+    };
+  }
+
+  public async getStats(workspaceId?: string, userId?: string) {
+    const autoWhere: any = { deletedAt: null };
+    const execWhere: any = {};
+
+    if (workspaceId && workspaceId !== '00000000-0000-0000-0000-000000000000') {
+      autoWhere.workspaceId = workspaceId;
+      execWhere.workspaceId = workspaceId;
+    }
+    if (userId && userId !== '00000000-0000-0000-0000-000000000000') {
+      autoWhere.userId = userId;
+      execWhere.userId = userId;
+    }
+
+    const automations = await this.prisma.automation.findMany({
+      where: autoWhere,
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        isEnabled: true,
+        schedule: true,
+        lastRunAt: true,
+        runCount: true,
+      },
+    });
+
+    const activeCount = automations.filter(
+      (a) => a.isEnabled && a.status === AutomationStatus.ACTIVE,
+    ).length;
+    const pausedCount = automations.filter(
+      (a) => !a.isEnabled || a.status === AutomationStatus.PAUSED,
+    ).length;
+    const failedCount = automations.filter((a) => a.status === AutomationStatus.FAILED).length;
+
+    const executionsCount = await this.prisma.automationExecution.count({ where: execWhere });
+    const successExecutionsCount = await this.prisma.automationExecution.count({
+      where: { ...execWhere, status: AutomationStatus.COMPLETED },
+    });
+    const failedExecutionsCount = await this.prisma.automationExecution.count({
+      where: { ...execWhere, status: AutomationStatus.FAILED },
+    });
+
+    const successRate =
+      executionsCount > 0 ? Math.round((successExecutionsCount / executionsCount) * 100) : 100;
+    const timeSavedHours =
+      executionsCount > 0 ? parseFloat((executionsCount * 0.25).toFixed(1)) : 0;
+
+    const upcomingRuns = automations
+      .filter((a) => a.isEnabled && a.schedule)
+      .map((a) => ({
+        id: a.id,
+        name: a.name,
+        schedule: a.schedule,
+        nextRunAt: new Date(Date.now() + 3600000).toISOString(),
+      }));
+
+    return {
+      totalAutomations: automations.length,
+      activeCount,
+      pausedCount,
+      failedCount,
+      totalExecutions: executionsCount,
+      successfulExecutions: successExecutionsCount,
+      failedExecutions: failedExecutionsCount,
+      successRate,
+      timeSavedHours,
+      upcomingRuns,
+      systemHealth: failedExecutionsCount > 0 || failedCount > 0 ? 'Attention Required' : 'Optimal',
     };
   }
 
@@ -203,7 +289,11 @@ export class AutomationService {
   public async approveExecution(executionId: string, userId?: string) {
     const success = await this.executionEngine.approveExecution(executionId, userId);
     if (!success) {
-      throw new AppError('Pending execution not found or already processed', 404, 'EXECUTION_NOT_FOUND');
+      throw new AppError(
+        'Pending execution not found or already processed',
+        404,
+        'EXECUTION_NOT_FOUND',
+      );
     }
     return { message: 'Execution step approved and resumed' };
   }
@@ -211,7 +301,11 @@ export class AutomationService {
   public async rejectExecution(executionId: string, reason?: string) {
     const success = await this.executionEngine.rejectExecution(executionId, reason);
     if (!success) {
-      throw new AppError('Pending execution not found or already processed', 404, 'EXECUTION_NOT_FOUND');
+      throw new AppError(
+        'Pending execution not found or already processed',
+        404,
+        'EXECUTION_NOT_FOUND',
+      );
     }
     return { message: 'Execution step rejected and cancelled' };
   }
@@ -233,7 +327,8 @@ export class AutomationService {
       {
         id: 'tpl_task_auto_assign',
         name: 'Auto-Organize Urgent Tasks',
-        description: 'Automatically elevates priority and sets reminders for overdue high priority tasks',
+        description:
+          'Automatically elevates priority and sets reminders for overdue high priority tasks',
         category: 'tasks',
         icon: 'CheckSquare',
         trigger: { type: 'TASK_OVERDUE' },
@@ -249,14 +344,13 @@ export class AutomationService {
         category: 'calendar',
         icon: 'Calendar',
         trigger: { type: 'PROJECT_CREATED' },
-        actions: [
-          { type: 'CALENDAR_CREATE_EVENT', params: { title: 'Kickoff Meeting' } },
-        ],
+        actions: [{ type: 'CALENDAR_CREATE_EVENT', params: { title: 'Kickoff Meeting' } }],
       },
       {
         id: 'tpl_knowledge_indexer',
         name: 'AI Document Knowledge Base Indexer',
-        description: 'Analyzes uploaded documents and stores extracted knowledge in the vector knowledge base',
+        description:
+          'Analyzes uploaded documents and stores extracted knowledge in the vector knowledge base',
         category: 'files',
         icon: 'BookOpen',
         trigger: { type: 'FILE_UPLOADED' },
@@ -268,7 +362,13 @@ export class AutomationService {
     ];
   }
 
-  public async getLogs(query: { search?: string; status?: string; page?: number; limit?: number; workspaceId?: string }) {
+  public async getLogs(query: {
+    search?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+    workspaceId?: string;
+  }) {
     return this.getAllActivity(query);
   }
 }

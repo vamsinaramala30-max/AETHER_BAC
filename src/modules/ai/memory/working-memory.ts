@@ -23,13 +23,7 @@ interface WorkingEntry {
 // ─── IWorkingMemory Interface ─────────────────────────────────────────────────
 
 export interface IWorkingMemory {
-  set(
-    userId: UserId,
-    sessionId: SessionId,
-    key: string,
-    value: string,
-    ttlMs?: number,
-  ): void;
+  set(userId: UserId, sessionId: SessionId, key: string, value: string, ttlMs?: number): void;
   get(userId: UserId, sessionId: SessionId, key: string): string | undefined;
   delete(userId: UserId, sessionId: SessionId, key: string): void;
   getAll(userId: UserId, sessionId: SessionId): WorkingMemoryContext;
@@ -44,7 +38,7 @@ export class WorkingMemory implements IWorkingMemory {
   private readonly store = new Map<string, WorkingEntry>();
   private readonly defaultTTLMs: number;
 
-  constructor(defaultTTLMs = MEMORY.WORKING_MEMORY_TTL_MS) {
+  constructor(defaultTTLMs: number = MEMORY.WORKING_MEMORY_TTL_MS) {
     this.defaultTTLMs = defaultTTLMs;
   }
 

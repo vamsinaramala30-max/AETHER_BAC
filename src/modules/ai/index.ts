@@ -3,6 +3,17 @@
  * Public exports for the AETHER AI module (Part 1 & Part 2).
  */
 
+// ─── Authoritative Core Subsystem Contracts ──────────────────────────────────
+
+export type {
+  IModelProvider,
+  IRAGProvider,
+  IMemoryProvider,
+  IToolProvider,
+  ICoreOrchestrator,
+  ModelStatusInfo,
+} from './interfaces/core-contracts.js';
+
 // ─── Shared Types ─────────────────────────────────────────────────────────────
 
 export type {
@@ -24,6 +35,12 @@ export type {
   // Streaming
   StreamingChunk,
   StreamingStatus,
+  // Verification & Reliability (Prompt 25)
+  VerificationStatus,
+  VerificationType,
+  EvidenceSourceType,
+  EvidenceItem,
+  ExecutionReliabilityState,
   // Intent
   Intent,
   IntentType,
@@ -84,10 +101,7 @@ export type {
   ConfigValidationResult,
 } from './ai-config.js';
 
-export {
-  buildDefaultAIConfig,
-  validateAIConfig,
-} from './ai-config.js';
+export { buildDefaultAIConfig, validateAIConfig } from './ai-config.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -164,11 +178,18 @@ export { StreamingEngine } from './core/streaming-engine.js';
 export type { IConfidenceEngine } from './core/confidence-engine.js';
 export { ConfidenceEngine, confidenceEngine } from './core/confidence-engine.js';
 
-export type { IResponseValidator, ResponseValidationResult } from './core/response-validator.js';
+export type {
+  IResponseValidator,
+  ResponseValidationResult,
+  ClaimsAnalysis,
+} from './core/response-validator.js';
 export { ResponseValidator, responseValidator } from './core/response-validator.js';
 
 export type { IConfirmationManager, ActionRiskLevel } from './core/confirmation-manager.js';
 export { ConfirmationManager, confirmationManager } from './core/confirmation-manager.js';
+
+export { ResponseSynthesizer, responseSynthesizer } from './core/response-synthesizer.js';
+export type { SynthesisInput, SynthesisResult } from './core/response-synthesizer.js';
 
 // ─── LLM ─────────────────────────────────────────────────────────────────────
 
@@ -418,12 +439,12 @@ export { DocumentService, documentService } from './knowledge/document-service.j
 
 // ─── Models (Part 2) ──────────────────────────────────────────────────────────
 
-export type {
-  ModelMetadata,
-  ModelHealthReport,
-} from './models/model-types.js';
+export type { ModelMetadata, ModelHealthReport } from './models/model-types.js';
 export { ModelService, modelService } from './models/model-service.js';
-export { ModelManager as ModelServiceManager, modelManager as modelServiceManager } from './models/model-manager.js';
+export {
+  ModelManager as ModelServiceManager,
+  modelManager as modelServiceManager,
+} from './models/model-manager.js';
 export { ModelStorage, modelStorage } from './models/model-storage.js';
 export { ModelHealthChecker, modelHealthChecker } from './models/model-health.js';
 
@@ -467,9 +488,64 @@ export { agentWorker, AgentWorker } from './workers/agent-worker.js';
 export { logger, Logger } from './observability/logger.js';
 export { metrics, MetricsRegistry } from './observability/metrics.js';
 export { tracer, Tracer } from './observability/tracing.js';
-export { healthChecker, HealthChecker } from './observability/health.js';
+// ─── Planning & Audit (Prompt 6) ─────────────────────────────────────────────
+
+export type {
+  ActionPlan,
+  PlanStep as ActionPlanStep,
+  PlanExecutionStatus,
+  PlanExecutionResult,
+  PlanValidationResult,
+} from './planning/planning-types.js';
+
+export { PlanningEngine, planningEngine } from './planning/planning-engine.js';
+export { PlanExecutor, planExecutor } from './planning/plan-executor.js';
+export { ActionAuditLogger, actionAuditLogger } from './audit/action-audit-logger.js';
+export {
+  goalTools,
+  createGoalTool,
+  getGoalTool,
+  listGoalsTool,
+  updateGoalTool,
+  getGoalProgressTool,
+  deleteGoalTool,
+} from './tools/goal-tools.js';
+export {
+  productivityTools,
+  getProductivitySummaryTool,
+  getTodaysScheduleTool,
+  getFocusSessionsTool,
+} from './tools/productivity-tools.js';
+
+// ─── Autonomous Agent Execution Loop (Prompt 8) ──────────────────────────────
+
+export type {
+  ExecutionStatus,
+  ExecutionStepStatus,
+  FailureCategory,
+  ExecutionContext,
+  AgentExecution,
+  AgentExecutionStep,
+  AgentExecutionAttempt,
+  ExecutionStepResult,
+  ExecutionResult,
+  ApprovalRequest,
+  UserInputRequest,
+  ExecutionEventType,
+  ExecutionEvent,
+  ExecutionOptions,
+  StartExecutionRequest,
+  RecoveryDecision,
+} from './execution/execution-types.js';
+
+export { ExecutionEngine, executionEngine } from './execution/execution-engine.js';
+export { ExecutionRepository, executionRepository } from './execution/execution-repository.js';
+export { ExecutionStateMachine, executionStateMachine, InvalidTransitionError } from './execution/execution-state-machine.js';
+export { ExecutionVerifier, executionVerifier } from './execution/execution-verifier.js';
+export { ExecutionRecovery, executionRecovery } from './execution/execution-recovery.js';
+export { ExecutionContextBuilder, executionContextBuilder } from './execution/execution-context.js';
+export { ExecutionController, executionController } from './execution/execution-controller.js';
 
 // ─── Module Export ────────────────────────────────────────────────────────────
 
 export { AiModule, AiExpressController, ModelsExpressController } from './ai.module.js';
-

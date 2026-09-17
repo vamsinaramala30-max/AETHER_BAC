@@ -11,7 +11,10 @@ function toUuid(id: string): string {
 
 export interface IMessageRepository {
   save(userId: string, message: ConversationMessage): Promise<void>;
-  getByConversation(conversationId: string, userId: string): Promise<readonly ConversationMessage[]>;
+  getByConversation(
+    conversationId: string,
+    userId: string,
+  ): Promise<readonly ConversationMessage[]>;
   deleteByConversation(conversationId: string, userId: string): Promise<void>;
 }
 
@@ -44,7 +47,10 @@ export class MessageRepository implements IMessageRepository {
     }
   }
 
-  public async getByConversation(conversationId: string, userId: string): Promise<readonly ConversationMessage[]> {
+  public async getByConversation(
+    conversationId: string,
+    userId: string,
+  ): Promise<readonly ConversationMessage[]> {
     const validConvId = toUuid(conversationId);
     let dbMsgs: ConversationMessage[] = [];
 
@@ -101,4 +107,3 @@ export class MessageRepository implements IMessageRepository {
 }
 
 export const messageRepository = new MessageRepository();
-

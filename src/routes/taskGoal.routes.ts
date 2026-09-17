@@ -67,16 +67,12 @@ router.get(
 
 router.put(
   '/tasks/:id',
-  handle((req) =>
-    tasksController.update({ params: { id: req.params.id }, body: req.body }),
-  ),
+  handle((req) => tasksController.update({ params: { id: req.params.id }, body: req.body })),
 );
 
 router.patch(
   '/tasks/:id',
-  handle((req) =>
-    tasksController.update({ params: { id: req.params.id }, body: req.body }),
-  ),
+  handle((req) => tasksController.update({ params: { id: req.params.id }, body: req.body })),
 );
 
 router.delete(
@@ -118,9 +114,7 @@ router.get(
 
 router.put(
   '/goals/:id',
-  handle((req) =>
-    goalsController.update({ params: { id: req.params.id }, body: req.body }),
-  ),
+  handle((req) => goalsController.update({ params: { id: req.params.id }, body: req.body })),
 );
 
 router.patch(

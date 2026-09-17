@@ -23,12 +23,7 @@ export interface ModelInfo {
 // ─── Model Status ─────────────────────────────────────────────────────────────
 
 export type ModelStatusCode =
-  | 'available'
-  | 'loading'
-  | 'loaded'
-  | 'unloading'
-  | 'unavailable'
-  | 'error';
+  'available' | 'loading' | 'loaded' | 'unloading' | 'unavailable' | 'error';
 
 export interface ModelStatus {
   readonly modelId: ModelId;
@@ -40,11 +35,7 @@ export interface ModelStatus {
 
 // ─── Runtime Status ───────────────────────────────────────────────────────────
 
-export type RuntimeStatusCode =
-  | 'healthy'
-  | 'degraded'
-  | 'unavailable'
-  | 'unconfigured';
+export type RuntimeStatusCode = 'healthy' | 'degraded' | 'unavailable' | 'unconfigured';
 
 export interface RuntimeStatus {
   readonly runtimeType: string;
@@ -99,11 +90,7 @@ export interface GenerationResponse {
   readonly latencyMs: number;
 }
 
-export type FinishReason =
-  | 'stop'
-  | 'length'
-  | 'cancelled'
-  | 'error';
+export type FinishReason = 'stop' | 'length' | 'cancelled' | 'error';
 
 // ─── Streaming Chunk ──────────────────────────────────────────────────────────
 

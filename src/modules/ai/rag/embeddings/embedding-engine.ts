@@ -99,9 +99,7 @@ export class EmbeddingEngine implements IEmbeddingEngine {
 
     // Embed uncached texts in batches
     if (uncachedTexts.length > 0) {
-      const batchResult = await this.model.embedBatch(
-        uncachedTexts.map((u) => u.text),
-      );
+      const batchResult = await this.model.embedBatch(uncachedTexts.map((u) => u.text));
       if (!batchResult.ok) return batchResult;
 
       for (let j = 0; j < uncachedTexts.length; j++) {

@@ -81,6 +81,11 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly']).default('info'),
+
+  // Observability & Telemetry (Prompt 9)
+  PROMPTS_LOGGED: z.string().transform((v) => v === 'true').default('false'),
+  OUTPUTS_LOGGED: z.string().transform((v) => v === 'true').default('false'),
+  TRACE_SAMPLE_RATE: z.string().transform((v) => parseFloat(v)).default('1.0'),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;

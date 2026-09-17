@@ -162,7 +162,13 @@ export class OpenAIProvider implements ILLMProvider {
       if (err instanceof Error && err.name === 'AbortError') {
         return fail(new TimeoutError('openai.generate', timeoutMs));
       }
-      return fail(new NetworkError('openai', err instanceof Error ? err.message : String(err), err instanceof Error ? err : undefined));
+      return fail(
+        new NetworkError(
+          'openai',
+          err instanceof Error ? err.message : String(err),
+          err instanceof Error ? err : undefined,
+        ),
+      );
     }
   }
 
@@ -269,12 +275,24 @@ export class OpenAIProvider implements ILLMProvider {
       if (err instanceof Error && err.name === 'AbortError') {
         return fail(new TimeoutError('openai.generateStream', timeoutMs));
       }
-      return fail(new NetworkError('openai', err instanceof Error ? err.message : String(err), err instanceof Error ? err : undefined));
+      return fail(
+        new NetworkError(
+          'openai',
+          err instanceof Error ? err.message : String(err),
+          err instanceof Error ? err : undefined,
+        ),
+      );
     }
   }
 
   private resolveModelId(requested?: string): string {
-    if (!requested || requested === 'auto' || requested === 'default' || requested.includes('gemini') || requested.includes('llama')) {
+    if (
+      !requested ||
+      requested === 'auto' ||
+      requested === 'default' ||
+      requested.includes('gemini') ||
+      requested.includes('llama')
+    ) {
       return this.defaultModel;
     }
     return requested;

@@ -29,7 +29,10 @@ export interface VectorQueryOptions {
 export interface VectorDatabaseProvider {
   insert(record: VectorRecord): Promise<void>;
   insertBatch(records: readonly VectorRecord[]): Promise<void>;
-  search(queryVector: readonly number[], options: VectorQueryOptions): Promise<readonly VectorSearchResult[]>;
+  search(
+    queryVector: readonly number[],
+    options: VectorQueryOptions,
+  ): Promise<readonly VectorSearchResult[]>;
   update(record: VectorRecord): Promise<void>;
   delete(id: string): Promise<boolean>;
   deleteByFilter(filter: Readonly<Record<string, unknown>>): Promise<number>;

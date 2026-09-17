@@ -4,11 +4,13 @@
  * Coordinates: load → parse → clean → chunk → embed → index → retrieve → context.
  */
 
+import crypto from 'node:crypto';
 import type { Result } from '../ai-types.js';
 import { ok, fail } from '../ai-types.js';
 import { RAGFailedError, NotConfiguredError } from '../ai-errors.js';
-import type { AIConfig } from '../ai-config.js';
+import { buildDefaultAIConfig, type AIConfig } from '../ai-config.js';
 import type { DocumentSource } from './ingestion/document-loader.js';
+import { knowledgeChunkRepository } from '../storage/repositories/knowledge-chunk-repository.js';
 import { DocumentLoader } from './ingestion/document-loader.js';
 import { DocumentParser } from './ingestion/document-parser.js';
 import { DocumentCleaner } from './ingestion/document-cleaner.js';
@@ -34,6 +36,11 @@ import type {
   IKeywordIndex,
 } from './rag-types.js';
 import type { BuiltRAGContext } from './rag-types.js';
+import type { IRAGProvider } from '../interfaces/core-contracts.js';
+import { metrics } from '../observability/metrics.js';
+import { tracer } from '../observability/tracing.js';
+import { logger } from '../observability/logger.js';
+import { performance } from 'perf_hooks';
 
 // ─── In-Memory Chunk Store ────────────────────────────────────────────────────
 
@@ -67,11 +74,14 @@ class InMemoryChunkStore implements IChunkStore {
 
 // ─── RAG Engine Interface ─────────────────────────────────────────────────────
 
-export interface IRAGEngine {
-  ingest(
-    source: DocumentSource,
-    collectionId?: string,
-  ): Promise<Result<IndexedDocument>>;
+export interface RAGEngineOptions {
+  readonly vectorStore?: IVectorStore;
+  readonly keywordIndex?: IKeywordIndex;
+  readonly chunkStore?: IChunkStore;
+}
+
+export interface IRAGEngine extends IRAGProvider {
+  ingest(source: DocumentSource, collectionId?: string): Promise<Result<IndexedDocument>>;
   deleteDocument(documentId: string): Promise<Result<void>>;
   query(query: RetrievalQuery): Promise<Result<BuiltRAGContext>>;
   isEmbeddingAvailable(): Promise<boolean>;
@@ -79,7 +89,7 @@ export interface IRAGEngine {
 
 // ─── RAG Engine Implementation ────────────────────────────────────────────────
 
-export class RAGEngine implements IRAGEngine {
+export class RAGEngine implements IRAGEngine, IRAGProvider {
   private readonly loader: DocumentLoader;
   private readonly parser: DocumentParser;
   private readonly cleaner: DocumentCleaner;
@@ -94,18 +104,22 @@ export class RAGEngine implements IRAGEngine {
   private readonly keywordIndex: IKeywordIndex;
   private readonly chunkStore: IChunkStore;
   private readonly config: AIConfig;
+  private readonly ingestedHashes = new Map<string, IndexedDocument>();
 
-  constructor(config: AIConfig) {
+  constructor(config: AIConfig, options?: RAGEngineOptions) {
     this.config = config;
 
-    this.vectorStore = new InMemoryVectorStore();
-    this.keywordIndex = new InMemoryKeywordIndex();
-    this.chunkStore = new InMemoryChunkStore();
+    this.vectorStore = options?.vectorStore ?? new InMemoryVectorStore();
+    this.keywordIndex = options?.keywordIndex ?? new InMemoryKeywordIndex();
+    this.chunkStore = options?.chunkStore ?? knowledgeChunkRepository;
 
     // Resolve embedding engine based on config
-    const runtimeBaseUrl = config.runtime.type !== 'none'
-      ? (config.runtime.type === 'ollama' ? config.runtime.baseUrl : (config.runtime as { serverUrl: string }).serverUrl)
-      : '';
+    const runtimeBaseUrl =
+      config.runtime.type !== 'none'
+        ? config.runtime.type === 'ollama'
+          ? config.runtime.baseUrl
+          : (config.runtime as { serverUrl: string }).serverUrl
+        : '';
 
     const embeddingModel = runtimeBaseUrl
       ? createEmbeddingModel(config.embedding, runtimeBaseUrl)
@@ -126,6 +140,7 @@ export class RAGEngine implements IRAGEngine {
       this.embeddingEngine,
       this.vectorStore,
       this.chunkStore,
+      this.keywordIndex,
     );
     this.retriever = new Retriever(
       this.embeddingEngine,
@@ -167,23 +182,55 @@ export class RAGEngine implements IRAGEngine {
     const chunkResult = this.chunker.chunk(cleaned);
     if (!chunkResult.ok) return chunkResult;
 
-    // Attach collectionId to chunk metadata
-    const chunks = collectionId
-      ? chunkResult.value.map((c) => ({
-          ...c,
-          metadata: { ...c.metadata, collectionId },
-        }))
-      : chunkResult.value;
+    // Attach collectionId and multi-tenant scopes to chunk metadata and properties
+    const userId = (source as any).metadata?.userId as string | undefined;
+    const workspaceId = (source as any).metadata?.workspaceId as string | undefined;
+    const projectId = (source as any).metadata?.projectId as string | undefined;
+
+    // Deduplication check using SHA-256 content fingerprint
+    const contentStr = typeof raw.content === 'string' ? raw.content : raw.content.toString('utf-8');
+    const contentHash = crypto.createHash('sha256').update(contentStr).digest('hex');
+    const dedupKey = `${userId || 'global'}:${raw.id}:${contentHash}`;
+
+    if (this.ingestedHashes.has(dedupKey)) {
+      return ok(this.ingestedHashes.get(dedupKey)!);
+    }
+
+    // Remove any previous chunks for this documentId before re-indexing
+    await this.indexer.deleteDocument(raw.id);
+
+    const chunks = chunkResult.value.map((c) => ({
+      ...c,
+      userId: c.userId || userId,
+      workspaceId: c.workspaceId || workspaceId,
+      projectId: c.projectId || projectId,
+      metadata: {
+        ...c.metadata,
+        contentHash,
+        ...(collectionId ? { collectionId } : {}),
+        ...(userId ? { userId } : {}),
+        ...(workspaceId ? { workspaceId } : {}),
+        ...(projectId ? { projectId } : {}),
+      },
+    }));
 
     // Index into keyword store
     await this.keywordIndex.index(chunks);
 
     // Index into vector store (embeds internally)
     const indexResult = await this.indexer.index(chunks);
+    if (indexResult.ok) {
+      this.ingestedHashes.set(dedupKey, indexResult.value);
+    }
     return indexResult;
   }
 
   public async deleteDocument(documentId: string): Promise<Result<void>> {
+    for (const [key, val] of Array.from(this.ingestedHashes.entries())) {
+      if (val.documentId === documentId) {
+        this.ingestedHashes.delete(key);
+      }
+    }
     return this.indexer.deleteDocument(documentId);
   }
 
@@ -192,32 +239,68 @@ export class RAGEngine implements IRAGEngine {
       return fail(new NotConfiguredError('RAG is disabled in configuration'));
     }
 
-    const retrieveResult = await this.retriever.retrieve(query);
-    if (!retrieveResult.ok) return retrieveResult;
+    const startNow = performance.now();
+    metrics.recordRAGRequest('retrieval');
+    const span = tracer.startSpan('rag.retrieval', {
+      component: 'RAG',
+      attributes: {
+        queryLength: query.text.length,
+        filterCount: Object.keys(query.filters || {}).length,
+      },
+    });
 
-    const chunks = retrieveResult.value;
+    try {
+      const retrieveResult = await this.retriever.retrieve(query);
+      if (!retrieveResult.ok) {
+        tracer.endSpan(span.spanId, 'error', { code: 'RETRIEVAL_FAILED' });
+        metrics.recordRAGFailure('retrieval', 'RETRIEVAL_FAILED');
+        return retrieveResult;
+      }
 
-    let ragContext = this.contextBuilder.build(
-      query.text,
-      chunks,
-      this.config.rag.maxContextTokens,
-    );
+      const chunks = retrieveResult.value;
 
-    if (
-      this.config.rag.contextCompressionEnabled &&
-      ragContext.estimatedTokens > this.config.rag.maxContextTokens
-    ) {
-      ragContext = this.contextCompressor.compress(
-        ragContext,
-        this.config.rag.maxContextTokens,
+      let ragContext = this.contextBuilder.build(
         query.text,
+        chunks,
+        this.config.rag.maxContextTokens,
       );
-    }
 
-    return ok(ragContext);
+      if (
+        this.config.rag.contextCompressionEnabled &&
+        ragContext.estimatedTokens > this.config.rag.maxContextTokens
+      ) {
+        ragContext = this.contextCompressor.compress(
+          ragContext,
+          this.config.rag.maxContextTokens,
+          query.text,
+        );
+      }
+
+      const durationMs = Number((performance.now() - startNow).toFixed(2));
+      metrics.recordRAGLatency(durationMs, 'retrieval');
+      metrics.recordCitations(ragContext.citations.length);
+      tracer.endSpan(span.spanId, 'ok');
+
+      logger.debug('RAG retrieval completed', {
+        candidateCount: chunks.length,
+        citationCount: ragContext.citations.length,
+        durationMs,
+      });
+
+      return ok(ragContext);
+    } catch (err) {
+      const durationMs = Number((performance.now() - startNow).toFixed(2));
+      tracer.endSpan(span.spanId, 'error', { code: 'RAG_FAILED' });
+      metrics.recordRAGFailure('pipeline', 'RAG_FAILED');
+      logger.error('RAG retrieval failed', { durationMs }, err instanceof Error ? err : undefined);
+      return fail(new RAGFailedError('pipeline', err instanceof Error ? err.message : String(err)));
+    }
   }
 
   public async isEmbeddingAvailable(): Promise<boolean> {
     return this.embeddingEngine.isAvailable();
   }
 }
+
+export const defaultRAGEngine = new RAGEngine(buildDefaultAIConfig());
+

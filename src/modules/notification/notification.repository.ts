@@ -138,7 +138,10 @@ export class NotificationRepository {
     return db.notification.deleteMany({ where: { userId } });
   }
 
-  async savePushSubscription(userId: string, sub: { endpoint: string; p256dh: string; auth: string }) {
+  async savePushSubscription(
+    userId: string,
+    sub: { endpoint: string; p256dh: string; auth: string },
+  ) {
     const current = await db.userSettings.findUnique({ where: { userId } });
     const prefs = (current?.notificationPrefs as Record<string, unknown> | undefined) || {};
     const subscriptions = Array.isArray((prefs as Record<string, unknown>).pushSubscriptions)

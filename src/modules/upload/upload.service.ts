@@ -69,7 +69,9 @@ export class UploadService {
     } catch (dbErr) {
       logger.error('Failed to create file record in DB:', dbErr);
       if (fs.existsSync(storagePath)) {
-        try { fs.unlinkSync(storagePath); } catch {}
+        try {
+          fs.unlinkSync(storagePath);
+        } catch {}
       }
       throw new AppError('Database error creating file record', 500, 'FILE_DB_ERROR');
     }
@@ -97,13 +99,15 @@ export class UploadService {
     try {
       let [files, total] = await Promise.all([
         db.file.findMany({
-          where: query.userId && isValidUuid(query.userId) ? { ...where, userId: query.userId } : where,
+          where:
+            query.userId && isValidUuid(query.userId) ? { ...where, userId: query.userId } : where,
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
         }),
         db.file.count({
-          where: query.userId && isValidUuid(query.userId) ? { ...where, userId: query.userId } : where,
+          where:
+            query.userId && isValidUuid(query.userId) ? { ...where, userId: query.userId } : where,
         }),
       ]);
 
@@ -151,7 +155,9 @@ export class UploadService {
         }
         const fullPath = path.join(UPLOAD_DIR, existing.storagePath);
         if (fs.existsSync(fullPath)) {
-          try { fs.unlinkSync(fullPath); } catch {}
+          try {
+            fs.unlinkSync(fullPath);
+          } catch {}
         }
         await db.file.delete({ where: { id } });
       }
@@ -185,4 +191,3 @@ export class UploadService {
     }
   }
 }
-

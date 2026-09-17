@@ -115,19 +115,22 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 });
 
 // DELETE /favorites/resource/:type/:resourceId — remove by resource identity
-router.delete('/resource/:resourceType/:resourceId', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const userId = req.user!.id;
-    const { resourceType, resourceId } = req.params;
+router.delete(
+  '/resource/:resourceType/:resourceId',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user!.id;
+      const { resourceType, resourceId } = req.params;
 
-    await db.userFavorite.deleteMany({
-      where: { userId, resourceType, resourceId },
-    });
+      await db.userFavorite.deleteMany({
+        where: { userId, resourceType, resourceId },
+      });
 
-    res.status(200).json({ success: true, message: 'Favorite removed' });
-  } catch (err) {
-    next(err);
-  }
-});
+      res.status(200).json({ success: true, message: 'Favorite removed' });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 export const favoritesRoutes: Router = router;

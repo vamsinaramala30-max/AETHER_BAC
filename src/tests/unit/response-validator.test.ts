@@ -27,7 +27,14 @@ describe('ResponseValidator', () => {
     userId: 'u1',
     sessionId: 's1',
     conversationId: 'c1',
-    tokenBudget: { total: 4096, system: 500, history: 1000, context: 1000, response: 1000, remaining: 596 },
+    tokenBudget: {
+      total: 4096,
+      system: 500,
+      history: 1000,
+      context: 1000,
+      response: 1000,
+      remaining: 596,
+    },
   };
 
   it('should flag claim of action success when tool execution actually failed', () => {

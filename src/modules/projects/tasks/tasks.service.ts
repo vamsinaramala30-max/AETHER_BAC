@@ -11,7 +11,12 @@ import { db } from '../../../database/client';
 export class TasksService {
   constructor(private readonly repository: TasksRepository) {}
 
-  private async notifyAssignees(assigneeIds: string[], title: string, message: string, type: string = 'TASK') {
+  private async notifyAssignees(
+    assigneeIds: string[],
+    title: string,
+    message: string,
+    type: string = 'TASK',
+  ) {
     if (!assigneeIds?.length) return;
 
     try {
@@ -108,18 +113,31 @@ export class TasksService {
     if (dto.labels !== undefined) task.labels = dto.labels;
 
     const savedTask = await this.repository.save(task);
-    const shouldNotify = dto.status !== undefined || dto.assigneeIds !== undefined || dto.title !== undefined;
+    const shouldNotify =
+      dto.status !== undefined || dto.assigneeIds !== undefined || dto.title !== undefined;
 
     if (shouldNotify) {
       const nextAssignees = savedTask.assigneeIds || [];
       const newlyAssigned = nextAssignees.filter((id) => !previousAssignees.includes(id));
 
       if (dto.status === TaskStatus.DONE) {
-        await this.notifyAssignees(nextAssignees, 'Task completed', `Task "${savedTask.title}" is now complete.`);
+        await this.notifyAssignees(
+          nextAssignees,
+          'Task completed',
+          `Task "${savedTask.title}" is now complete.`,
+        );
       } else if (newlyAssigned.length > 0) {
-        await this.notifyAssignees(newlyAssigned, 'Task assigned', `You were assigned to task "${savedTask.title}".`);
+        await this.notifyAssignees(
+          newlyAssigned,
+          'Task assigned',
+          `You were assigned to task "${savedTask.title}".`,
+        );
       } else {
-        await this.notifyAssignees(nextAssignees, 'Task updated', `Task "${savedTask.title}" was updated.`);
+        await this.notifyAssignees(
+          nextAssignees,
+          'Task updated',
+          `Task "${savedTask.title}" was updated.`,
+        );
       }
     }
 

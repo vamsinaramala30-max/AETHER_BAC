@@ -5,7 +5,13 @@
 import { db } from '../../database/client';
 import { ProjectFilterDTO } from './projects.dto';
 import { ProjectEntity } from './projects.entity';
-import { ProjectStatus as PrismaProjectStatus, ProjectPriority as PrismaProjectPriority } from '@prisma/client';
+import {
+  ProjectStatus as PrismaProjectStatus,
+  ProjectPriority as PrismaProjectPriority,
+} from '@prisma/client';
+
+const IS_UUID_REGEX =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 export interface PaginatedResult<T> {
   data: T[];
@@ -31,11 +37,13 @@ export class ProjectsRepository {
       startDate: p.startDate ? new Date(p.startDate) : null,
       endDate: p.endDate ? new Date(p.endDate) : null,
       dueDate: p.endDate ? new Date(p.endDate) : null,
-      members: p.workspace?.members ? p.workspace.members.map((m: any) => ({
-        userId: m.userId,
-        role: m.role,
-        joinedAt: m.createdAt,
-      })) : [],
+      members: p.workspace?.members
+        ? p.workspace.members.map((m: any) => ({
+            userId: m.userId,
+            role: m.role,
+            joinedAt: m.createdAt,
+          }))
+        : [],
       tags: p.tags || [],
       attachments: [],
       notes: [],
@@ -48,6 +56,7 @@ export class ProjectsRepository {
   }
 
   async findById(id: string): Promise<ProjectEntity | null> {
+    if (!id || !IS_UUID_REGEX.test(id)) return null;
     const project = await db.project.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -62,15 +71,27 @@ export class ProjectsRepository {
   }
 
   async findMany(filter: ProjectFilterDTO): Promise<PaginatedResult<ProjectEntity>> {
+    const page = Math.max(1, filter.page || 1);
+    const limit = Math.max(1, Math.min(100, filter.limit || 20));
+
     const where: any = { deletedAt: null };
 
     if (filter.ownerId) {
+      if (!IS_UUID_REGEX.test(filter.ownerId)) {
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
       where.ownerId = filter.ownerId;
     }
     if (filter.workspaceId) {
+      if (!IS_UUID_REGEX.test(filter.workspaceId)) {
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
       where.workspaceId = filter.workspaceId;
     }
     if (filter.memberId) {
+      if (!IS_UUID_REGEX.test(filter.memberId)) {
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
       where.workspace = {
         members: {
           some: { userId: filter.memberId },
@@ -102,40 +123,50 @@ export class ProjectsRepository {
       where.tags = { hasSome: filter.tags };
     }
 
-    const page = Math.max(1, filter.page || 1);
-    const limit = Math.max(1, Math.min(100, filter.limit || 20));
     const skip = (page - 1) * limit;
 
     const sortBy = filter.sortBy || 'createdAt';
     const sortOrder = filter.sortOrder || 'desc';
 
-    const [items, total] = await Promise.all([
-      db.project.findMany({
-        where,
-        orderBy: { [sortBy]: sortOrder },
-        skip,
-        take: limit,
-        include: {
-          workspace: {
-            include: {
-              members: true,
+    try {
+      const [items, total] = await Promise.all([
+        db.project.findMany({
+          where,
+          orderBy: { [sortBy]: sortOrder },
+          skip,
+          take: limit,
+          include: {
+            workspace: {
+              include: {
+                members: true,
+              },
             },
           },
-        },
-      }),
-      db.project.count({ where }),
-    ]);
+        }),
+        db.project.count({ where }),
+      ]);
 
-    return {
-      data: items.map((i) => this.mapToEntity(i)),
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+      return {
+        data: items.map((i) => this.mapToEntity(i)),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch {
+      return {
+        data: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      };
+    }
   }
 
-  async save(project: Partial<ProjectEntity> & { name: string; ownerId: string; workspaceId?: string }): Promise<ProjectEntity> {
+  async save(
+    project: Partial<ProjectEntity> & { name: string; ownerId: string; workspaceId?: string },
+  ): Promise<ProjectEntity> {
     let workspaceId = project.workspaceId;
 
     if (!workspaceId) {
@@ -215,6 +246,7 @@ export class ProjectsRepository {
   }
 
   async delete(id: string): Promise<boolean> {
+    if (!id || !IS_UUID_REGEX.test(id)) return false;
     try {
       await db.project.update({
         where: { id },
@@ -227,6 +259,7 @@ export class ProjectsRepository {
   }
 
   async countByOwner(ownerId: string): Promise<number> {
+    if (!ownerId || !IS_UUID_REGEX.test(ownerId)) return 0;
     return db.project.count({
       where: { ownerId, deletedAt: null },
     });

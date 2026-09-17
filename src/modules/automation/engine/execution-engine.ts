@@ -39,7 +39,9 @@ export class ExecutionEngine {
     }
 
     if (!auto.isEnabled || auto.status === AutomationStatus.PAUSED) {
-      logger.info(`[ExecutionEngine] Automation '${automationId}' is disabled or paused. Skipping.`);
+      logger.info(
+        `[ExecutionEngine] Automation '${automationId}' is disabled or paused. Skipping.`,
+      );
       return { executionId: '', status: AutomationStatus.PAUSED };
     }
 
@@ -86,7 +88,9 @@ export class ExecutionEngine {
       const passConditions = this.conditionEngine.evaluate(conditions, context);
 
       if (!passConditions) {
-        logger.info(`[ExecutionEngine] Execution '${executionId}' failed condition checks. Halting.`);
+        logger.info(
+          `[ExecutionEngine] Execution '${executionId}' failed condition checks. Halting.`,
+        );
 
         await this.execRepo.updateExecution(executionId, {
           status: AutomationStatus.COMPLETED,
@@ -220,7 +224,9 @@ export class ExecutionEngine {
             throw stepErr;
           }
 
-          logger.warn(`[ExecutionEngine] Step ${stepIndex} failed but continueOnError is true. Continuing.`);
+          logger.warn(
+            `[ExecutionEngine] Step ${stepIndex} failed but continueOnError is true. Continuing.`,
+          );
         }
       }
 
@@ -229,7 +235,10 @@ export class ExecutionEngine {
         status: AutomationStatus.COMPLETED,
         currentStep: actions.length,
         stepResults,
-        result: typeof finalResult === 'object' && finalResult !== null ? (finalResult as Record<string, unknown>) : { output: finalResult },
+        result:
+          typeof finalResult === 'object' && finalResult !== null
+            ? (finalResult as Record<string, unknown>)
+            : { output: finalResult },
         completedAt: new Date(),
       });
 
@@ -310,7 +319,11 @@ export class ExecutionEngine {
     );
 
     // Continue executing remaining steps asynchronously
-    this.execute(execution.automationId, (execution.triggerData as Record<string, unknown>) || {}, execution.userId || undefined);
+    this.execute(
+      execution.automationId,
+      (execution.triggerData as Record<string, unknown>) || {},
+      execution.userId || undefined,
+    );
     return true;
   }
 

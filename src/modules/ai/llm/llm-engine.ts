@@ -28,10 +28,7 @@ export interface ILLMEngine {
   getDefaultModelId(): string;
   listModels(): Promise<Result<readonly ModelInfo[]>>;
   getModelStatus(modelId: string): Promise<ModelStatus>;
-  generate(
-    requestId: string,
-    options: GenerationOptions,
-  ): Promise<Result<GenerationResponse>>;
+  generate(requestId: string, options: GenerationOptions): Promise<Result<GenerationResponse>>;
   generateStream(
     requestId: string,
     options: GenerationOptions,

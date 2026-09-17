@@ -8,7 +8,8 @@ import { GoalFilterDTO } from './goals.dto';
 import { PaginatedResult } from '../projects.repository';
 import { GoalStatus as PrismaGoalStatus } from '@prisma/client';
 
-const IS_UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+const IS_UUID_REGEX =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const mapStatusToPrisma = (status?: string): PrismaGoalStatus => {
   if (!status) return PrismaGoalStatus.NOT_STARTED;
@@ -72,46 +73,83 @@ export class GoalsRepository {
   }
 
   async findMany(filter: GoalFilterDTO): Promise<PaginatedResult<GoalEntity>> {
+    const page = Math.max(1, filter.page || 1);
+    const limit = Math.max(1, Math.min(100, filter.limit || 50));
+
     const where: any = { deletedAt: null };
 
     if (filter.userId) {
+      if (!IS_UUID_REGEX.test(filter.userId)) {
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
       where.userId = filter.userId;
     }
     if ((filter as any).projectId) {
-      where.projectId = (filter as any).projectId;
+      const pId = (filter as any).projectId;
+      if (!IS_UUID_REGEX.test(pId)) {
+        return { data: [], total: 0, page, limit, totalPages: 0 };
+      }
+      where.projectId = pId;
     }
     if (filter.status) {
       where.status = mapStatusToPrisma(filter.status as string);
     }
-
-    const page = Math.max(1, filter.page || 1);
-    const limit = Math.max(1, Math.min(100, filter.limit || 50));
     const skip = (page - 1) * limit;
 
-    const [items, total] = await Promise.all([
-      db.goal.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      db.goal.count({ where }),
-    ]);
+    try {
+      const [items, total] = await Promise.all([
+        db.goal.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        db.goal.count({ where }),
+      ]);
 
-    return {
-      data: items.map((i) => this.mapToEntity(i)),
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
+      return {
+        data: items.map((i) => this.mapToEntity(i)),
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      };
+    } catch {
+      return {
+        data: [],
+        total: 0,
+        page,
+        limit,
+        totalPages: 0,
+      };
+    }
   }
 
   async save(
-    goal: Partial<GoalEntity> & { title: string; userId?: string; projectId?: string; workspaceId?: string },
+    goal: Partial<GoalEntity> & {
+      title: string;
+      userId?: string;
+      projectId?: string;
+      workspaceId?: string;
+    },
   ): Promise<GoalEntity> {
     let userId = goal.userId;
-    if (!userId) {
+    if (userId && IS_UUID_REGEX.test(userId)) {
+      const userExists = await db.user.findUnique({ where: { id: userId } });
+      if (!userExists) {
+        try {
+          await db.user.create({
+            data: {
+              id: userId,
+              email: `user-${userId.substring(0, 8)}@aether.local`,
+              fullName: 'Goal User',
+            },
+          });
+        } catch {
+          // ignore
+        }
+      }
+    } else {
       const firstUser = await db.user.findFirst();
       userId = firstUser?.id;
     }
@@ -152,7 +190,9 @@ export class GoalsRepository {
       });
     }
 
-    const targetProjectId = goal.projectId || (goal.linkedProjectIds && goal.linkedProjectIds.length > 0 ? goal.linkedProjectIds[0] : null);
+    const targetProjectId =
+      goal.projectId ||
+      (goal.linkedProjectIds && goal.linkedProjectIds.length > 0 ? goal.linkedProjectIds[0] : null);
 
     if (goal.id && IS_UUID_REGEX.test(goal.id)) {
       const existing = await db.goal.findUnique({ where: { id: goal.id } });
@@ -201,4 +241,3 @@ export class GoalsRepository {
     }
   }
 }
-

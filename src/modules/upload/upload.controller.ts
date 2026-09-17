@@ -83,7 +83,10 @@ export class UploadController {
       const mimeType = fileRecord.mimeType || 'application/octet-stream';
       const dispositionType = inline ? 'inline' : 'attachment';
       res.setHeader('Content-Type', mimeType);
-      res.setHeader('Content-Disposition', `${dispositionType}; filename="${encodeURIComponent(fileRecord.filename)}"`);
+      res.setHeader(
+        'Content-Disposition',
+        `${dispositionType}; filename="${encodeURIComponent(fileRecord.filename)}"`,
+      );
       fs.createReadStream(fileRecord.fullPath).pipe(res);
     } catch (err) {
       next(err);

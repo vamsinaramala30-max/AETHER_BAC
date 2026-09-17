@@ -1,5 +1,5 @@
 import { db } from '../../database/client';
-import { NotesService } from './notes/notes.service';
+import { NotesService } from './notes/notes/notes.service';
 import { DocumentsService } from './documents/documents.service';
 import { KnowledgeBaseService } from './knowledge-base/knowledge-base.service';
 import { SearchService } from './search/search.service';
@@ -16,7 +16,11 @@ export class KnowledgeService {
   public readonly indexingService: IndexingService;
 
   constructor(private readonly mainRepository: KnowledgeRepository) {
-    this.notesService = new NotesService(this.mainRepository.notes);
+    this.notesService = new NotesService(
+      this.mainRepository.notes,
+      this.mainRepository.notebooks,
+      this.mainRepository.sections,
+    );
     this.documentsService = new DocumentsService(this.mainRepository.documents);
     this.knowledgeBaseService = new KnowledgeBaseService(this.mainRepository.knowledgeBase);
     this.searchService = new SearchService(this.mainRepository.search);
@@ -25,14 +29,15 @@ export class KnowledgeService {
   }
 
   async getDashboardAnalytics(_userId: string) {
-    const [fileCount, docCount, noteCount, projectCount, taskCount, automationCount] = await Promise.all([
-      db.file.count(),
-      db.document.count(),
-      db.note.count({ where: { deletedAt: null } }),
-      db.project.count({ where: { deletedAt: null } }),
-      db.task.count({ where: { deletedAt: null } }),
-      db.automation.count({ where: { deletedAt: null } }),
-    ]);
+    const [fileCount, docCount, noteCount, projectCount, taskCount, automationCount] =
+      await Promise.all([
+        db.file.count(),
+        db.document.count(),
+        db.note.count({ where: { deletedAt: null } }),
+        db.project.count({ where: { deletedAt: null } }),
+        db.task.count({ where: { deletedAt: null } }),
+        db.automation.count({ where: { deletedAt: null } }),
+      ]);
 
     const totalKnowledge = fileCount + docCount + noteCount;
 
@@ -147,9 +152,21 @@ export class KnowledgeService {
   async getDateActivity() {
     const [files, docs, notes, execs] = await Promise.all([
       db.file.findMany({ select: { createdAt: true }, take: 100, orderBy: { createdAt: 'desc' } }),
-      db.document.findMany({ select: { createdAt: true }, take: 100, orderBy: { createdAt: 'desc' } }),
-      db.note.findMany({ select: { createdAt: true, updatedAt: true }, take: 100, orderBy: { updatedAt: 'desc' } }),
-      db.automationExecution.findMany({ select: { startedAt: true }, take: 100, orderBy: { startedAt: 'desc' } }),
+      db.document.findMany({
+        select: { createdAt: true },
+        take: 100,
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.note.findMany({
+        select: { createdAt: true, updatedAt: true },
+        take: 100,
+        orderBy: { updatedAt: 'desc' },
+      }),
+      db.automationExecution.findMany({
+        select: { startedAt: true },
+        take: 100,
+        orderBy: { startedAt: 'desc' },
+      }),
     ]);
 
     const dateMap: Record<string, { count: number; date: string }> = {};
@@ -188,7 +205,11 @@ export class KnowledgeService {
 
     activeProjects.forEach((proj) => {
       const hasTasks = proj.tasks.length > 0;
-      const hasDocs = docs.some((d) => d.content?.includes(proj.id) || d.fileName?.toLowerCase().includes(proj.name.toLowerCase()));
+      const hasDocs = docs.some(
+        (d) =>
+          d.content?.includes(proj.id) ||
+          d.fileName?.toLowerCase().includes(proj.name.toLowerCase()),
+      );
 
       if (hasTasks && !hasDocs) {
         gaps.push({
@@ -202,4 +223,3 @@ export class KnowledgeService {
     return gaps;
   }
 }
-

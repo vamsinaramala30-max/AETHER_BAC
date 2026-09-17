@@ -16,12 +16,7 @@ export interface KnowledgeCollection {
   readonly metadata?: DocumentMetadata;
 }
 
-export type KnowledgeDocumentStatus =
-  | 'pending'
-  | 'ingesting'
-  | 'indexed'
-  | 'failed'
-  | 'archived';
+export type KnowledgeDocumentStatus = 'pending' | 'ingesting' | 'indexed' | 'failed' | 'archived';
 
 export interface KnowledgeDocument {
   readonly id: string;
@@ -36,6 +31,10 @@ export interface KnowledgeDocument {
   readonly createdAt: number;
   readonly updatedAt: number;
   readonly errorMessage?: string;
+  readonly userId?: string;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
+  readonly contentHash?: string;
 }
 
 export interface IngestionOptions {

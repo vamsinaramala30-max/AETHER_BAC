@@ -54,6 +54,10 @@ export interface DocumentChunk {
   readonly endOffset: number;
   readonly metadata: DocumentMetadata;
   readonly embedding?: readonly number[];
+  readonly tokenCount?: number;
+  readonly userId?: string;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
 }
 
 // ─── Indexed Document ─────────────────────────────────────────────────────────
@@ -92,12 +96,22 @@ export interface HybridSearchResult {
 
 // ─── Retrieval Query ──────────────────────────────────────────────────────────
 
+export interface RetrievalScope {
+  readonly userId?: string;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
+  readonly collectionIds?: readonly string[];
+}
+
 export interface RetrievalQuery {
   readonly text: string;
   readonly embedding?: readonly number[];
   readonly topK: number;
   readonly scoreThreshold: number;
   readonly collectionIds?: readonly string[];
+  readonly userId?: string;
+  readonly workspaceId?: string;
+  readonly projectId?: string;
   readonly filters?: RetrievalFilters;
 }
 
@@ -165,6 +179,7 @@ export interface IVectorStore {
     topK: number,
     scoreThreshold: number,
     collectionIds?: readonly string[],
+    scope?: RetrievalScope,
   ): Promise<readonly VectorSearchResult[]>;
   delete(chunkIds: readonly ChunkId[]): Promise<void>;
   deleteByDocument(documentId: DocumentId): Promise<void>;
@@ -179,6 +194,7 @@ export interface IKeywordIndex {
     query: string,
     topK: number,
     collectionIds?: readonly string[],
+    scope?: RetrievalScope,
   ): Promise<readonly KeywordSearchResult[]>;
   delete(chunkIds: readonly ChunkId[]): Promise<void>;
   deleteByDocument(documentId: DocumentId): Promise<void>;

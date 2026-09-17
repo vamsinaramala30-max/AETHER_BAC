@@ -54,7 +54,8 @@ export interface CompoundCondition {
   conditions: Array<SingleCondition | CompoundCondition>;
 }
 
-export type ConditionConfig = SingleCondition | CompoundCondition | Array<SingleCondition | CompoundCondition>;
+export type ConditionConfig =
+  SingleCondition | CompoundCondition | Array<SingleCondition | CompoundCondition>;
 
 export type ActionType =
   | 'AI_ASK'

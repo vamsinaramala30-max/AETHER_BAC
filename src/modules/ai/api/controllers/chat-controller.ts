@@ -6,23 +6,48 @@
 
 import { conversationService } from '../../conversations/conversation-service.js';
 import type { IAIEngine } from '../../core/ai-engine.js';
+import { globalAiEngine } from '../../core/ai-engine.js';
 import type { StreamSubscriber } from '../../core/streaming-engine.js';
 import type { AIRequest } from '../../ai-types.js';
 import { handleAPIError } from '../middleware/error-handler.js';
 
 export class ChatController {
-  constructor(private readonly aiEngine?: IAIEngine) {}
+  private readonly _aiEngine?: IAIEngine;
+
+  constructor(aiEngine?: IAIEngine) {
+    this._aiEngine = aiEngine;
+  }
+
+  private get aiEngine(): IAIEngine {
+    return this._aiEngine ?? globalAiEngine;
+  }
 
   public async chat(
-    body: { message: string; conversationId?: string; modelId?: string; providerMode?: 'auto' | 'gemini' | 'openai' | 'ollama' },
+    body: {
+      message?: string;
+      messages?: Array<{ role: string; content: string }>;
+      conversationId?: string;
+      conversation_id?: string;
+      modelId?: string;
+      model_id?: string;
+      providerMode?: 'auto' | 'aether' | 'gemini' | 'openai' | 'ollama';
+    },
     userId: string,
   ) {
     try {
+      const message =
+        body.message ||
+        (Array.isArray(body.messages) && body.messages.length > 0
+          ? body.messages[body.messages.length - 1]?.content
+          : '');
+      const conversationId = body.conversationId || body.conversation_id;
+      const modelId = body.modelId || body.model_id;
+
       const response = await conversationService.sendMessage(
         userId,
-        body.message,
-        body.conversationId,
-        { modelId: body.modelId, providerMode: body.providerMode },
+        message || '',
+        conversationId,
+        { modelId, providerMode: body.providerMode },
       );
       return { success: true, data: response };
     } catch (err) {
@@ -31,29 +56,46 @@ export class ChatController {
   }
 
   public async chatStream(
-    body: { message: string; conversationId?: string; modelId?: string; providerMode?: 'auto' | 'gemini' | 'openai' | 'ollama' },
+    body: {
+      message?: string;
+      messages?: Array<{ role: string; content: string }>;
+      conversationId?: string;
+      conversation_id?: string;
+      modelId?: string;
+      model_id?: string;
+      providerMode?: 'auto' | 'aether' | 'gemini' | 'openai' | 'ollama';
+    },
     userId: string,
     subscriber: StreamSubscriber,
   ) {
     try {
-      if (!this.aiEngine) {
+      const engine = this.aiEngine;
+      if (!engine) {
         return {
           success: false,
           error: { code: 'NOT_CONFIGURED', message: 'Streaming engine not initialized.' },
         };
       }
 
+      const message =
+        body.message ||
+        (Array.isArray(body.messages) && body.messages.length > 0
+          ? body.messages[body.messages.length - 1]?.content
+          : '');
+      const conversationId = body.conversationId || body.conversation_id;
+      const modelId = body.modelId || body.model_id;
+
       const req: AIRequest = {
         requestId: `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         userId,
         sessionId: `sess_${userId}`,
-        conversationId: body.conversationId ?? `conv_${Date.now()}`,
-        message: body.message,
-        options: { streaming: true, modelId: body.modelId, providerMode: body.providerMode },
+        conversationId: conversationId ?? `conv_${Date.now()}`,
+        message: message || '',
+        options: { streaming: true, modelId, providerMode: body.providerMode },
         timestamp: Date.now(),
       };
 
-      const result = await this.aiEngine.processStream(req, subscriber);
+      const result = await engine.processStream(req, subscriber);
       if (!result.ok) {
         return handleAPIError(result.error);
       }

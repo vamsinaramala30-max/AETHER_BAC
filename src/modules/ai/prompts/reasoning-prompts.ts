@@ -51,3 +51,41 @@ export function buildIntentClassificationPrompt(userMessage: string): string {
 export function isSafeReasoningStatus(status: string): status is ReasoningStatus {
   return (REASONING.SAFE_PUBLIC_STATUSES as readonly string[]).includes(status);
 }
+
+// ─── Response Strategy Prompt Modifiers ───────────────────────────────────────
+
+export function buildStrategyInstruction(strategy: string): string {
+  switch (strategy) {
+    case 'STRUCTURED_PLAN':
+      return [
+        '### Response Strategy: Structured Plan',
+        'Present a clear, structured plan of action for the user.',
+        '- Outline the main objective and logical subtasks/steps.',
+        '- State prerequisites or dependencies where applicable.',
+        '- Highlight expected outcomes and milestones.',
+        '- Keep the response actionable, transparent, and direct.',
+      ].join('\n');
+
+    case 'ANALYTICAL_BREAKDOWN':
+      return [
+        '### Response Strategy: Analytical Breakdown',
+        'Provide a rigorous, structured analytical assessment.',
+        '- Break down the key components, trade-offs, and critical considerations.',
+        '- Compare options systematically with objective criteria.',
+        '- Provide clear conclusions supported by evidence and structured rationale.',
+      ].join('\n');
+
+    case 'RESEARCH_SYNTHESIS':
+      return [
+        '### Response Strategy: Research Synthesis',
+        'Synthesize findings from the retrieved knowledge and documents.',
+        '- State key findings clearly and objectively.',
+        '- Reference sources and evidence directly.',
+        '- Acknowledge any information gaps or uncertainties honestly.',
+      ].join('\n');
+
+    default:
+      return '';
+  }
+}
+

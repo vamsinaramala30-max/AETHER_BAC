@@ -18,7 +18,9 @@ export class NotificationService {
     this.pushService = pushService || new PushService();
   }
 
-  private normalizePreferences(pref: Partial<NotificationPreferencesData>): NotificationPreferencesData {
+  private normalizePreferences(
+    pref: Partial<NotificationPreferencesData>,
+  ): NotificationPreferencesData {
     return {
       emailAlerts: pref.emailAlerts ?? true,
       pushNotifications: pref.pushNotifications ?? true,
@@ -68,8 +70,13 @@ export class NotificationService {
     }
 
     if (dto.channels.includes('EMAIL') && dto.email) {
-      const sent = await this.emailService!.sendEmail(dto.email, dto.title, dto.message);
-      results.EMAIL = sent;
+      const emailRes = await this.emailService!.sendNotificationEmail(
+        dto.email,
+        dto.title,
+        dto.message,
+        dto.link,
+      );
+      results.EMAIL = emailRes.success;
     }
 
     if (dto.channels.includes('PUSH')) {
@@ -100,7 +107,13 @@ export class NotificationService {
     });
   }
 
-  async getHistory(userId: string, page = 1, limit = 20, search = '', status?: 'read' | 'unread' | 'all') {
+  async getHistory(
+    userId: string,
+    page = 1,
+    limit = 20,
+    search = '',
+    status?: 'read' | 'unread' | 'all',
+  ) {
     const data = await this.repo.getUserNotifications(userId, page, limit, search, status);
     const unreadCount = await this.repo.getUserNotifications(userId, 1, 100000, '', 'unread');
     return {

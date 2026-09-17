@@ -26,7 +26,9 @@ export class AutomationScheduler {
         this.scheduleAutomation(auto.id, auto.name, auto.schedule);
       }
 
-      logger.info(`[AutomationScheduler] Successfully registered ${automations.length} scheduled automations.`);
+      logger.info(
+        `[AutomationScheduler] Successfully registered ${automations.length} scheduled automations.`,
+      );
     } catch (err) {
       logger.error('[AutomationScheduler] Failed to initialize scheduled automations:', err);
     }
@@ -41,7 +43,9 @@ export class AutomationScheduler {
     const cronExpr = ScheduleManager.normalizeSchedule(scheduleRaw);
 
     if (!ScheduleManager.isValidCron(cronExpr)) {
-      logger.warn(`[AutomationScheduler] Invalid cron expression '${cronExpr}' for automation '${id}' (${name}). Skipping.`);
+      logger.warn(
+        `[AutomationScheduler] Invalid cron expression '${cronExpr}' for automation '${id}' (${name}). Skipping.`,
+      );
       return;
     }
 

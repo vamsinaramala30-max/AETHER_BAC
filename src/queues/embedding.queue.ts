@@ -28,4 +28,3 @@ export const embeddingWorker = QueueFactory.createWorker<EmbeddingJobData, void>
     });
   },
 );
-

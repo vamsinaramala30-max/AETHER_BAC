@@ -10,6 +10,7 @@ import { ok, fail } from '../../ai-types.js';
 import { RAGFailedError } from '../../ai-errors.js';
 import type { CleanedDocument, DocumentChunk } from '../rag-types.js';
 import { CHUNKING } from '../../ai-constants.js';
+import { defaultTokenizer } from '../../llm/tokenizer.js';
 
 // ─── Chunking Strategy ────────────────────────────────────────────────────────
 
@@ -30,7 +31,10 @@ const DEFAULT_CHUNKING_OPTIONS: ChunkingOptions = {
 // ─── IDocumentChunker Interface ───────────────────────────────────────────────
 
 export interface IDocumentChunker {
-  chunk(document: CleanedDocument, options?: Partial<ChunkingOptions>): Result<readonly DocumentChunk[]>;
+  chunk(
+    document: CleanedDocument,
+    options?: Partial<ChunkingOptions>,
+  ): Result<readonly DocumentChunk[]>;
 }
 
 // ─── Document Chunker Implementation ──────────────────────────────────────────
@@ -52,9 +56,7 @@ export class DocumentChunker implements IDocumentChunker {
       return fail(new RAGFailedError('chunk', 'chunkSize must be at least 64 characters'));
     }
     if (options.chunkOverlap >= options.chunkSize) {
-      return fail(
-        new RAGFailedError('chunk', 'chunkOverlap must be less than chunkSize'),
-      );
+      return fail(new RAGFailedError('chunk', 'chunkOverlap must be less than chunkSize'));
     }
     if (!document.text || document.text.trim().length === 0) {
       return fail(new RAGFailedError('chunk', `Document "${document.id}" has no text to chunk`));
@@ -74,7 +76,9 @@ export class DocumentChunker implements IDocumentChunker {
           break;
         default: {
           const exhaustive: never = options.strategy;
-          return fail(new RAGFailedError('chunk', `Unknown strategy: ${JSON.stringify(exhaustive)}`));
+          return fail(
+            new RAGFailedError('chunk', `Unknown strategy: ${JSON.stringify(exhaustive)}`),
+          );
         }
       }
 
@@ -84,6 +88,7 @@ export class DocumentChunker implements IDocumentChunker {
 
       const chunks: DocumentChunk[] = textSegments.map((text, index) => {
         const startOffset = document.text.indexOf(text);
+        const tokenCount = defaultTokenizer.count(text).tokenCount;
         return {
           id: randomUUID(),
           documentId: document.id,
@@ -92,10 +97,12 @@ export class DocumentChunker implements IDocumentChunker {
           totalChunks: textSegments.length,
           startOffset: startOffset >= 0 ? startOffset : 0,
           endOffset: startOffset >= 0 ? startOffset + text.length : text.length,
+          tokenCount,
           metadata: {
             ...document.metadata,
             chunkIndex: index,
             totalChunks: textSegments.length,
+            tokenCount,
           },
         };
       });
@@ -103,7 +110,9 @@ export class DocumentChunker implements IDocumentChunker {
       return ok(chunks);
     } catch (error) {
       const cause = error instanceof Error ? error : undefined;
-      return fail(new RAGFailedError('chunk', error instanceof Error ? error.message : String(error), cause));
+      return fail(
+        new RAGFailedError('chunk', error instanceof Error ? error.message : String(error), cause),
+      );
     }
   }
 
@@ -141,11 +150,7 @@ export class DocumentChunker implements IDocumentChunker {
   /**
    * Merges small segments into chunks of target size with overlap.
    */
-  private mergeSegments(
-    segments: string[],
-    chunkSize: number,
-    chunkOverlap: number,
-  ): string[] {
+  private mergeSegments(segments: string[], chunkSize: number, chunkOverlap: number): string[] {
     const chunks: string[] = [];
     let current = '';
 

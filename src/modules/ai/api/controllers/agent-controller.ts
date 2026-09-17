@@ -20,14 +20,14 @@ export class AgentController {
     }
   }
 
-  public async runAgent(body: { agentId: string; goal: string; conversationId?: string }, auth: AuthenticationContext) {
+  public async runAgent(
+    body: { agentId: string; goal: string; conversationId?: string },
+    auth: AuthenticationContext,
+  ) {
     try {
-      const result = await agentEngine.executeAgent(
-        body.agentId,
-        body.goal,
-        auth,
-        { conversationId: body.conversationId },
-      );
+      const result = await agentEngine.executeAgent(body.agentId, body.goal, auth, {
+        conversationId: body.conversationId,
+      });
       return { success: true, data: result };
     } catch (err) {
       return handleAPIError(err);
