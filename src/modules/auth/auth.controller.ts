@@ -5,6 +5,29 @@ import { env, logger } from '../../config';
 
 const authService = new AuthService();
 
+/**
+ * Safely obtain configured frontend URL with production fallback.
+ */
+const getFrontendUrl = (): string => {
+  const frontendUrl = env.FRONTEND_URL?.trim() || 'https://aether-fro-lime.vercel.app';
+  return frontendUrl.replace(/\/+$/, '');
+};
+
+/**
+ * Safely create a frontend redirect URL.
+ */
+const getFrontendRedirect = (path: string, params?: Record<string, string>): string => {
+  const frontendUrl = getFrontendUrl();
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const url = new URL(normalizedPath, `${frontendUrl}/`);
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.set(key, value);
+    });
+  }
+  return url.toString();
+};
+
 export class AuthController {
   /**
    * Register a new user.
@@ -153,36 +176,15 @@ export class AuthController {
     }
   }
 
-  /**
-   * Get configured frontend URL.
-   */
-  private getFrontendUrl(): string {
-    const frontendUrl = env.FRONTEND_URL?.trim();
-
-    if (!frontendUrl) {
-      throw new Error('FRONTEND_URL is not configured in the backend environment.');
-    }
-
-    return frontendUrl.replace(/\/+$/, '');
-  }
-
-  /**
-   * Safely create a frontend redirect URL.
-   */
-  private getFrontendRedirect(path: string, params?: Record<string, string>): string {
-    const frontendUrl = this.getFrontendUrl();
-
-    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-
-    const url = new URL(normalizedPath, `${frontendUrl}/`);
-
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.set(key, value);
-      });
-    }
-
-    return url.toString();
+  constructor() {
+    this.register = this.register.bind(this);
+    this.login = this.login.bind(this);
+    this.refreshToken = this.refreshToken.bind(this);
+    this.logout = this.logout.bind(this);
+    this.getProfile = this.getProfile.bind(this);
+    this.updateProfile = this.updateProfile.bind(this);
+    this.googleAuth = this.googleAuth.bind(this);
+    this.googleCallback = this.googleCallback.bind(this);
   }
 
   /**
@@ -190,7 +192,7 @@ export class AuthController {
    *
    * GET /api/v1/auth/google
    */
-  public googleAuth(req: Request, res: Response, next: NextFunction): void {
+  public googleAuth = (req: Request, res: Response, next: NextFunction): void => {
     try {
       const clientId = env.GOOGLE_CLIENT_ID?.trim();
       const clientSecret = env.GOOGLE_CLIENT_SECRET?.trim();
@@ -200,13 +202,11 @@ export class AuthController {
           'Google OAuth is not configured. GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET is missing.',
         );
 
-        res.redirect(
-          this.getFrontendRedirect('/login', {
+        return res.redirect(
+          getFrontendRedirect('/login', {
             error: 'google_not_configured',
           }),
         );
-
-        return;
       }
 
       logger.info('Starting Google OAuth authentication.');
@@ -217,26 +217,16 @@ export class AuthController {
       })(req, res, next);
     } catch (error) {
       logger.error('Google OAuth initialization failed:', error);
-
       next(error);
     }
-  }
+  };
 
   /**
    * Google OAuth callback.
    *
    * GET /api/v1/auth/google/callback
    */
-  public googleCallback(req: Request, res: Response, next: NextFunction): void {
-    try {
-      this.getFrontendUrl();
-    } catch (error) {
-      logger.error('Google OAuth callback failed because FRONTEND_URL is missing:', error);
-
-      next(error);
-      return;
-    }
-
+  public googleCallback = (req: Request, res: Response, next: NextFunction): void => {
     passport.authenticate(
       'google',
       {
@@ -250,16 +240,14 @@ export class AuthController {
           logger.error('Google OAuth strategy failed:', error);
 
           try {
-            res.redirect(
-              this.getFrontendRedirect('/login', {
+            return res.redirect(
+              getFrontendRedirect('/login', {
                 error: 'oauth_failed',
               }),
             );
           } catch (redirectError) {
-            next(redirectError);
+            return next(redirectError);
           }
-
-          return;
         }
 
         /**
@@ -269,63 +257,80 @@ export class AuthController {
           logger.error('Google OAuth returned no authenticated user.');
 
           try {
-            res.redirect(
-              this.getFrontendRedirect('/login', {
+            return res.redirect(
+              getFrontendRedirect('/login', {
                 error: 'oauth_user_missing',
               }),
             );
           } catch (redirectError) {
-            next(redirectError);
+            return next(redirectError);
           }
-
-          return;
         }
 
         try {
           /**
-           * Generate application JWT tokens only after
-           * Passport has successfully resolved the user.
+           * Resolve user details whether user is raw DB User or LoginResponse wrapper.
            */
-          const authResponse = await authService.generateAuthResponse({
-            id: user.id,
-            email: user.email,
-            fullName: user.fullName,
-            role: user.role || 'USER',
-            avatarUrl: user.avatarUrl,
-          });
+          const rawUser = user?.user || user;
+          const userId = rawUser?.id;
+          const email = rawUser?.email;
+          const role = rawUser?.role || 'USER';
+          const fullName =
+            rawUser?.fullName ||
+            rawUser?.name ||
+            `${rawUser?.firstName || ''} ${rawUser?.lastName || ''}`.trim() ||
+            email?.split('@')[0];
+          const avatarUrl = rawUser?.avatarUrl || undefined;
 
-          const accessToken = authResponse.tokens.accessToken;
+          if (!userId || !email) {
+            throw new Error('Google OAuth succeeded but user identity is incomplete.');
+          }
 
-          if (!accessToken) {
+          /**
+           * Use existing accessToken if already generated, otherwise generate now.
+           */
+          let token: string | undefined = user?.tokens?.accessToken;
+          if (!token) {
+            const authResponse = await authService.generateAuthResponse({
+              id: userId,
+              email,
+              fullName,
+              role,
+              avatarUrl,
+            });
+            token = authResponse.tokens.accessToken;
+          }
+
+          if (!token) {
             throw new Error('Authentication succeeded but no access token was generated.');
           }
 
-          logger.info(`Google OAuth successful for ${user.email}.`);
+          logger.info(`Google OAuth successful for ${email}.`);
 
           /**
            * Redirect to frontend authentication success page.
            */
-          const redirectUrl = this.getFrontendRedirect('/auth/success', {
-            token: accessToken,
+          const redirectUrl = getFrontendRedirect('/auth/success', {
+            token,
           });
 
-          res.redirect(redirectUrl);
+          return res.redirect(redirectUrl);
         } catch (authError) {
           logger.error('Failed to generate authentication response after Google OAuth:', authError);
 
           try {
-            res.redirect(
-              this.getFrontendRedirect('/login', {
+            return res.redirect(
+              getFrontendRedirect('/login', {
                 error: 'token_generation_failed',
               }),
             );
           } catch (redirectError) {
-            next(redirectError);
+            return next(redirectError);
           }
         }
       },
     )(req, res, next);
-  }
+  };
 }
 
 export const authController = new AuthController();
