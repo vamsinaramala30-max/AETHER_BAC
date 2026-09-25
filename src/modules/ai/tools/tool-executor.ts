@@ -138,6 +138,45 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
     const riskLevel = tool.riskLevel ?? 'READ_ONLY';
     const toolId = tool.id ?? `tool_${toolName}`;
 
+    // 1.5. Authentication Context Check (TOOL-01)
+    if (!context?.auth || !context.auth.userId) {
+      const res = this.buildResult<TOutput>(
+        false,
+        'FORBIDDEN',
+        startTime,
+        undefined,
+        `Unauthorized: Missing or invalid authentication context.`,
+        false,
+        undefined,
+        riskLevel,
+        'DENIED',
+        0,
+        'FAILED',
+        {
+          toolId,
+          executionId,
+          correlationId,
+        },
+      );
+      await this.logAudit(toolName, input, context, res, false, 'Missing authentication context');
+      return res;
+    }
+
+    // Enforce server-side identity & workspace scoping (cannot be overridden by untrusted input)
+    const sanitizedInput = { ...input };
+    if ('userId' in sanitizedInput && sanitizedInput.userId !== context.auth.userId) {
+      sanitizedInput.userId = context.auth.userId;
+    }
+    if ('ownerId' in sanitizedInput && sanitizedInput.ownerId !== context.auth.userId) {
+      sanitizedInput.ownerId = context.auth.userId;
+    }
+    if ('creatorId' in sanitizedInput && sanitizedInput.creatorId !== context.auth.userId) {
+      sanitizedInput.creatorId = context.auth.userId;
+    }
+    if (context.auth.workspaceId && 'workspaceId' in sanitizedInput && sanitizedInput.workspaceId !== context.auth.workspaceId) {
+      sanitizedInput.workspaceId = context.auth.workspaceId;
+    }
+
     // 2. Check permissions
     const permCheck = this.permissions.checkPermissions(tool.requiredPermissions, context.auth);
     if (!permCheck.allowed) {
@@ -164,7 +203,7 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
     }
 
     // 3. Validate input
-    const validation = this.validator.validate(input, tool.inputSchema);
+    const validation = this.validator.validate(sanitizedInput, tool.inputSchema);
     if (!validation.valid) {
       const res = this.buildResult<TOutput>(
         false,
@@ -184,7 +223,7 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
           correlationId,
         },
       );
-      await this.logAudit(toolName, input, context, res, false, 'Invalid input');
+      await this.logAudit(toolName, sanitizedInput, context, res, false, 'Invalid input');
       return res;
     }
 
@@ -209,7 +248,7 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
           correlationId,
         },
       );
-      await this.logAudit(toolName, input, context, res, false, 'Cancelled');
+      await this.logAudit(toolName, sanitizedInput, context, res, false, 'Cancelled');
       return res;
     }
 
@@ -226,7 +265,7 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
       attempt++;
       try {
         const data = await this.executeWithTimeout(
-          () => tool.handler(input, context),
+          () => tool.handler(sanitizedInput, context),
           timeoutMs,
           activeSignal,
         );
@@ -237,7 +276,7 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
         let verificationDetails = 'Action completed. Downstream state verification not applicable.';
 
         if (typeof tool.verify === 'function') {
-          const verifyRes = await tool.verify(data, input, context);
+          const verifyRes = await tool.verify(data, sanitizedInput, context);
           verified = verifyRes.verified;
           if (!verified) {
             const verifyError =
@@ -260,7 +299,7 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
                 correlationId,
               },
             );
-            await this.logAudit(toolName, input, context, res, false, verifyError);
+            await this.logAudit(toolName, sanitizedInput, context, res, false, verifyError);
             return res;
           }
           verificationStatus = verifyRes.status ?? 'VERIFIED';
@@ -300,7 +339,7 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
           this.idempotencyCache.set(idempotencyKey, res);
         }
 
-        await this.logAudit(toolName, input, context, res, verified, verificationDetails);
+        await this.logAudit(toolName, sanitizedInput, context, res, verified, verificationDetails);
         return res;
       } catch (err) {
         lastError = err;

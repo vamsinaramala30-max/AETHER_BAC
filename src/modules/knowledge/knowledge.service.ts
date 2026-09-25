@@ -28,15 +28,96 @@ export class KnowledgeService {
     this.indexingService = new IndexingService(this.mainRepository.indexing);
   }
 
-  async getDashboardAnalytics(_userId: string) {
+  async getDashboardAnalytics(userId: string, workspaceId?: string) {
+    if (!userId) {
+      return {
+        totalKnowledge: 0,
+        files: 0,
+        documents: 0,
+        notes: 0,
+        connectedProjects: 0,
+        connectedTasks: 0,
+        automations: 0,
+        systemHealth: 'HEALTHY',
+      };
+    }
+
+    const memberships = await db.workspaceMember.findMany({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+    const userWorkspaceIds = memberships.map((m) => m.workspaceId);
+    if (workspaceId && !userWorkspaceIds.includes(workspaceId)) {
+      return {
+        totalKnowledge: 0,
+        files: 0,
+        documents: 0,
+        notes: 0,
+        connectedProjects: 0,
+        connectedTasks: 0,
+        automations: 0,
+        systemHealth: 'HEALTHY',
+      };
+    }
+    const targetWsIds = workspaceId ? [workspaceId] : userWorkspaceIds;
+
     const [fileCount, docCount, noteCount, projectCount, taskCount, automationCount] =
       await Promise.all([
-        db.file.count(),
-        db.document.count(),
-        db.note.count({ where: { deletedAt: null } }),
-        db.project.count({ where: { deletedAt: null } }),
-        db.task.count({ where: { deletedAt: null } }),
-        db.automation.count({ where: { deletedAt: null } }),
+        db.file.count({
+          where: {
+            OR: [
+              { userId },
+              ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+            ],
+          },
+        }),
+        db.document.count({
+          where: {
+            OR: [
+              ...(targetWsIds.length > 0
+                ? [{ knowledgeBase: { workspaceId: { in: targetWsIds } } }]
+                : []),
+              { content: { contains: `"ownerId":"${userId}"` } },
+            ],
+          },
+        }),
+        db.note.count({
+          where: {
+            deletedAt: null,
+            OR: [
+              { userId },
+              ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+            ],
+          },
+        }),
+        db.project.count({
+          where: {
+            deletedAt: null,
+            OR: [
+              { ownerId: userId },
+              ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+            ],
+          },
+        }),
+        db.task.count({
+          where: {
+            deletedAt: null,
+            OR: [
+              { creatorId: userId },
+              { assigneeId: userId },
+              ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+            ],
+          },
+        }),
+        db.automation.count({
+          where: {
+            deletedAt: null,
+            OR: [
+              { userId },
+              ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+            ],
+          },
+        }),
       ]);
 
     const totalKnowledge = fileCount + docCount + noteCount;
@@ -53,13 +134,76 @@ export class KnowledgeService {
     };
   }
 
-  async getGraphData(_userId?: string) {
+  async getGraphData(userId: string, workspaceId?: string) {
+    if (!userId) return [];
+
+    const memberships = await db.workspaceMember.findMany({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+    const userWorkspaceIds = memberships.map((m) => m.workspaceId);
+    if (workspaceId && !userWorkspaceIds.includes(workspaceId)) {
+      return [];
+    }
+    const targetWsIds = workspaceId ? [workspaceId] : userWorkspaceIds;
+
     const [files, docs, notes, projects, tasks] = await Promise.all([
-      db.file.findMany({ take: 30, orderBy: { createdAt: 'desc' } }),
-      db.document.findMany({ take: 30, orderBy: { createdAt: 'desc' } }),
-      db.note.findMany({ where: { deletedAt: null }, take: 30, orderBy: { createdAt: 'desc' } }),
-      db.project.findMany({ where: { deletedAt: null }, take: 20, orderBy: { createdAt: 'desc' } }),
-      db.task.findMany({ where: { deletedAt: null }, take: 30, orderBy: { createdAt: 'desc' } }),
+      db.file.findMany({
+        where: {
+          OR: [
+            { userId },
+            ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+          ],
+        },
+        take: 30,
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.document.findMany({
+        where: {
+          OR: [
+            ...(targetWsIds.length > 0
+              ? [{ knowledgeBase: { workspaceId: { in: targetWsIds } } }]
+              : []),
+            { content: { contains: `"ownerId":"${userId}"` } },
+          ],
+        },
+        take: 30,
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.note.findMany({
+        where: {
+          deletedAt: null,
+          OR: [
+            { userId },
+            ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+          ],
+        },
+        take: 30,
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.project.findMany({
+        where: {
+          deletedAt: null,
+          OR: [
+            { ownerId: userId },
+            ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+          ],
+        },
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.task.findMany({
+        where: {
+          deletedAt: null,
+          OR: [
+            { creatorId: userId },
+            { assigneeId: userId },
+            ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+          ],
+        },
+        take: 30,
+        orderBy: { createdAt: 'desc' },
+      }),
     ]);
 
     const nodes: any[] = [];
@@ -149,20 +293,63 @@ export class KnowledgeService {
     return nodes;
   }
 
-  async getDateActivity() {
+  async getDateActivity(userId: string, workspaceId?: string) {
+    if (!userId) return [];
+
+    const memberships = await db.workspaceMember.findMany({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+    const userWorkspaceIds = memberships.map((m) => m.workspaceId);
+    if (workspaceId && !userWorkspaceIds.includes(workspaceId)) {
+      return [];
+    }
+    const targetWsIds = workspaceId ? [workspaceId] : userWorkspaceIds;
+
     const [files, docs, notes, execs] = await Promise.all([
-      db.file.findMany({ select: { createdAt: true }, take: 100, orderBy: { createdAt: 'desc' } }),
+      db.file.findMany({
+        where: {
+          OR: [
+            { userId },
+            ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+          ],
+        },
+        select: { createdAt: true },
+        take: 100,
+        orderBy: { createdAt: 'desc' },
+      }),
       db.document.findMany({
+        where: {
+          OR: [
+            ...(targetWsIds.length > 0
+              ? [{ knowledgeBase: { workspaceId: { in: targetWsIds } } }]
+              : []),
+            { content: { contains: `"ownerId":"${userId}"` } },
+          ],
+        },
         select: { createdAt: true },
         take: 100,
         orderBy: { createdAt: 'desc' },
       }),
       db.note.findMany({
+        where: {
+          deletedAt: null,
+          OR: [
+            { userId },
+            ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+          ],
+        },
         select: { createdAt: true, updatedAt: true },
         take: 100,
         orderBy: { updatedAt: 'desc' },
       }),
       db.automationExecution.findMany({
+        where: {
+          OR: [
+            { userId },
+            ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+          ],
+        },
         select: { startedAt: true },
         take: 100,
         orderBy: { startedAt: 'desc' },
@@ -192,14 +379,43 @@ export class KnowledgeService {
     return sortedDates;
   }
 
-  async getKnowledgeGaps() {
+  async getKnowledgeGaps(userId: string, workspaceId?: string) {
+    if (!userId) return [];
+
+    const memberships = await db.workspaceMember.findMany({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+    const userWorkspaceIds = memberships.map((m) => m.workspaceId);
+    if (workspaceId && !userWorkspaceIds.includes(workspaceId)) {
+      return [];
+    }
+    const targetWsIds = workspaceId ? [workspaceId] : userWorkspaceIds;
+
     const activeProjects = await db.project.findMany({
-      where: { status: 'ACTIVE', deletedAt: null },
+      where: {
+        status: 'ACTIVE',
+        deletedAt: null,
+        OR: [
+          { ownerId: userId },
+          ...(targetWsIds.length > 0 ? [{ workspaceId: { in: targetWsIds } }] : []),
+        ],
+      },
       include: { tasks: true },
       take: 10,
     });
 
-    const docs = await db.document.findMany({ take: 100 });
+    const docs = await db.document.findMany({
+      where: {
+        OR: [
+          ...(targetWsIds.length > 0
+            ? [{ knowledgeBase: { workspaceId: { in: targetWsIds } } }]
+            : []),
+          { content: { contains: `"ownerId":"${userId}"` } },
+        ],
+      },
+      take: 100,
+    });
 
     const gaps: Array<{ projectId: string; projectName: string; message: string }> = [];
 

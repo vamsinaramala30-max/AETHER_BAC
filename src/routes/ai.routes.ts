@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { AiModule } from '../modules/ai/ai.module';
-import { optionalAuthenticate } from '../middleware/auth.middleware';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validation.middleware';
+import { aiRateLimiter } from '../middleware/rateLimit.middleware';
 import { chatSchema, generatePromptSchema } from '../validators/ai.validator';
 
 const _aiModule = new AiModule();
@@ -15,26 +16,40 @@ const diagnosticController = _aiModule.diagnosticController;
 
 const router = Router();
 
-router.use(optionalAuthenticate);
+// Public / Health Endpoints (Optional Auth)
+router.get('/health', optionalAuthenticate, (req, res, next) => aiController.getHealth(req, res, next));
+router.get('/internal/health', optionalAuthenticate, (req, res, next) =>
+  diagnosticController.getHealth(req, res, next),
+);
+router.get('/providers/status', optionalAuthenticate, (req, res, next) =>
+  aiController.getProvidersStatus(req, res, next),
+);
+router.get('/models', optionalAuthenticate, (req, res, next) =>
+  modelsController.getModels(req, res, next),
+);
+router.get('/models/:id', optionalAuthenticate, (req, res, next) =>
+  modelsController.getModelById(req, res, next),
+);
+
+// Protected Operational Endpoints (Mandatory Auth)
+router.use(authenticate);
 
 // Production Diagnostics & Distributed Tracing (Prompt 9)
-router.get('/internal/health', (req, res, next) => diagnosticController.getHealth(req, res, next));
 router.get('/internal/metrics', (req, res, next) => diagnosticController.getMetrics(req, res, next));
-router.get('/internal/executions/:id/trace', (req, res, next) => diagnosticController.getExecutionTrace(req, res, next));
-
-router.post('/chat', validate(chatSchema), (req, res, next) => aiController.chat(req, res, next));
-router.post('/stream', (req, res, next) => aiController.stream(req, res, next));
-router.post('/chat/stream', (req, res, next) => aiController.stream(req, res, next));
-router.post('/prompt', validate(generatePromptSchema), (req, res, next) =>
-  aiController.generatePrompt(req, res, next),
+router.get('/internal/executions/:id/trace', (req, res, next) =>
+  diagnosticController.getExecutionTrace(req, res, next),
 );
-router.get('/health', (req, res, next) => aiController.getHealth(req, res, next));
-router.get('/providers/status', (req, res, next) =>
-  aiController.getProvidersStatus(req, res, next),
+
+router.post('/chat', aiRateLimiter, validate(chatSchema), (req, res, next) => aiController.chat(req, res, next));
+router.post('/stream', aiRateLimiter, (req, res, next) => aiController.stream(req, res, next));
+router.post('/chat/stream', aiRateLimiter, (req, res, next) => aiController.stream(req, res, next));
+router.post('/prompt', aiRateLimiter, validate(generatePromptSchema), (req, res, next) =>
+  aiController.generatePrompt(req, res, next),
 );
 
 // Autonomous Agent Execution Loop Routes (Prompt 8)
-router.post('/agent/execute', (req, res, next) => executionController.startExecution(req, res, next));
+router.post('/agent/execute', aiRateLimiter, (req, res, next) => executionController.startExecution(req, res, next));
+
 router.get('/agent/executions/:id', (req, res, next) => executionController.getExecution(req, res, next));
 router.post('/agent/executions/:id/cancel', (req, res, next) => executionController.cancelExecution(req, res, next));
 router.post('/agent/executions/:id/approve', (req, res, next) => executionController.approveStep(req, res, next));
@@ -84,9 +99,5 @@ router.post('/conversations/:id/messages', (req, res, next) =>
 router.delete('/conversations/:id/messages/:messageId?', (req, res, next) =>
   aiController.deleteMessage(req, res, next),
 );
-
-// Models Routes
-router.get('/models', (req, res, next) => modelsController.getModels(req, res, next));
-router.get('/models/:id', (req, res, next) => modelsController.getModelById(req, res, next));
 
 export const aiRoutes: Router = router;

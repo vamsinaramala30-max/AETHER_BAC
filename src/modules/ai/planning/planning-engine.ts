@@ -5,7 +5,7 @@
  * Supports Sequential, Parallel, and Conditional execution modes with cycle detection.
  */
 
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import type {
   ActionPlan,
   PlanStep,
@@ -73,13 +73,197 @@ export interface IPlanningEngine {
 
 const MAX_ALLOWED_STEPS = 15;
 
+export interface ParsedTemporalTask {
+  cleanedTitle: string;
+  dueDate?: string;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+}
+
+export function parseTemporalExpression(
+  text: string,
+  referenceDate: Date = new Date(),
+): ParsedTemporalTask {
+  let cleaned = text.trim();
+  let priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium';
+
+  // 1. Extract and strip priority
+  if (/\b(?:priority\s+urgent|urgent\s+priority|urgent)\b/i.test(cleaned)) {
+    priority = 'urgent';
+    cleaned = cleaned
+      .replace(
+        /(?:and\s+)?(?:set\s+)?(?:its\s+)?(?:with\s+)?(?:priority\s+urgent|urgent\s+priority|urgent)/gi,
+        '',
+      )
+      .trim();
+  } else if (/\b(?:priority\s+high|high\s+priority)\b/i.test(cleaned)) {
+    priority = 'high';
+    cleaned = cleaned
+      .replace(
+        /(?:and\s+)?(?:set\s+)?(?:its\s+)?(?:with\s+)?(?:priority\s+high|high\s+priority)/gi,
+        '',
+      )
+      .trim();
+  } else if (/\b(?:priority\s+low|low\s+priority)\b/i.test(cleaned)) {
+    priority = 'low';
+    cleaned = cleaned
+      .replace(
+        /(?:and\s+)?(?:set\s+)?(?:its\s+)?(?:with\s+)?(?:priority\s+low|low\s+priority)/gi,
+        '',
+      )
+      .trim();
+  } else if (/\b(?:priority\s+medium|medium\s+priority)\b/i.test(cleaned)) {
+    priority = 'medium';
+    cleaned = cleaned
+      .replace(
+        /(?:and\s+)?(?:set\s+)?(?:its\s+)?(?:with\s+)?(?:priority\s+medium|medium\s+priority)/gi,
+        '',
+      )
+      .trim();
+  }
+
+  cleaned = cleaned.replace(/(?:and\s+)?(?:set\s+)?(?:its\s+)?priority\s+(?:to\s+)?(?:low|medium|high|urgent)/gi, '').trim();
+  cleaned = cleaned.replace(/with\s+priority\s+(?:low|medium|high|urgent)/gi, '').trim();
+
+  let dueDate: string | undefined = undefined;
+
+  const parseTime = (timeStr?: string): { hours: number; minutes: number } => {
+    if (!timeStr) return { hours: 18, minutes: 0 };
+    const m = timeStr.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+    if (!m) return { hours: 18, minutes: 0 };
+    let hours = parseInt(m[1], 10);
+    const minutes = m[2] ? parseInt(m[2], 10) : 0;
+    const meridian = m[3]?.toLowerCase();
+
+    if (meridian === 'pm' && hours < 12) hours += 12;
+    if (meridian === 'am' && hours === 12) hours = 0;
+    return { hours, minutes };
+  };
+
+  const weekdays: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+  };
+
+  // Pattern A: ISO date or YYYY-MM-DD [at HH:mm / at X PM]
+  const isoMatch = cleaned.match(
+    /\b(?:by|due|on|at|for|before)?\s*(\d{4}-\d{2}-\d{2})(?:[T\s]+(?:at\s+)?(\d{1,2}(?::\d{2})?\s*(?:am|pm)?))?\b/i,
+  );
+  if (isoMatch) {
+    const datePart = isoMatch[1];
+    const timePart = isoMatch[2];
+    const time = parseTime(timePart);
+    const [y, m, d] = datePart.split('-').map((v) => parseInt(v, 10));
+    const target = new Date(y, m - 1, d, time.hours, time.minutes, 0, 0);
+    dueDate = target.toISOString();
+    cleaned = cleaned.replace(isoMatch[0], '').trim();
+  }
+
+  // Pattern B: "tomorrow [at X PM / at HH:mm]"
+  if (!dueDate) {
+    const tomorrowMatch = cleaned.match(
+      /\b(?:by|due|on|at|for|before)?\s*tomorrow(?:\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?))?\b/i,
+    );
+    if (tomorrowMatch) {
+      const time = parseTime(tomorrowMatch[1]);
+      const target = new Date(referenceDate.getTime());
+      target.setDate(target.getDate() + 1);
+      target.setHours(time.hours, time.minutes, 0, 0);
+      dueDate = target.toISOString();
+      cleaned = cleaned.replace(tomorrowMatch[0], '').trim();
+    }
+  }
+
+  // Pattern C: "today [at X PM / at HH:mm]"
+  if (!dueDate) {
+    const todayMatch = cleaned.match(
+      /\b(?:by|due|on|at|for|before)?\s*today(?:\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?))?\b/i,
+    );
+    if (todayMatch) {
+      const time = parseTime(todayMatch[1]);
+      const target = new Date(referenceDate.getTime());
+      target.setHours(time.hours, time.minutes, 0, 0);
+      dueDate = target.toISOString();
+      cleaned = cleaned.replace(todayMatch[0], '').trim();
+    }
+  }
+
+  // Pattern D: "next <weekday>" or "this <weekday>" [at X PM]
+  if (!dueDate) {
+    const weekdayMatch = cleaned.match(
+      /\b(?:by|due|on|at|for|before)?\s*(next|this)\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday)(?:\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?))?\b/i,
+    );
+    if (weekdayMatch) {
+      const modifier = weekdayMatch[1].toLowerCase();
+      const dayName = weekdayMatch[2].toLowerCase();
+      const targetDay = weekdays[dayName];
+      const time = parseTime(weekdayMatch[3]);
+
+      const target = new Date(referenceDate.getTime());
+      const currentDay = target.getDay();
+      let diff = targetDay - currentDay;
+
+      if (modifier === 'next') {
+        if (diff <= 0) diff += 7;
+      } else {
+        if (diff < 0) diff += 7;
+      }
+
+      target.setDate(target.getDate() + diff);
+      target.setHours(time.hours, time.minutes, 0, 0);
+      dueDate = target.toISOString();
+      cleaned = cleaned.replace(weekdayMatch[0], '').trim();
+    }
+  }
+
+  // Pattern E: "in X hours" / "in X days" / "in X weeks"
+  if (!dueDate) {
+    const relativeMatch = cleaned.match(
+      /\b(?:by|due|on|at|for|before)?\s*in\s+(\d+)\s+(hours?|days?|weeks?)\b/i,
+    );
+    if (relativeMatch) {
+      const amount = parseInt(relativeMatch[1], 10);
+      const unit = relativeMatch[2].toLowerCase();
+      const target = new Date(referenceDate.getTime());
+
+      if (unit.startsWith('hour')) {
+        target.setTime(target.getTime() + amount * 60 * 60 * 1000);
+      } else if (unit.startsWith('day')) {
+        target.setDate(target.getDate() + amount);
+      } else if (unit.startsWith('week')) {
+        target.setDate(target.getDate() + amount * 7);
+      }
+
+      dueDate = target.toISOString();
+      cleaned = cleaned.replace(relativeMatch[0], '').trim();
+    }
+  }
+
+  cleaned = cleaned
+    .replace(/^["'\s]+|["'\s]+$/g, '')
+    .replace(/\s+(?:by|due|on|at|for|before)\s*$/i, '')
+    .replace(/^(?:called|named|to)\s+/i, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  return {
+    cleanedTitle: cleaned || 'New Task',
+    dueDate,
+    priority,
+  };
+}
+
 export class PlanningEngine implements IPlanningEngine {
   public async createPlan(
     objective: string,
     _auth: AuthenticationContext,
     options: PlanOptions = {},
   ): Promise<ActionPlan> {
-    const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const planId = randomUUID();
     const lower = objective.toLowerCase().trim();
     const steps: PlanStep[] = [];
     let executionMode: PlanExecutionMode = options.mode ?? 'sequential';
@@ -91,10 +275,10 @@ export class PlanningEngine implements IPlanningEngine {
       lower.includes('review preparation') ||
       lower.includes('prepare everything')
     ) {
-      const step1Id = `step_1_${Date.now()}`;
-      const step2Id = `step_2_${Date.now()}`;
-      const step3Id = `step_3_${Date.now()}`;
-      const step4Id = `step_4_${Date.now()}`;
+      const step1Id = randomUUID();
+      const step2Id = randomUUID();
+      const step3Id = randomUUID();
+      const step4Id = randomUUID();
 
       steps.push({
         stepId: step1Id,
@@ -163,7 +347,7 @@ export class PlanningEngine implements IPlanningEngine {
         const projIdMatch = objective.match(/(?:project|id)\s+([a-zA-Z0-9_-]+)/i);
         const projectId = projIdMatch ? projIdMatch[1] : 'proj_unknown';
         steps.push({
-          stepId: `step_1_${Date.now()}`,
+          stepId: randomUUID(),
           stepNumber: 1,
           description: `Permanently delete project "${projectId}"`,
           toolName: 'delete_project',
@@ -180,7 +364,7 @@ export class PlanningEngine implements IPlanningEngine {
         const taskIdMatch = objective.match(/(?:task|id)\s+([a-zA-Z0-9_-]+)/i);
         const taskId = taskIdMatch ? taskIdMatch[1] : 'task_unknown';
         steps.push({
-          stepId: `step_1_${Date.now()}`,
+          stepId: randomUUID(),
           stepNumber: 1,
           description: `Delete task "${taskId}"`,
           toolName: 'delete_task',
@@ -197,7 +381,7 @@ export class PlanningEngine implements IPlanningEngine {
         const docIdMatch = objective.match(/(?:document|doc|id)\s+([a-zA-Z0-9_-]+)/i);
         const documentId = docIdMatch ? docIdMatch[1] : 'doc_unknown';
         steps.push({
-          stepId: `step_1_${Date.now()}`,
+          stepId: randomUUID(),
           stepNumber: 1,
           description: `Delete document "${documentId}"`,
           toolName: 'delete_knowledge_document',
@@ -212,7 +396,7 @@ export class PlanningEngine implements IPlanningEngine {
         summary = `High-impact document deletion requiring confirmation.`;
       } else {
         steps.push({
-          stepId: `step_1_${Date.now()}`,
+          stepId: randomUUID(),
           stepNumber: 1,
           description: `Process deletion request for "${objective}"`,
           toolName: 'delete_task',
@@ -239,7 +423,7 @@ export class PlanningEngine implements IPlanningEngine {
         .trim();
 
       steps.push({
-        stepId: `step_1_${Date.now()}`,
+        stepId: randomUUID(),
         stepNumber: 1,
         description: `Create project "${name || 'New Project'}"`,
         toolName: 'create_project',
@@ -259,35 +443,31 @@ export class PlanningEngine implements IPlanningEngine {
       lower.startsWith('add a task') ||
       lower.startsWith('add task')
     ) {
-      let title = objective
-        .replace(/^create\s+(a\s+)?task\s+(called\s+|named\s+|to\s+)?/i, '')
+      const rawTitle = objective
+        .replace(/^(?:create|add)\s+(?:a\s+)?task\s+(?:called\s+|named\s+|to\s+)?/i, '')
         .trim();
 
-      let priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium';
-      if (
-        lower.includes('priority high') ||
-        lower.includes('high priority') ||
-        lower.includes('urgent')
-      ) {
-        priority = 'high';
-        title = title
-          .replace(/(and\s+)?(set\s+)?(its\s+)?priority\s+(to\s+)?(high|urgent)/i, '')
-          .trim();
-      }
+      const parsed = parseTemporalExpression(rawTitle);
+      const title = parsed.cleanedTitle || 'New Task';
+      const priority = parsed.priority || 'medium';
 
       steps.push({
-        stepId: `step_1_${Date.now()}`,
+        stepId: randomUUID(),
         stepNumber: 1,
-        description: `Create task "${title || 'New Task'}" with priority ${priority}`,
+        description: `Create task "${title}" with priority ${priority}${parsed.dueDate ? ` due ${parsed.dueDate}` : ''}`,
         toolName: 'create_task',
-        toolInput: { title: title || 'New Task', priority },
+        toolInput: {
+          title,
+          priority,
+          ...(parsed.dueDate ? { dueDate: parsed.dueDate } : {}),
+        },
         riskLevel: 'LOW_RISK',
         status: 'pending',
         verified: false,
         expectedOutput: 'Created task confirmation',
       });
       executionMode = 'direct';
-      summary = `Single-step task creation: "${title || 'New Task'}".`;
+      summary = `Single-step task creation: "${title}".`;
     }
     // ─── Pattern: Create Note ───────────────────────────────────────────────────
     else if (
@@ -301,7 +481,7 @@ export class PlanningEngine implements IPlanningEngine {
         .trim();
 
       steps.push({
-        stepId: `step_1_${Date.now()}`,
+        stepId: randomUUID(),
         stepNumber: 1,
         description: `Create note "${title || 'New Note'}"`,
         toolName: 'create_note',
@@ -327,7 +507,7 @@ export class PlanningEngine implements IPlanningEngine {
         .trim() || objective;
 
       steps.push({
-        stepId: `step_1_${Date.now()}`,
+        stepId: randomUUID(),
         stepNumber: 1,
         description: `Search knowledge base and workspace for "${query}"`,
         toolName: 'search_knowledge',
@@ -343,7 +523,7 @@ export class PlanningEngine implements IPlanningEngine {
     // ─── Pattern: Mark Task Complete ────────────────────────────────────────────
     else if (lower.includes('mark') && (lower.includes('complete') || lower.includes('done'))) {
       steps.push({
-        stepId: `step_1_${Date.now()}`,
+        stepId: randomUUID(),
         stepNumber: 1,
         description: `Search tasks to identify target task for completion`,
         toolName: 'list_tasks',
@@ -369,7 +549,7 @@ export class PlanningEngine implements IPlanningEngine {
       }
 
       steps.push({
-        stepId: `step_1_${Date.now()}`,
+        stepId: randomUUID(),
         stepNumber: 1,
         description: 'Create scheduled weekly project summary automation',
         toolName: 'create_automation',
@@ -395,7 +575,7 @@ export class PlanningEngine implements IPlanningEngine {
     // ─── Pattern: Goals Progress ────────────────────────────────────────────────
     else if (lower.includes('goal') || lower.includes('progress toward my goal')) {
       steps.push({
-        stepId: `step_1_${Date.now()}`,
+        stepId: randomUUID(),
         stepNumber: 1,
         description: 'Retrieve goals and calculate exact progress from real records',
         toolName: 'get_goal_progress',
@@ -414,8 +594,8 @@ export class PlanningEngine implements IPlanningEngine {
       lower.includes('finish today') ||
       lower.includes('schedule')
     ) {
-      const step1Id = `step_1_${Date.now()}`;
-      const step2Id = `step_2_${Date.now()}`;
+      const step1Id = randomUUID();
+      const step2Id = randomUUID();
 
       steps.push({
         stepId: step1Id,
@@ -445,7 +625,7 @@ export class PlanningEngine implements IPlanningEngine {
     // ─── Fallback Step ──────────────────────────────────────────────────────────
     else {
       steps.push({
-        stepId: `step_1_${Date.now()}`,
+        stepId: randomUUID(),
         stepNumber: 1,
         description: `Analyze workspace for objective: "${objective}"`,
         toolName: 'get_workspace_info',
@@ -486,16 +666,16 @@ export class PlanningEngine implements IPlanningEngine {
     intent: Intent,
     context?: AIContext,
   ): ActionPlan {
-    const planId = `plan_cog_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const planId = randomUUID();
     const lower = objective.toLowerCase().trim();
     const steps: PlanStep[] = [];
     let executionMode: PlanExecutionMode = 'sequential';
     let summary = 'Structured task breakdown';
 
     if (intent.primaryIntent === 'ANALYSIS' || lower.includes('analyze') || lower.includes('compare')) {
-      const s1 = `step_1_${Date.now()}`;
-      const s2 = `step_2_${Date.now()}`;
-      const s3 = `step_3_${Date.now()}`;
+      const s1 = randomUUID();
+      const s2 = randomUUID();
+      const s3 = randomUUID();
 
       steps.push({
         stepId: s1,
@@ -535,9 +715,9 @@ export class PlanningEngine implements IPlanningEngine {
       intent.requiresRAG ||
       lower.includes('research')
     ) {
-      const s1 = `step_1_${Date.now()}`;
-      const s2 = `step_2_${Date.now()}`;
-      const s3 = `step_3_${Date.now()}`;
+      const s1 = randomUUID();
+      const s2 = randomUUID();
+      const s3 = randomUUID();
 
       steps.push({
         stepId: s1,
@@ -573,8 +753,8 @@ export class PlanningEngine implements IPlanningEngine {
 
       summary = 'Document retrieval, evidence cross-referencing, and synthesized response.';
     } else {
-      const s1 = `step_1_${Date.now()}`;
-      const s2 = `step_2_${Date.now()}`;
+      const s1 = randomUUID();
+      const s2 = randomUUID();
 
       steps.push({
         stepId: s1,
@@ -876,7 +1056,7 @@ export class PlanningEngine implements IPlanningEngine {
         : requestOrPrompt;
 
     const correlationId = options.correlationId || request.requestId || `corr_${Date.now()}`;
-    const planId = `plan_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const planId = randomUUID();
     const intent: Intent = options.intent ?? {
       type: 'GENERAL_REASONING',
       confidence: 0.8,
@@ -1010,7 +1190,7 @@ export class PlanningEngine implements IPlanningEngine {
       let prevStepId: string | undefined;
 
       for (const pc of sortedConstraints) {
-        const sId = `step_${stepNum}_${Date.now()}`;
+        const sId = randomUUID();
         const pcValStr = typeof pc.value === 'string' ? pc.value : '';
         const desc = pc.description || pcValStr || 'Project task';
         const isUrgent = desc.toLowerCase().includes('friday');
@@ -1049,10 +1229,10 @@ export class PlanningEngine implements IPlanningEngine {
       (lower.includes('organize') || lower.includes('review') || lower.includes('audit') || lower.includes('prepare') || lower.includes('plan')) &&
       (lower.includes('project') || lower.includes('task') || lower.includes('work') || lower.includes('assignment') || lower.includes('milestone') || lower.includes('quarterly') || lower.includes('week') || lower.includes('schedule'))
     ) {
-      const s1Id = `step_1_${Date.now()}`;
-      const s2Id = `step_2_${Date.now()}`;
-      const s3Id = `step_3_${Date.now()}`;
-      const s4Id = `step_4_${Date.now()}`;
+      const s1Id = randomUUID();
+      const s2Id = randomUUID();
+      const s3Id = randomUUID();
+      const s4Id = randomUUID();
 
       steps.push({
         id: s1Id,
@@ -1125,23 +1305,25 @@ export class PlanningEngine implements IPlanningEngine {
       lower.startsWith('add a task') ||
       lower.startsWith('add task')
     ) {
-      const s1Id = `step_1_${Date.now()}`;
-      let title = raw.replace(/^create\s+(?:a\s+)?task\s+(?:called\s+|named\s+|to\s+)?/i, '').trim();
-      let priority = 'medium';
-      if (lower.includes('priority high') || lower.includes('high priority') || lower.includes('urgent')) {
-        priority = 'high';
-        title = title.replace(/(?:and\s+)?(?:set\s+)?(?:its\s+)?priority\s+(?:to\s+)?(?:high|urgent)/i, '').trim();
-      }
+      const s1Id = randomUUID();
+      const rawTitle = raw.replace(/^(?:create|add)\s+(?:a\s+)?task\s+(?:called\s+|named\s+|to\s+)?/i, '').trim();
+      const parsed = parseTemporalExpression(rawTitle);
+      const title = parsed.cleanedTitle || 'New Task';
+      const priority = parsed.priority || 'medium';
 
       steps.push({
         id: s1Id,
         order: 1,
-        title: `Create task "${title || 'New Task'}"`,
-        description: `Create task "${title || 'New Task'}" with priority ${priority}`,
+        title: `Create task "${title}"`,
+        description: `Create task "${title}" with priority ${priority}${parsed.dueDate ? ` (due ${parsed.dueDate})` : ''}`,
         type: 'TOOL',
         toolName: 'create_task',
         toolVersion: '1.0.0',
-        input: { title: title || 'New Task', priority },
+        input: {
+          title,
+          priority,
+          ...(parsed.dueDate ? { dueDate: parsed.dueDate } : {}),
+        },
         dependencies: [],
         expectedOutcome: 'Task created and verified in database',
         status: 'READY',
@@ -1149,7 +1331,7 @@ export class PlanningEngine implements IPlanningEngine {
     }
     // Decomposition Pattern C: Create Project
     else if (lower.startsWith('create a project') || lower.startsWith('create project')) {
-      const s1Id = `step_1_${Date.now()}`;
+      const s1Id = randomUUID();
       const name = raw.replace(/^create\s+(?:a\s+)?project\s+(?:called\s+|named\s+|to\s+)?/i, '').trim();
 
       steps.push({
@@ -1168,7 +1350,7 @@ export class PlanningEngine implements IPlanningEngine {
     }
     // Decomposition Pattern D: High-Impact Deletion
     else if (lower.startsWith('delete') || lower.startsWith('remove') || lower.includes('permanently delete')) {
-      const s1Id = `step_1_${Date.now()}`;
+      const s1Id = randomUUID();
       let toolName = 'delete_task';
       let input: Record<string, unknown> = { taskId: 'target_id' };
       let desc = `Process deletion request for "${raw}"`;
@@ -1213,8 +1395,8 @@ export class PlanningEngine implements IPlanningEngine {
       lower.includes('search knowledge') ||
       lower.includes('documentation')
     ) {
-      const s1Id = `step_1_${Date.now()}`;
-      const s2Id = `step_2_${Date.now()}`;
+      const s1Id = randomUUID();
+      const s2Id = randomUUID();
 
       steps.push({
         id: s1Id,
@@ -1244,7 +1426,7 @@ export class PlanningEngine implements IPlanningEngine {
     }
     // Fallback: Direct Analysis
     else {
-      const s1Id = `step_1_${Date.now()}`;
+      const s1Id = randomUUID();
       steps.push({
         id: s1Id,
         order: 1,

@@ -7,6 +7,7 @@ import { TaskEntity } from './tasks.entity';
 import { CreateTaskDTO, UpdateTaskDTO, TaskFilterDTO, BulkTaskOperationDTO } from './tasks.dto';
 import { TaskStatus, PriorityLevel, RecurrenceInterval } from '../projects.constants';
 import { db } from '../../../database/client';
+import { AppError } from '../../../middleware/error.middleware';
 
 export class TasksService {
   constructor(private readonly repository: TasksRepository) {}
@@ -76,9 +77,25 @@ export class TasksService {
     return savedTask;
   }
 
-  async getTask(id: string): Promise<TaskEntity> {
+  async getTask(id: string, userId?: string): Promise<TaskEntity> {
     const task = await this.repository.findById(id);
-    if (!task) throw new Error(`Task with ID ${id} not found.`);
+    if (!task) throw new AppError(`Task with ID ${id} not found.`, 404, 'NOT_FOUND');
+    if (userId) {
+      const isCreator = task.creatorId === userId;
+      const isAssignee = task.assigneeIds && task.assigneeIds.includes(userId);
+      if (!isCreator && !isAssignee) {
+        let isMember = false;
+        if (task.workspaceId) {
+          const membership = await db.workspaceMember.findFirst({
+            where: { workspaceId: task.workspaceId, userId },
+          });
+          isMember = !!membership;
+        }
+        if (!isMember) {
+          throw new AppError('Forbidden: Access to task denied', 403, 'FORBIDDEN');
+        }
+      }
+    }
     return task;
   }
 
@@ -86,8 +103,8 @@ export class TasksService {
     return this.repository.findMany(filter);
   }
 
-  async updateTask(id: string, dto: UpdateTaskDTO): Promise<TaskEntity> {
-    const task = await this.getTask(id);
+  async updateTask(id: string, dto: UpdateTaskDTO, userId?: string): Promise<TaskEntity> {
+    const task = await this.getTask(id, userId);
     const previousAssignees = [...task.assigneeIds];
 
     if (dto.title !== undefined) task.title = dto.title;
@@ -144,8 +161,8 @@ export class TasksService {
     return savedTask;
   }
 
-  async logTime(id: string, minutes: number): Promise<TaskEntity> {
-    const task = await this.getTask(id);
+  async logTime(id: string, minutes: number, userId?: string): Promise<TaskEntity> {
+    const task = await this.getTask(id, userId);
     task.loggedMinutes += minutes;
     return this.repository.save(task);
   }
@@ -175,8 +192,8 @@ export class TasksService {
     return { updated: updatedTasks.length };
   }
 
-  async deleteTask(id: string): Promise<boolean> {
-    await this.getTask(id);
+  async deleteTask(id: string, userId?: string): Promise<boolean> {
+    await this.getTask(id, userId);
     return this.repository.delete(id);
   }
 }

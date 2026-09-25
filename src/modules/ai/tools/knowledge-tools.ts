@@ -9,6 +9,7 @@ import { toolRegistry } from './tool-registry.js';
 import { DocumentsRepository } from '../../knowledge/documents/documents.repository.js';
 import { NotesRepository } from '../../knowledge/notes/notes/notes.repository.js';
 import { db } from '../../../database/client.js';
+import { defaultRAGEngine } from '../rag/rag-engine.js';
 
 const documentsRepo = new DocumentsRepository();
 const notesRepo = new NotesRepository();
@@ -63,19 +64,43 @@ export const searchKnowledgeTool: ToolDefinition<SearchKnowledgeInput, SearchKno
   retryable: true,
   handler: async (
     input: SearchKnowledgeInput,
-    _context: ToolExecutionContext,
+    context: ToolExecutionContext,
   ): Promise<SearchKnowledgeOutput> => {
+    const userId = context.auth?.userId;
     const q = input.query.toLowerCase().trim();
-    const limit = input.topK || 10;
+    const limit = Math.min(input.topK || 10, 50);
     const threshold = input.scoreThreshold ?? 0.1;
 
-    // Search real documents and notes in database
+    let userWorkspaceIds: string[] = [];
+    if (userId) {
+      const memberships = await db.workspaceMember.findMany({
+        where: { userId },
+        select: { workspaceId: true },
+      });
+      userWorkspaceIds = memberships.map((m) => m.workspaceId);
+    }
+
+    // Search real documents and notes in database with tenant isolation
     const [docs, notes] = await Promise.all([
       db.document.findMany({
         where: {
-          OR: [
-            { fileName: { contains: q, mode: 'insensitive' } },
-            { content: { contains: q, mode: 'insensitive' } },
+          AND: [
+            userId
+              ? {
+                  OR: [
+                    ...(userWorkspaceIds.length > 0
+                      ? [{ knowledgeBase: { workspaceId: { in: userWorkspaceIds } } }]
+                      : []),
+                    { content: { contains: `"ownerId":"${userId}"` } },
+                  ],
+                }
+              : {},
+            {
+              OR: [
+                { fileName: { contains: q, mode: 'insensitive' } },
+                { content: { contains: q, mode: 'insensitive' } },
+              ],
+            },
           ],
         },
         take: limit,
@@ -83,6 +108,16 @@ export const searchKnowledgeTool: ToolDefinition<SearchKnowledgeInput, SearchKno
       db.note.findMany({
         where: {
           deletedAt: null,
+          ...(userId
+            ? {
+                OR: [
+                  { userId },
+                  ...(userWorkspaceIds.length > 0
+                    ? [{ workspaceId: { in: userWorkspaceIds } }]
+                    : []),
+                ],
+              }
+            : {}),
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
             { content: { contains: q, mode: 'insensitive' } },
@@ -180,7 +215,7 @@ export const addKnowledgeDocumentTool: ToolDefinition<
     input: AddKnowledgeDocumentInput,
     context: ToolExecutionContext,
   ): Promise<AddKnowledgeDocumentOutput> => {
-    const userId = context.auth.userId;
+    const userId = context.auth?.userId;
     const doc = await documentsRepo.create({
       title: input.title,
       description: input.content,
@@ -196,6 +231,20 @@ export const addKnowledgeDocumentTool: ToolDefinition<
       ownerId: userId,
       sharedUserIds: [],
       permissions: { canRead: [userId], canWrite: [userId] },
+    });
+
+    // Ingest into defaultRAGEngine for vector/keyword retrieval
+    await defaultRAGEngine.ingest({
+      id: doc.id,
+      type: 'text',
+      content: input.content,
+      filename: input.title,
+      metadata: {
+        title: input.title,
+        userId,
+        collectionId: input.collectionId,
+        category: 'General',
+      },
     });
 
     return {
@@ -261,12 +310,20 @@ export const deleteKnowledgeDocumentTool: ToolDefinition<
   requiredPermissions: ['knowledge:write'],
   handler: async (
     input: DeleteKnowledgeDocumentInput,
-    _context: ToolExecutionContext,
+    context: ToolExecutionContext,
   ): Promise<DeleteKnowledgeDocumentOutput> => {
+    const userId = context.auth?.userId;
     const doc = await documentsRepo.findById(input.documentId);
     if (!doc) {
       throw new Error(`Document "${input.documentId}" not found.`);
     }
+
+    if (userId && doc.ownerId !== userId && !doc.permissions?.canWrite?.includes(userId)) {
+      throw new Error(`Access denied to delete document "${input.documentId}".`);
+    }
+
+    // Cascade delete from RAG engine
+    await defaultRAGEngine.deleteDocument(input.documentId);
     const deleted = await documentsRepo.delete(input.documentId);
     return {
       documentId: input.documentId,
@@ -319,11 +376,17 @@ export const getDocumentTool: ToolDefinition<GetDocumentInput, DocumentDetails> 
   },
   requiredPermissions: ['knowledge:read'],
   retryable: true,
-  handler: async (input: GetDocumentInput, _context: ToolExecutionContext): Promise<DocumentDetails> => {
+  handler: async (input: GetDocumentInput, context: ToolExecutionContext): Promise<DocumentDetails> => {
+    const userId = context.auth?.userId;
     const doc = await documentsRepo.findById(input.documentId);
     if (!doc) {
       throw new Error(`Document "${input.documentId}" not found.`);
     }
+
+    if (userId && doc.ownerId !== userId && !doc.permissions?.canRead?.includes(userId)) {
+      throw new Error(`Access denied to document "${input.documentId}".`);
+    }
+
     return {
       documentId: doc.id,
       title: doc.title,

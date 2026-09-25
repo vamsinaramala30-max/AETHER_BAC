@@ -31,6 +31,14 @@ router.get('/focus/analytics', (req, res, next) => focusController.handleAnalyti
 router.get('/:workspaceId/focus/analytics', (req, res, next) =>
   focusController.handleAnalytics(req, res, next),
 );
+router.get('/focus/history', (req, res, next) => focusController.handleHistory(req, res, next));
+router.get('/:workspaceId/focus/history', (req, res, next) =>
+  focusController.handleHistory(req, res, next),
+);
+router.delete('/focus/:id', (req, res, next) => focusController.handleDelete(req, res, next));
+router.delete('/:workspaceId/focus/:id', (req, res, next) =>
+  focusController.handleDelete(req, res, next),
+);
 
 // Workspace routes
 router.get('/', workspaceController.getUserWorkspaces);

@@ -13,55 +13,62 @@ export class FocusRepository {
   private sessions: Map<string, FocusSessionEntity> = new Map();
 
   async create(userId: string, entity: FocusSessionEntity): Promise<FocusSessionEntity> {
-    this.sessions.set(entity.id, entity);
-    try {
-      const validUserId = toUuid(userId);
-      const validEntityId = toUuid(entity.id);
-      let validWorkspaceId = toUuid(entity.workspaceId || '');
+    const validUserId = toUuid(userId);
+    const validEntityId = toUuid(entity.id);
+    let validWorkspaceId = toUuid(entity.workspaceId || '');
 
+    try {
       const membership = await db.workspaceMember.findFirst({
         where: { userId: validUserId },
       });
       if (membership) {
         validWorkspaceId = membership.workspaceId;
+      } else {
+        const firstWs = await db.workspace.findFirst();
+        if (firstWs) {
+          validWorkspaceId = firstWs.id;
+        }
       }
 
-      if (validWorkspaceId) {
-        await db.activityLog.create({
-          data: {
-            id: validEntityId,
-            userId: validUserId,
-            workspaceId: validWorkspaceId,
-            action: 'FOCUS_SESSION_STARTED',
-            entityType: 'FOCUS_SESSION',
-            entityId: validEntityId,
-            entityName: entity.type || 'focus',
-            metadata: {
-              id: entity.id,
-              type: entity.type,
-              status: entity.status,
-              durationMinutes: entity.durationMinutes,
-              actualDurationSeconds: entity.actualDurationSeconds,
-              distractionsCount: entity.distractionsCount,
-              startTime: entity.startTime
-                ? entity.startTime.toISOString()
-                : new Date().toISOString(),
-            },
+      await db.activityLog.create({
+        data: {
+          id: validEntityId,
+          userId: validUserId,
+          workspaceId: validWorkspaceId,
+          action: 'FOCUS_SESSION_STARTED',
+          entityType: 'FOCUS_SESSION',
+          entityId: validEntityId,
+          entityName: entity.type || 'focus',
+          metadata: {
+            id: entity.id,
+            type: entity.type,
+            status: entity.status,
+            durationMinutes: entity.durationMinutes,
+            actualDurationSeconds: entity.actualDurationSeconds,
+            distractionsCount: entity.distractionsCount,
+            taskId: entity.taskId || null,
+            projectId: entity.projectId || null,
+            startTime: entity.startTime
+              ? entity.startTime.toISOString()
+              : new Date().toISOString(),
           },
-        });
-      }
-    } catch {
-      // Memory fallback
+        },
+      });
+
+      this.sessions.set(entity.id, entity);
+      return entity;
+    } catch (err: any) {
+      this.sessions.set(entity.id, entity);
+      // If PostgreSQL write fails, log and propagate if critical or maintain in-flight
+      console.warn(`[FocusRepository] Database write warning for session ${entity.id}:`, err?.message);
+      return entity;
     }
-    return entity;
   }
 
   async findById(id: string): Promise<FocusSessionEntity | null> {
-    const mem = this.sessions.get(id);
-    if (mem) return mem;
+    const validEntityId = toUuid(id);
 
     try {
-      const validEntityId = toUuid(id);
       const log = await db.activityLog.findFirst({
         where: { entityId: validEntityId, entityType: 'FOCUS_SESSION' },
       });
@@ -76,6 +83,8 @@ export class FocusRepository {
           durationMinutes: m.durationMinutes || 25,
           actualDurationSeconds: m.actualDurationSeconds || 0,
           distractionsCount: m.distractionsCount || 0,
+          taskId: m.taskId || null,
+          projectId: m.projectId || null,
           startTime: m.startTime ? new Date(m.startTime) : log.createdAt,
           endTime: m.endTime ? new Date(m.endTime) : undefined,
           createdAt: log.createdAt,
@@ -84,15 +93,20 @@ export class FocusRepository {
         return entity;
       }
     } catch {
-      // Memory fallback
+      // Check in-flight cache
     }
+
+    const mem = this.sessions.get(id);
+    if (mem) return mem;
+
     return null;
   }
 
   async update(entity: FocusSessionEntity): Promise<FocusSessionEntity> {
     this.sessions.set(entity.id, entity);
+    const validEntityId = toUuid(entity.id);
+
     try {
-      const validEntityId = toUuid(entity.id);
       await db.activityLog.updateMany({
         where: { entityId: validEntityId, entityType: 'FOCUS_SESSION' },
         data: {
@@ -104,13 +118,15 @@ export class FocusRepository {
             durationMinutes: entity.durationMinutes,
             actualDurationSeconds: entity.actualDurationSeconds,
             distractionsCount: entity.distractionsCount,
+            taskId: entity.taskId || null,
+            projectId: entity.projectId || null,
             startTime: entity.startTime ? entity.startTime.toISOString() : undefined,
             endTime: entity.endTime ? entity.endTime.toISOString() : undefined,
           },
         },
       });
-    } catch {
-      // Memory fallback
+    } catch (err: any) {
+      console.warn(`[FocusRepository] Database update warning for session ${entity.id}:`, err?.message);
     }
     return entity;
   }
@@ -139,6 +155,8 @@ export class FocusRepository {
           durationMinutes: m.durationMinutes || 25,
           actualDurationSeconds: m.actualDurationSeconds || 0,
           distractionsCount: m.distractionsCount || 0,
+          taskId: m.taskId || null,
+          projectId: m.projectId || null,
           startTime: m.startTime ? new Date(m.startTime) : log.createdAt,
           endTime: m.endTime ? new Date(m.endTime) : undefined,
           createdAt: log.createdAt,
@@ -155,5 +173,20 @@ export class FocusRepository {
     return Array.from(this.sessions.values()).filter(
       (s) => (s.workspaceId === workspaceId || !workspaceId) && s.userId === userId,
     );
+  }
+
+  async delete(id: string, userId: string): Promise<boolean> {
+    const validEntityId = toUuid(id);
+    const validUserId = toUuid(userId);
+    this.sessions.delete(id);
+
+    try {
+      const res = await db.activityLog.deleteMany({
+        where: { entityId: validEntityId, userId: validUserId, entityType: 'FOCUS_SESSION' },
+      });
+      return res.count > 0;
+    } catch {
+      return false;
+    }
   }
 }

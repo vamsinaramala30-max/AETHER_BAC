@@ -114,10 +114,22 @@ export class ErrorTaxonomy {
 
     const rawMessage = err instanceof Error ? err.message : String(err ?? 'Unknown internal failure');
     const lowerMessage = rawMessage.toLowerCase();
-    const rawCode = (err as any)?.code ? String((err as any).code).toUpperCase() : '';
+    const rawCode = (err as any)?.errorCode
+      ? String((err as any).errorCode).toUpperCase()
+      : (err as any)?.code
+        ? String((err as any).code).toUpperCase()
+        : '';
+    const explicitStatus =
+      typeof (err as any)?.statusCode === 'number'
+        ? (err as any).statusCode
+        : typeof (err as any)?.status === 'number'
+          ? (err as any).status
+          : undefined;
 
     // 1. TIMEOUT
     if (
+      explicitStatus === 504 ||
+      explicitStatus === 408 ||
       lowerMessage.includes('timeout') ||
       lowerMessage.includes('timed out') ||
       rawCode === 'TIMEOUT' ||
@@ -137,6 +149,7 @@ export class ErrorTaxonomy {
 
     // 2. CANCELLED
     if (
+      explicitStatus === 499 ||
       lowerMessage.includes('cancelled') ||
       lowerMessage.includes('canceled') ||
       lowerMessage.includes('aborted') ||
@@ -174,33 +187,16 @@ export class ErrorTaxonomy {
       });
     }
 
-    // 4. AUTHENTICATION_ERROR
+    // 4. AUTHORIZATION_ERROR (HTTP 403)
     if (
-      lowerMessage.includes('unauthorized') ||
-      lowerMessage.includes('unauthenticated') ||
-      lowerMessage.includes('jwt') ||
-      rawCode === 'UNAUTHORIZED' ||
-      rawCode === 'AUTHENTICATION_ERROR'
-    ) {
-      return new CanonicalError({
-        code: 'AUTHENTICATION_ERROR',
-        message: 'Authentication is required to perform this action.',
-        severity: 'WARN',
-        retryable: false,
-        correlationId: context?.correlationId,
-        component: context?.component ?? 'Auth',
-        operation: context?.operation ?? 'Unknown',
-        statusCode: 401,
-      });
-    }
-
-    // 5. AUTHORIZATION_ERROR
-    if (
+      explicitStatus === 403 ||
       lowerMessage.includes('forbidden') ||
       lowerMessage.includes('permission denied') ||
       lowerMessage.includes('not authorized') ||
+      lowerMessage.includes('access denied') ||
       rawCode === 'FORBIDDEN' ||
-      rawCode === 'AUTHORIZATION'
+      rawCode === 'AUTHORIZATION' ||
+      rawCode === 'AUTHORIZATION_ERROR'
     ) {
       return new CanonicalError({
         code: 'AUTHORIZATION_ERROR',
@@ -214,8 +210,41 @@ export class ErrorTaxonomy {
       });
     }
 
+    // 5. AUTHENTICATION_ERROR (HTTP 401)
+    if (
+      explicitStatus === 401 ||
+      lowerMessage.includes('unauthorized') ||
+      lowerMessage.includes('unauthenticated') ||
+      lowerMessage.includes('jwt') ||
+      lowerMessage.includes('refresh token') ||
+      rawCode === 'UNAUTHORIZED' ||
+      rawCode === 'AUTHENTICATION_ERROR' ||
+      rawCode === 'INVALID_REFRESH_TOKEN' ||
+      rawCode === 'TOKEN_EXPIRED' ||
+      rawCode === 'INVALID_TOKEN' ||
+      rawCode === 'REFRESH_TOKEN_REQUIRED' ||
+      rawCode === 'INVALID_CREDENTIALS' ||
+      rawCode === 'OAUTH_ACCOUNT' ||
+      rawCode.includes('AUTH')
+    ) {
+      return new CanonicalError({
+        code: 'AUTHENTICATION_ERROR',
+        message:
+          rawMessage.length < 200 && !rawMessage.toLowerCase().includes('password') && !rawMessage.toLowerCase().includes('secret')
+            ? rawMessage
+            : 'Authentication is required to perform this action.',
+        severity: 'WARN',
+        retryable: false,
+        correlationId: context?.correlationId,
+        component: context?.component ?? 'Auth',
+        operation: context?.operation ?? 'Unknown',
+        statusCode: 401,
+      });
+    }
+
     // 6. VALIDATION_ERROR
     if (
+      explicitStatus === 400 ||
       lowerMessage.includes('validation') ||
       lowerMessage.includes('invalid input') ||
       lowerMessage.includes('invalid parameter') ||
@@ -238,12 +267,14 @@ export class ErrorTaxonomy {
 
     // 7. NOT_FOUND
     if (
+      explicitStatus === 404 ||
       lowerMessage.includes('not found') ||
-      rawCode === 'NOT_FOUND'
+      rawCode === 'NOT_FOUND' ||
+      rawCode === 'USER_NOT_FOUND'
     ) {
       return new CanonicalError({
         code: 'NOT_FOUND',
-        message: 'Requested resource was not found.',
+        message: rawMessage.length < 200 ? rawMessage : 'Requested resource was not found.',
         severity: 'INFO',
         retryable: false,
         correlationId: context?.correlationId,
@@ -255,13 +286,15 @@ export class ErrorTaxonomy {
 
     // 8. CONFLICT
     if (
+      explicitStatus === 409 ||
       lowerMessage.includes('conflict') ||
       lowerMessage.includes('already exists') ||
-      rawCode === 'CONFLICT'
+      rawCode === 'CONFLICT' ||
+      rawCode === 'USER_EXISTS'
     ) {
       return new CanonicalError({
         code: 'CONFLICT',
-        message: 'A conflicting operation is already in progress or state conflict occurred.',
+        message: rawMessage.length < 200 ? rawMessage : 'A conflicting operation is already in progress or state conflict occurred.',
         severity: 'WARN',
         retryable: false,
         correlationId: context?.correlationId,
@@ -273,6 +306,7 @@ export class ErrorTaxonomy {
 
     // 9. RATE_LIMITED
     if (
+      explicitStatus === 429 ||
       lowerMessage.includes('rate limit') ||
       lowerMessage.includes('too many requests') ||
       rawCode === 'RATE_LIMITED' ||
@@ -293,10 +327,12 @@ export class ErrorTaxonomy {
     // 10. MODEL_UNAVAILABLE
     if (
       lowerMessage.includes('model unavailable') ||
+      lowerMessage.includes('provider unavailable') ||
       lowerMessage.includes('blocked_by_weights') ||
       lowerMessage.includes('blocked by trained model weights') ||
       (lowerMessage.includes('5002') && (lowerMessage.includes('econnrefused') || rawCode === 'ECONNREFUSED')) ||
       rawCode === 'MODEL_UNAVAILABLE' ||
+      rawCode === 'PROVIDER_UNAVAILABLE' ||
       rawCode === 'BLOCKED_BY_WEIGHTS'
     ) {
       return new CanonicalError({
@@ -370,6 +406,7 @@ export class ErrorTaxonomy {
 
     // 14. VERIFICATION_FAILURE
     if (
+      explicitStatus === 422 ||
       lowerMessage.includes('verification') ||
       rawCode === 'VERIFICATION_FAILURE' ||
       rawCode === 'VERIFICATION_FAILED'

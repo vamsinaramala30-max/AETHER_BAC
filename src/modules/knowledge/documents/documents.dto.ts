@@ -9,6 +9,7 @@ export class CreateDocumentDto {
   fileSize!: number;
   mimeType!: string;
   originalName!: string;
+  workspaceId?: string;
 }
 
 export class UpdateDocumentDto {
@@ -27,4 +28,6 @@ export class QueryDocumentsDto {
   status?: DocumentStatus;
   tags?: string[];
   search?: string;
+  workspaceId?: string;
 }
+

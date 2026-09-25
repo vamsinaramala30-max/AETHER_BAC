@@ -2,12 +2,13 @@ import { FocusRepository } from './focus.repository';
 import { StartFocusSessionDto, FocusAnalyticsDto } from './focus.dto';
 import { FocusSessionEntity } from './focus.entity';
 import { FocusSessionStatus } from '../workspace.constants';
+import crypto from 'node:crypto';
 
 export class FocusService {
   constructor(private readonly focusRepository: FocusRepository) {}
 
   async startSession(userId: string, dto: StartFocusSessionDto): Promise<FocusSessionEntity> {
-    const id = `foc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const id = crypto.randomUUID();
     const session = new FocusSessionEntity({
       id,
       userId,
@@ -17,6 +18,8 @@ export class FocusService {
       durationMinutes: dto.durationMinutes,
       actualDurationSeconds: 0,
       distractionsCount: 0,
+      taskId: dto.taskId || null,
+      projectId: dto.projectId || null,
       startTime: new Date(),
       createdAt: new Date(),
     });
@@ -60,5 +63,13 @@ export class FocusService {
         ? (totalDistractions / completed.length).toFixed(1)
         : 0,
     };
+  }
+
+  async getHistory(workspaceId: string, userId: string): Promise<FocusSessionEntity[]> {
+    return this.focusRepository.findByUser(workspaceId, userId);
+  }
+
+  async deleteSession(sessionId: string, userId: string): Promise<boolean> {
+    return this.focusRepository.delete(sessionId, userId);
   }
 }

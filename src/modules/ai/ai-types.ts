@@ -179,9 +179,23 @@ export interface StreamingChunk {
   readonly isLast: boolean;
   readonly status: StreamingStatus;
   readonly timestamp: number;
+  readonly toolName?: string;
+  readonly verified?: boolean;
+  readonly verificationStatus?: VerificationStatus;
+  readonly details?: string;
+  readonly confirmationRequest?: ConfirmationRequest;
+  readonly error?: unknown;
 }
 
-export type StreamingStatus = 'streaming' | 'completed' | 'cancelled' | 'failed';
+export type StreamingStatus =
+  | 'streaming'
+  | 'completed'
+  | 'cancelled'
+  | 'failed'
+  | 'planning'
+  | 'executing'
+  | 'verified'
+  | 'confirmation_required';
 
 // ─── Intent ───────────────────────────────────────────────────────────────────
 
@@ -684,6 +698,11 @@ export type AIErrorCode =
   | 'PROVIDER_UNAVAILABLE'
   | 'MODEL_ERROR'
   | 'STREAM_ERROR'
+  | 'PLAN_INVALID'
+  | 'TOOL_NOT_FOUND'
+  | 'TOOL_EXECUTION_FAILED'
+  | 'PLAN_EXECUTION_FAILED'
+  | 'VERIFICATION_FAILED'
   | 'UNKNOWN_ERROR';
 
 export interface AIError<E extends AIErrorCode = AIErrorCode> {

@@ -290,6 +290,63 @@ export class PromptBuildFailedError extends AetherAIError {
   }
 }
 
+// ─── Planning & Tool Execution Errors ─────────────────────────────────────────
+
+export class InvalidPlanError extends AetherAIError {
+  constructor(reason: string, cause?: Error) {
+    super('PLAN_INVALID', `Invalid plan: ${reason}`, {
+      retryable: false,
+      details: { reason },
+      cause,
+    });
+    this.name = 'InvalidPlanError';
+  }
+}
+
+export class ToolNotFoundError extends AetherAIError {
+  constructor(toolName: string, cause?: Error) {
+    super('TOOL_NOT_FOUND', `Tool "${toolName}" not found in registry.`, {
+      retryable: false,
+      details: { toolName },
+      cause,
+    });
+    this.name = 'ToolNotFoundError';
+  }
+}
+
+export class ToolExecutionFailedError extends AetherAIError {
+  constructor(reason: string, cause?: Error) {
+    super('TOOL_EXECUTION_FAILED', `Tool execution failed: ${reason}`, {
+      retryable: false,
+      details: { reason },
+      cause,
+    });
+    this.name = 'ToolExecutionFailedError';
+  }
+}
+
+export class PlanExecutionFailedError extends AetherAIError {
+  constructor(reason: string, cause?: Error) {
+    super('PLAN_EXECUTION_FAILED', `Plan execution failed: ${reason}`, {
+      retryable: false,
+      details: { reason },
+      cause,
+    });
+    this.name = 'PlanExecutionFailedError';
+  }
+}
+
+export class VerificationFailedError extends AetherAIError {
+  constructor(reason: string, cause?: Error) {
+    super('VERIFICATION_FAILED', `Action verification failed: ${reason}`, {
+      retryable: false,
+      details: { reason },
+      cause,
+    });
+    this.name = 'VerificationFailedError';
+  }
+}
+
 // ─── Provider & Fallback Errors ───────────────────────────────────────────────
 
 export class RateLimitError extends AetherAIError {

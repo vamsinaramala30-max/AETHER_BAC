@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { securityConfig, logger } from '../config';
+import { db } from '../database/client';
 
 export interface AuthenticatedUser {
   id: string;
@@ -10,6 +11,9 @@ export interface AuthenticatedUser {
   avatarUrl?: string | null;
   workspaceId?: string;
 }
+
+const isValidUuid = (val?: string | null): boolean =>
+  Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val));
 
 declare global {
   namespace Express {
@@ -31,7 +35,7 @@ declare global {
  * Middleware enforcing JWT Authentication.
  * Expects Bearer token in the 'Authorization' header.
  */
-export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
+export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -61,9 +65,40 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     const decoded = jwt.verify(token, securityConfig.jwt.secret) as AuthenticatedUser;
     req.user = decoded;
 
-    // Optional workspace context header binding
+    // Workspace membership validation (SEC-08)
     const workspaceHeader = req.headers['x-workspace-id'];
     if (workspaceHeader && typeof workspaceHeader === 'string') {
+      if (!isValidUuid(workspaceHeader)) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_WORKSPACE_ID',
+            message: 'Invalid workspace ID format.',
+          },
+        });
+        return;
+      }
+
+      if (isValidUuid(req.user.id) && db && typeof (db as any).workspaceMember?.findFirst === 'function') {
+        const membership = await (db as any).workspaceMember.findFirst({
+          where: {
+            workspaceId: workspaceHeader,
+            userId: req.user.id,
+          },
+        });
+
+        if (!membership) {
+          res.status(403).json({
+            success: false,
+            error: {
+              code: 'FORBIDDEN_WORKSPACE',
+              message: 'Access denied. You are not a member of the requested workspace.',
+            },
+          });
+          return;
+        }
+      }
+
       req.user.workspaceId = workspaceHeader;
     }
 

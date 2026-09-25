@@ -4,21 +4,44 @@
  * Handles chunking, heartbeats, and cancellation.
  */
 
-import type { StreamingChunk, AIRequest } from '../ai-types.js';
+import type { StreamingChunk, StreamingStatus, VerificationStatus, ConfirmationRequest, AIRequest } from '../ai-types.js';
 import type { LLMStreamingChunk } from '../llm/llm-types.js';
 
 // ─── Stream Subscriber ────────────────────────────────────────────────────────
 
-export type StreamSubscriber = (chunk: StreamingChunk) => void;
+export type StreamSubscriber = (chunk: StreamingChunk) => void | Promise<void>;
 
 // ─── IStreamingEngine Interface ───────────────────────────────────────────────
 
 export interface IStreamingEngine {
   createStream(requestId: string, subscriber: StreamSubscriber): StreamHandle;
-  onLLMChunk(handle: StreamHandle, llmChunk: LLMStreamingChunk): void;
-  completeStream(handle: StreamHandle): void;
-  failStream(handle: StreamHandle, reason: string): void;
-  cancelStream(handle: StreamHandle): void;
+  onLLMChunk(handle: StreamHandle, llmChunk: LLMStreamingChunk): void | Promise<void>;
+  emitStatus?(
+    handle: StreamHandle,
+    status: StreamingStatus,
+    metadata?: {
+      toolName?: string;
+      verified?: boolean;
+      verificationStatus?: VerificationStatus;
+      delta?: string;
+      details?: string;
+      confirmationRequest?: ConfirmationRequest;
+      error?: unknown;
+    },
+  ): void | Promise<void>;
+  completeStream(handle: StreamHandle): void | Promise<void>;
+  failStream(
+    handle: StreamHandle,
+    reason: string,
+    metadata?: {
+      toolName?: string;
+      verified?: boolean;
+      verificationStatus?: VerificationStatus;
+      details?: string;
+      error?: unknown;
+    },
+  ): void | Promise<void>;
+  cancelStream(handle: StreamHandle): void | Promise<void>;
 }
 
 // ─── Stream Handle ────────────────────────────────────────────────────────────
@@ -70,14 +93,14 @@ export class StreamingEngine implements IStreamingEngine {
         status: 'streaming',
         timestamp: Date.now(),
       };
-      subscriber(heartbeat);
+      void subscriber(heartbeat);
     }, this.heartbeatIntervalMs);
 
     this.heartbeatTimers.set(requestId, timer);
     return handle;
   }
 
-  public onLLMChunk(handle: StreamHandle, llmChunk: LLMStreamingChunk): void {
+  public async onLLMChunk(handle: StreamHandle, llmChunk: LLMStreamingChunk): Promise<void> {
     if (handle.isCancelled || handle.isComplete) return;
 
     const subscriber = this.subscribers.get(handle.requestId);
@@ -94,7 +117,7 @@ export class StreamingEngine implements IStreamingEngine {
       timestamp: Date.now(),
     };
 
-    subscriber(streamChunk);
+    await subscriber(streamChunk);
 
     if (llmChunk.isLast) {
       this.cleanup(handle.requestId);
@@ -102,15 +125,51 @@ export class StreamingEngine implements IStreamingEngine {
     }
   }
 
-  public completeStream(handle: StreamHandle): void {
+  public async emitStatus(
+    handle: StreamHandle,
+    status: StreamingStatus,
+    metadata?: {
+      toolName?: string;
+      verified?: boolean;
+      verificationStatus?: VerificationStatus;
+      delta?: string;
+      details?: string;
+      confirmationRequest?: ConfirmationRequest;
+      error?: unknown;
+    },
+  ): Promise<void> {
+    if (handle.isCancelled || handle.isComplete) return;
+
+    const subscriber = this.subscribers.get(handle.requestId);
+    if (!subscriber) return;
+
+    const chunk: StreamingChunk = {
+      requestId: handle.requestId,
+      delta: metadata?.delta ?? '',
+      index: handle.chunkCount++,
+      isLast: false,
+      status,
+      timestamp: Date.now(),
+      toolName: metadata?.toolName,
+      verified: metadata?.verified,
+      verificationStatus: metadata?.verificationStatus,
+      details: metadata?.details,
+      confirmationRequest: metadata?.confirmationRequest,
+      error: metadata?.error,
+    };
+
+    await subscriber(chunk);
+  }
+
+  public async completeStream(handle: StreamHandle): Promise<void> {
     if (handle.isCancelled || handle.isComplete) return;
 
     const subscriber = this.subscribers.get(handle.requestId);
     if (subscriber) {
-      subscriber({
+      await subscriber({
         requestId: handle.requestId,
         delta: '',
-        index: handle.chunkCount,
+        index: handle.chunkCount++,
         isLast: true,
         status: 'completed',
         timestamp: Date.now(),
@@ -121,18 +180,33 @@ export class StreamingEngine implements IStreamingEngine {
     this.cleanup(handle.requestId);
   }
 
-  public failStream(handle: StreamHandle, _reason: string): void {
+  public async failStream(
+    handle: StreamHandle,
+    reason: string,
+    metadata?: {
+      toolName?: string;
+      verified?: boolean;
+      verificationStatus?: VerificationStatus;
+      details?: string;
+      error?: unknown;
+    },
+  ): Promise<void> {
     if (handle.isCancelled || handle.isComplete) return;
 
     const subscriber = this.subscribers.get(handle.requestId);
     if (subscriber) {
-      subscriber({
+      await subscriber({
         requestId: handle.requestId,
         delta: '',
-        index: handle.chunkCount,
+        index: handle.chunkCount++,
         isLast: true,
         status: 'failed',
         timestamp: Date.now(),
+        toolName: metadata?.toolName,
+        verified: metadata?.verified ?? false,
+        verificationStatus: metadata?.verificationStatus ?? 'FAILED',
+        details: metadata?.details ?? reason,
+        error: metadata?.error ?? reason,
       });
     }
 
@@ -140,16 +214,16 @@ export class StreamingEngine implements IStreamingEngine {
     this.cleanup(handle.requestId);
   }
 
-  public cancelStream(handle: StreamHandle): void {
-    if (handle.isComplete) return;
+  public async cancelStream(handle: StreamHandle): Promise<void> {
+    if (handle.isComplete || handle.isCancelled) return;
     (handle as { isCancelled: boolean }).isCancelled = true;
 
     const subscriber = this.subscribers.get(handle.requestId);
     if (subscriber) {
-      subscriber({
+      await subscriber({
         requestId: handle.requestId,
         delta: '',
-        index: handle.chunkCount,
+        index: handle.chunkCount++,
         isLast: true,
         status: 'cancelled',
         timestamp: Date.now(),

@@ -40,4 +40,91 @@ describe('ToolExecutor', () => {
     expect(res.code).toBe('SUCCESS');
     expect(res.success).toBe(true);
   });
+
+  it('should reject execution with FORBIDDEN if auth context or userId is missing', async () => {
+    const unauthContext = {
+      traceId: 'trace_no_auth',
+    } as any;
+    const res = await toolExecutor.execute('test_tool', {}, unauthContext);
+    expect(res.success).toBe(false);
+    expect(res.code).toBe('FORBIDDEN');
+    expect(res.error).toContain('Missing or invalid authentication context');
+  });
+
+  it('should reject execution with FORBIDDEN if required permissions are missing', async () => {
+    const restrictedTool: ToolDefinition<Record<string, unknown>, { message: string }> = {
+      name: 'restricted_admin_tool',
+      description: 'Restricted tool',
+      category: 'system',
+      inputSchema: { type: 'object', properties: {} },
+      requiredPermissions: ['admin:manage'],
+      handler: async () => ({ message: 'admin ok' }),
+    };
+    if (!toolRegistry.has('restricted_admin_tool')) {
+      toolRegistry.register(restrictedTool);
+    }
+
+    const unprivilegedContext: ToolExecutionContext = {
+      auth: {
+        userId: 'user_regular',
+        sessionId: 'sess_reg',
+        roles: ['user'],
+        permissions: ['tasks:read'],
+      },
+      traceId: 'trace_unprivileged',
+    };
+
+    const res = await toolExecutor.execute('restricted_admin_tool', {}, unprivilegedContext);
+    expect(res.success).toBe(false);
+    expect(res.code).toBe('FORBIDDEN');
+    expect(res.error).toContain('Unauthorized to execute tool');
+  });
+
+  it('should sanitize and prevent model-supplied identity from overriding server-side context', async () => {
+    let capturedInput: any = null;
+    const identityCheckTool: ToolDefinition<Record<string, unknown>, { message: string }> = {
+      name: 'identity_check_tool',
+      description: 'Checks caller identity in input',
+      category: 'system',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          userId: { type: 'string' },
+          workspaceId: { type: 'string' },
+        },
+      },
+      requiredPermissions: [],
+      handler: async (input) => {
+        capturedInput = input;
+        return { message: 'checked' };
+      },
+    };
+    if (!toolRegistry.has('identity_check_tool')) {
+      toolRegistry.register(identityCheckTool);
+    }
+
+    const spoofContext: ToolExecutionContext = {
+      auth: {
+        userId: 'server_trusted_user_id',
+        sessionId: 'sess_spoof',
+        roles: ['user'],
+        permissions: ['*'],
+        workspaceId: 'server_trusted_workspace_id',
+      },
+      traceId: 'trace_spoof',
+    };
+
+    const res = await toolExecutor.execute(
+      'identity_check_tool',
+      {
+        userId: 'attacker_injected_user_id',
+        workspaceId: 'attacker_injected_workspace_id',
+      },
+      spoofContext,
+    );
+
+    expect(res.success).toBe(true);
+    expect(capturedInput.userId).toBe('server_trusted_user_id');
+    expect(capturedInput.workspaceId).toBe('server_trusted_workspace_id');
+  });
 });

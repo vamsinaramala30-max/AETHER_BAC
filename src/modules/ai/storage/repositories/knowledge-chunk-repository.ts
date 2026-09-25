@@ -139,8 +139,20 @@ export class KnowledgeChunkRepository implements IKnowledgeChunkRepository {
     documentId?: string;
   }): Promise<readonly DocumentChunk[]> {
     return Array.from(this.chunkCache.values()).filter((c) => {
-      if (scope.userId && c.userId && c.userId !== scope.userId) return false;
-      if (scope.workspaceId && c.workspaceId && c.workspaceId !== scope.workspaceId) return false;
+      if (scope.workspaceId) {
+        if (c.workspaceId !== scope.workspaceId) return false;
+      } else if (c.workspaceId) {
+        if (!scope.userId || c.userId !== scope.userId) return false;
+      }
+
+      if (scope.userId) {
+        if (c.userId && c.userId !== scope.userId) {
+          if (!scope.workspaceId || c.workspaceId !== scope.workspaceId) return false;
+        }
+      } else if (c.userId) {
+        if (!scope.workspaceId) return false;
+      }
+
       if (scope.projectId && c.projectId && c.projectId !== scope.projectId) return false;
       if (scope.documentId && c.documentId !== scope.documentId) return false;
       return true;

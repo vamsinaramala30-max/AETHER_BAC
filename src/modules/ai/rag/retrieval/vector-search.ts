@@ -61,12 +61,28 @@ export class InMemoryVectorStore implements IVectorStore {
 
     for (const stored of this.vectors.values()) {
       // Scope filters: strict user isolation, workspace isolation, project isolation
-      if (scope?.userId && stored.userId && stored.userId !== scope.userId) {
-        continue;
+      if (scope?.workspaceId) {
+        if (stored.workspaceId !== scope.workspaceId) {
+          continue;
+        }
+      } else if (stored.workspaceId) {
+        if (!scope?.userId || stored.userId !== scope.userId) {
+          continue;
+        }
       }
-      if (scope?.workspaceId && stored.workspaceId && stored.workspaceId !== scope.workspaceId) {
-        continue;
+
+      if (scope?.userId) {
+        if (stored.userId && stored.userId !== scope.userId) {
+          if (!scope.workspaceId || stored.workspaceId !== scope.workspaceId) {
+            continue;
+          }
+        }
+      } else if (stored.userId) {
+        if (!scope?.workspaceId) {
+          continue;
+        }
       }
+
       if (scope?.projectId && stored.projectId && stored.projectId !== scope.projectId) {
         continue;
       }

@@ -4,6 +4,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { ProjectsOrchestrationService } from './project.service';
+import { db } from '../../database/client';
 
 export class ProjectsOrchestrationController {
   constructor(private readonly orchestrationService: ProjectsOrchestrationService) {}
@@ -36,10 +37,28 @@ export class ProjectsOrchestrationController {
 
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
       const project = await this.orchestrationService.projectsRepo.findById(req.params.id);
       if (!project) {
         res.status(404).json({ success: false, message: 'Project not found' });
         return;
+      }
+      if (project.ownerId !== userId) {
+        let isMember = false;
+        if (project.workspaceId) {
+          const membership = await db.workspaceMember.findFirst({
+            where: { workspaceId: project.workspaceId, userId },
+          });
+          isMember = !!membership;
+        }
+        if (!isMember) {
+          res.status(403).json({ success: false, message: 'Forbidden: Access to project denied' });
+          return;
+        }
       }
       res.status(200).json({ success: true, data: project });
     } catch (err) {
@@ -80,6 +99,19 @@ export class ProjectsOrchestrationController {
         res.status(404).json({ success: false, message: 'Project not found' });
         return;
       }
+      if (existing.ownerId !== userId) {
+        let isMember = false;
+        if (existing.workspaceId) {
+          const membership = await db.workspaceMember.findFirst({
+            where: { workspaceId: existing.workspaceId, userId },
+          });
+          isMember = !!membership;
+        }
+        if (!isMember) {
+          res.status(403).json({ success: false, message: 'Forbidden: Access to project denied' });
+          return;
+        }
+      }
       const { name, description, category, status, progress } = req.body;
       const project = await this.orchestrationService.projectsRepo.save({
         id: req.params.id,
@@ -98,6 +130,29 @@ export class ProjectsOrchestrationController {
 
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+      const existing = await this.orchestrationService.projectsRepo.findById(req.params.id);
+      if (!existing) {
+        res.status(404).json({ success: false, message: 'Project not found' });
+        return;
+      }
+      if (existing.ownerId !== userId) {
+        let isMember = false;
+        if (existing.workspaceId) {
+          const membership = await db.workspaceMember.findFirst({
+            where: { workspaceId: existing.workspaceId, userId },
+          });
+          isMember = !!membership;
+        }
+        if (!isMember) {
+          res.status(403).json({ success: false, message: 'Forbidden: Access to project denied' });
+          return;
+        }
+      }
       const deleted = await this.orchestrationService.projectsRepo.delete(req.params.id);
       if (!deleted) {
         res.status(404).json({ success: false, message: 'Project not found' });

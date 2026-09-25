@@ -12,7 +12,11 @@ export class UploadController {
         throw new AppError('No upload file provided', 400, 'FILE_MISSING');
       }
       const userId = (req as any).user?.id || (req as any).user?.userId;
-      const result = await uploadService.handleSingleUpload(req.file, userId);
+      const workspaceId =
+        (req.body?.workspaceId as string) ||
+        (req as any).user?.workspaceId ||
+        (req.headers['x-workspace-id'] as string);
+      const result = await uploadService.handleSingleUpload(req.file, userId, workspaceId);
       res.status(201).json({ success: true, data: result });
     } catch (err) {
       next(err);
@@ -26,7 +30,11 @@ export class UploadController {
         throw new AppError('No upload files provided', 400, 'FILES_MISSING');
       }
       const userId = (req as any).user?.id || (req as any).user?.userId;
-      const result = await uploadService.handleMultipleUploads(files, userId);
+      const workspaceId =
+        (req.body?.workspaceId as string) ||
+        (req as any).user?.workspaceId ||
+        (req.headers['x-workspace-id'] as string);
+      const result = await uploadService.handleMultipleUploads(files, userId, workspaceId);
       res.status(201).json({ success: true, data: result });
     } catch (err) {
       next(err);
@@ -39,8 +47,12 @@ export class UploadController {
       const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
       const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
       const userId = (req as any).user?.id || (req as any).user?.userId;
+      const workspaceId =
+        (req.query.workspaceId as string) ||
+        (req as any).user?.workspaceId ||
+        (req.headers['x-workspace-id'] as string);
 
-      const data = await uploadService.listFiles({ search, page, limit, userId });
+      const data = await uploadService.listFiles({ search, page, limit, userId, workspaceId });
       res.status(200).json({ success: true, ...data });
     } catch (err) {
       next(err);
@@ -65,7 +77,8 @@ export class UploadController {
       if (!filename) {
         throw new AppError('New filename required', 400, 'FILENAME_REQUIRED');
       }
-      const updated = await uploadService.renameFile(id, filename);
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const updated = await uploadService.renameFile(id, filename, userId);
       res.status(200).json({ success: true, data: updated });
     } catch (err) {
       next(err);
@@ -76,7 +89,8 @@ export class UploadController {
     try {
       const { id } = req.params;
       const inline = req.query.inline === 'true';
-      const fileRecord = await uploadService.getFileById(id);
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const fileRecord = await uploadService.getFileById(id, userId);
       if (!fileRecord || !fileRecord.fullPath || !fs.existsSync(fileRecord.fullPath)) {
         throw new AppError('File not found', 404, 'FILE_NOT_FOUND');
       }

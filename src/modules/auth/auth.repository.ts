@@ -41,10 +41,21 @@ export class AuthRepository extends PrismaService {
     });
   }
 
-  public async deleteSessionByToken(refreshToken: string): Promise<Session> {
-    return this.prisma.session.delete({
-      where: { refreshToken },
-    });
+  public async deleteSessionByToken(
+    refreshToken: string,
+    tx?: TransactionClient,
+  ): Promise<Session | null> {
+    const client = tx || this.prisma;
+    try {
+      return await client.session.delete({
+        where: { refreshToken },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2025') {
+        return null;
+      }
+      throw err;
+    }
   }
 
   public async findOAuthAccount(

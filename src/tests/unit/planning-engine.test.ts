@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, assert } from 'vitest';
 import { PlanningEngine } from '../../modules/ai/planning/planning-engine.js';
 import type { ActionPlan, PlanStep } from '../../modules/ai/planning/planning-types.js';
 import type { AuthenticationContext } from '../../modules/ai/tools/tool-types.js';
@@ -258,6 +258,106 @@ describe('PlanningEngine — Multi-Mode Planning, Decomposition & Dependency Gra
       const validation = planningEngine.validatePlan(emptyPlan, authContext);
       expect(validation.valid).toBe(false);
       expect(validation.errors.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('AI-03: Natural Language Temporal Parsing in Task Planning', () => {
+    it('extracts tomorrow at 6 PM, calculates future ISO dueDate, and cleans task title', async () => {
+      const plan = await planningEngine.createPlan(
+        'Create a task to study CN tomorrow at 6 PM',
+        authContext,
+      );
+
+      expect(plan.steps.length).toBe(1);
+      const step = plan.steps[0];
+      expect(step.toolName).toBe('create_task');
+      expect(step.toolInput).toBeDefined();
+      assert(step.toolInput);
+      expect(step.toolInput.title).toBe('study CN');
+      expect(step.toolInput.priority).toBe('medium');
+      expect(step.toolInput.dueDate).toBeDefined();
+
+      const dueDate = new Date(step.toolInput.dueDate as string);
+      expect(dueDate.getTime()).toBeGreaterThan(Date.now());
+      expect(dueDate.getHours()).toBe(18);
+      expect(dueDate.getMinutes()).toBe(0);
+    });
+
+    it('extracts weekday, time, and priority from "next Monday at 10 AM with high priority"', async () => {
+      const plan = await planningEngine.createPlan(
+        'Create a task called Finish quarterly audit next Monday at 10 AM with high priority',
+        authContext,
+      );
+
+      expect(plan.steps.length).toBe(1);
+      const step = plan.steps[0];
+      expect(step.toolName).toBe('create_task');
+      expect(step.toolInput).toBeDefined();
+      assert(step.toolInput);
+      expect(step.toolInput.title).toBe('Finish quarterly audit');
+      expect(step.toolInput.priority).toBe('high');
+      expect(step.toolInput.dueDate).toBeDefined();
+
+      const dueDate = new Date(step.toolInput.dueDate as string);
+      expect(dueDate.getTime()).toBeGreaterThan(Date.now());
+      expect(dueDate.getHours()).toBe(10);
+      expect(dueDate.getDay()).toBe(1); // Monday
+    });
+
+    it('extracts relative expression "in 2 hours"', async () => {
+      const before = Date.now();
+      const plan = await planningEngine.createPlan(
+        'Add task Prepare team slides in 2 hours',
+        authContext,
+      );
+
+      expect(plan.steps.length).toBe(1);
+      const step = plan.steps[0];
+      expect(step.toolInput).toBeDefined();
+      assert(step.toolInput);
+      expect(step.toolInput.title).toBe('Prepare team slides');
+      expect(step.toolInput.dueDate).toBeDefined();
+
+      const dueDate = new Date(step.toolInput.dueDate as string);
+      const diffMs = dueDate.getTime() - before;
+      // Should be approx 2 hours (between 1h59m and 2h1m)
+      expect(diffMs).toBeGreaterThan(119 * 60 * 1000);
+      expect(diffMs).toBeLessThan(121 * 60 * 1000);
+    });
+
+    it('extracts explicit ISO date with priority urgent', async () => {
+      const plan = await planningEngine.createPlan(
+        'Create task Deploy release on 2026-10-15 at 14:00 with priority urgent',
+        authContext,
+      );
+
+      expect(plan.steps.length).toBe(1);
+      const step = plan.steps[0];
+      expect(step.toolInput).toBeDefined();
+      assert(step.toolInput);
+      expect(step.toolInput.title).toBe('Deploy release');
+      expect(step.toolInput.priority).toBe('urgent');
+      expect(step.toolInput.dueDate).toBeDefined();
+
+      const dueDate = new Date(step.toolInput.dueDate as string);
+      expect(dueDate.getFullYear()).toBe(2026);
+      expect(dueDate.getMonth()).toBe(9); // October (0-indexed)
+      expect(dueDate.getDate()).toBe(15);
+      expect(dueDate.getHours()).toBe(14);
+    });
+
+    it('leaves dueDate undefined for pure non-temporal tasks', async () => {
+      const plan = await planningEngine.createPlan(
+        'Create a task to buy groceries',
+        authContext,
+      );
+
+      expect(plan.steps.length).toBe(1);
+      const step = plan.steps[0];
+      expect(step.toolInput).toBeDefined();
+      assert(step.toolInput);
+      expect(step.toolInput.title).toBe('buy groceries');
+      expect(step.toolInput.dueDate).toBeUndefined();
     });
   });
 });

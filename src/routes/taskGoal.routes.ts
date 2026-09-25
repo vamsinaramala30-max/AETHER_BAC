@@ -62,22 +62,38 @@ router.post(
 
 router.get(
   '/tasks/:id',
-  handle((req) => tasksController.getOne({ params: { id: req.params.id } })),
+  handle((req) =>
+    tasksController.getOne({ params: { id: req.params.id }, user: (req as any).user }),
+  ),
 );
 
 router.put(
   '/tasks/:id',
-  handle((req) => tasksController.update({ params: { id: req.params.id }, body: req.body })),
+  handle((req) =>
+    tasksController.update({
+      params: { id: req.params.id },
+      body: req.body,
+      user: (req as any).user,
+    }),
+  ),
 );
 
 router.patch(
   '/tasks/:id',
-  handle((req) => tasksController.update({ params: { id: req.params.id }, body: req.body })),
+  handle((req) =>
+    tasksController.update({
+      params: { id: req.params.id },
+      body: req.body,
+      user: (req as any).user,
+    }),
+  ),
 );
 
 router.delete(
   '/tasks/:id',
-  handle((req) => tasksController.delete({ params: { id: req.params.id } })),
+  handle((req) =>
+    tasksController.delete({ params: { id: req.params.id }, user: (req as any).user }),
+  ),
 );
 
 // Goals routes
@@ -109,12 +125,20 @@ router.post(
 
 router.get(
   '/goals/:id',
-  handle((req) => goalsController.getOne({ params: { id: req.params.id } })),
+  handle((req) =>
+    goalsController.getOne({ params: { id: req.params.id }, user: (req as any).user }),
+  ),
 );
 
 router.put(
   '/goals/:id',
-  handle((req) => goalsController.update({ params: { id: req.params.id }, body: req.body })),
+  handle((req) =>
+    goalsController.update({
+      params: { id: req.params.id },
+      body: req.body,
+      user: (req as any).user,
+    }),
+  ),
 );
 
 router.patch(
@@ -123,13 +147,16 @@ router.patch(
     goalsController.update({
       params: { id: req.params.id },
       body: { currentValue: req.body.progress },
+      user: (req as any).user,
     }),
   ),
 );
 
 router.delete(
   '/goals/:id',
-  handle((req) => goalsController.delete({ params: { id: req.params.id } })),
+  handle((req) =>
+    goalsController.delete({ params: { id: req.params.id }, user: (req as any).user }),
+  ),
 );
 
 export const taskGoalRoutes: Router = router;

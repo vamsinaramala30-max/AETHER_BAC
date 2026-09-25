@@ -14,7 +14,13 @@ import type {
 export type ProviderName = 'aether' | 'gemini' | 'openai' | 'ollama';
 
 export type ProviderStatusState =
-  'available' | 'unavailable' | 'rate_limited' | 'timeout' | 'config_error';
+  | 'available'
+  | 'unavailable'
+  | 'rate_limited'
+  | 'timeout'
+  | 'config_error'
+  | 'loading'
+  | 'busy';
 
 export interface ProviderStatus {
   readonly name: ProviderName;

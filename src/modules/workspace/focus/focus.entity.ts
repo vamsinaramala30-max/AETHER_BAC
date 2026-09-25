@@ -9,6 +9,8 @@ export class FocusSessionEntity {
   declare durationMinutes: number;
   declare actualDurationSeconds: number;
   declare distractionsCount: number;
+  taskId?: string | null;
+  projectId?: string | null;
   startTime?: Date | null;
   endTime?: Date | null;
   declare createdAt: Date;

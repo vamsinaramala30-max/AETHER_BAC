@@ -4,6 +4,8 @@ export class StartFocusSessionDto {
   declare workspaceId: string;
   declare type: FocusTimerType;
   declare durationMinutes: number;
+  taskId?: string;
+  projectId?: string;
 }
 
 export class LogDistractionDto {

@@ -254,11 +254,12 @@ export const executeAutomationTool: ToolDefinition<
       userId,
     );
     return {
-      executionId: (result as any).executionId || (result as any).id || `exec_${Date.now()}`,
-      status: (result as any).status || 'SUCCESS',
-      message: `Automation ${input.automationId} executed.`,
+      executionId: (result as any).executionId || (result as any).id || '',
+      status: (result as any).status || 'FAILED',
+      message: (result as any).message || `Automation ${input.automationId} executed.`,
     };
   },
+
   verify: async (output: ExecuteAutomationOutput): Promise<ToolVerificationResult> => {
     if (output.status !== 'SUCCESS' && output.status !== 'COMPLETED') {
       return { verified: false, error: `Automation execution returned status "${output.status}".` };

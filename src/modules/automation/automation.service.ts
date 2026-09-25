@@ -47,6 +47,57 @@ export class AutomationService {
     if (!input.name || !input.name.trim()) {
       throw new AppError('Automation name is required', 400, 'VALIDATION_ERROR');
     }
+    if (!input.trigger || !input.trigger.trim()) {
+      throw new AppError('Automation trigger is required', 400, 'VALIDATION_ERROR');
+    }
+
+    if (!input.userId || !isValidUuid(input.userId)) {
+      throw new AppError(
+        'Unauthorized: valid user ID required to create automation',
+        401,
+        'UNAUTHORIZED',
+      );
+    }
+
+    // Verify workspace membership if workspaceId is provided
+    if (
+      input.workspaceId &&
+      isValidUuid(input.workspaceId) &&
+      input.workspaceId !== '00000000-0000-0000-0000-000000000000'
+    ) {
+      const membership = await this.prisma.workspaceMember.findFirst({
+        where: { workspaceId: input.workspaceId, userId: input.userId },
+      });
+      if (!membership) {
+        throw new AppError(
+          'Forbidden: Caller is not a member of the target workspace',
+          403,
+          'FORBIDDEN',
+        );
+      }
+    } else {
+      // Bind to user's first accessible workspace if available
+      const firstMembership = await this.prisma.workspaceMember.findFirst({
+        where: { userId: input.userId },
+      });
+      if (firstMembership) {
+        input.workspaceId = firstMembership.workspaceId;
+      }
+    }
+
+    // Validate actions array
+    let actionsCount = 0;
+    if (Array.isArray(input.actions)) {
+      actionsCount = input.actions.length;
+    } else if (input.actions && typeof input.actions === 'object') {
+      actionsCount = 1;
+    }
+    if (actionsCount === 0) {
+      throw new AppError('At least one action is required for an automation', 400, 'VALIDATION_ERROR');
+    }
+    if (actionsCount > 20) {
+      throw new AppError('Maximum of 20 actions allowed per automation', 400, 'VALIDATION_ERROR');
+    }
 
     const created = await this.autoRepo.create(input);
 
@@ -66,15 +117,34 @@ export class AutomationService {
     return created;
   }
 
-  public async getAutomations(workspaceId: string, page: number = 1, limit: number = 50) {
+  public async getAutomations(
+    workspaceId: string,
+    page: number = 1,
+    limit: number = 50,
+    userId?: string,
+  ) {
+    if (
+      userId &&
+      isValidUuid(userId) &&
+      isValidUuid(workspaceId) &&
+      workspaceId !== '00000000-0000-0000-0000-000000000000'
+    ) {
+      const membership = await this.prisma.workspaceMember.findFirst({
+        where: { workspaceId, userId },
+      });
+      if (!membership) {
+        throw new AppError('Forbidden: Access to workspace automations denied', 403, 'FORBIDDEN');
+      }
+    }
     return this.autoRepo.findByWorkspaceId(workspaceId, page, limit);
   }
+
 
   public async getUserAutomations(userId: string, page: number = 1, limit: number = 50) {
     return this.autoRepo.findByUserId(userId, page, limit);
   }
 
-  public async getAutomationById(id: string) {
+  public async getAutomationById(id: string, userId?: string) {
     if (!isValidUuid(id)) {
       throw new AppError('Invalid automation ID format', 400, 'INVALID_ID');
     }
@@ -83,11 +153,31 @@ export class AutomationService {
     if (!auto) {
       throw new AppError('Automation rule not found', 404, 'AUTOMATION_NOT_FOUND');
     }
+
+    if (userId) {
+      if (!isValidUuid(userId)) {
+        throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+      }
+
+      if (auto.userId && auto.userId !== userId) {
+        let isMember = false;
+        if (auto.workspaceId) {
+          const membership = await this.prisma.workspaceMember.findFirst({
+            where: { workspaceId: auto.workspaceId, userId },
+          });
+          isMember = !!membership;
+        }
+        if (!isMember) {
+          throw new AppError('Forbidden: Access to automation denied', 403, 'FORBIDDEN');
+        }
+      }
+    }
+
     return auto;
   }
 
   public async updateAutomation(id: string, input: UpdateAutomationInput, userId?: string) {
-    const auto = await this.getAutomationById(id);
+    const auto = await this.getAutomationById(id, userId);
 
     const updated = await this.autoRepo.update(id, input);
 
@@ -112,7 +202,7 @@ export class AutomationService {
   }
 
   public async deleteAutomation(id: string, userId?: string) {
-    const auto = await this.getAutomationById(id);
+    const auto = await this.getAutomationById(id, userId);
 
     this.scheduler.unscheduleAutomation(id);
     await this.autoRepo.softDelete(id);
@@ -130,7 +220,7 @@ export class AutomationService {
   }
 
   public async activateAutomation(id: string, userId?: string) {
-    const auto = await this.getAutomationById(id);
+    const auto = await this.getAutomationById(id, userId);
 
     const updated = await this.autoRepo.update(id, {
       isEnabled: true,
@@ -154,7 +244,7 @@ export class AutomationService {
   }
 
   public async pauseAutomation(id: string, userId?: string) {
-    const auto = await this.getAutomationById(id);
+    const auto = await this.getAutomationById(id, userId);
 
     const updated = await this.autoRepo.update(id, {
       isEnabled: false,
@@ -176,16 +266,37 @@ export class AutomationService {
   }
 
   public async runAutomation(id: string, triggerData?: Record<string, unknown>, userId?: string) {
-    const auto = await this.getAutomationById(id);
+    if (!userId || !isValidUuid(userId)) {
+      throw new AppError(
+        'Unauthorized: valid user ID required to run automation',
+        401,
+        'UNAUTHORIZED',
+      );
+    }
+
+    const auto = await this.getAutomationById(id, userId);
+
+    if (auto.deletedAt) {
+      throw new AppError(`Cannot execute deleted automation '${id}'`, 404, 'AUTOMATION_DELETED');
+    }
+    if (!auto.isEnabled) {
+      throw new AppError(`Cannot execute disabled automation '${id}'`, 400, 'AUTOMATION_DISABLED');
+    }
+    if (auto.status === AutomationStatus.PAUSED) {
+      throw new AppError(`Cannot execute paused automation '${id}'`, 400, 'AUTOMATION_PAUSED');
+    }
 
     logger.info(
-      `[AutomationService] Manually executing automation '${id}' for user ${userId || 'system'}`,
+      `[AutomationService] Manually executing automation '${id}' for user ${userId}`,
     );
 
     const result = await this.executionEngine.execute(auto.id, triggerData, userId);
 
     return {
-      message: 'Automation executed successfully',
+      message:
+        result.status === AutomationStatus.COMPLETED
+          ? 'Automation executed successfully'
+          : `Automation execution ${result.status.toLowerCase()}`,
       automationId: auto.id,
       executionId: result.executionId,
       status: result.status,
@@ -193,6 +304,7 @@ export class AutomationService {
       executedAt: new Date().toISOString(),
     };
   }
+
 
   public async getStats(workspaceId?: string, userId?: string) {
     const autoWhere: any = { deletedAt: null };
@@ -265,8 +377,13 @@ export class AutomationService {
     };
   }
 
-  public async getAutomationActivity(automationId: string, page: number = 1, limit: number = 50) {
-    await this.getAutomationById(automationId);
+  public async getAutomationActivity(
+    automationId: string,
+    page: number = 1,
+    limit: number = 50,
+    userId?: string,
+  ) {
+    await this.getAutomationById(automationId, userId);
     return this.actRepo.findByAutomationId(automationId, page, limit);
   }
 
@@ -281,8 +398,13 @@ export class AutomationService {
     return this.actRepo.findAll(options);
   }
 
-  public async getExecutions(automationId: string, page: number = 1, limit: number = 20) {
-    await this.getAutomationById(automationId);
+  public async getExecutions(
+    automationId: string,
+    page: number = 1,
+    limit: number = 20,
+    userId?: string,
+  ) {
+    await this.getAutomationById(automationId, userId);
     return this.execRepo.findByAutomationId(automationId, page, limit);
   }
 

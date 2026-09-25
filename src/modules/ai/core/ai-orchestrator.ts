@@ -9,6 +9,7 @@
 import type {
   AIRequest,
   AIResponse,
+  AuthenticationContext,
   StreamingChunk,
   Intent,
   VerificationStatus,
@@ -27,6 +28,11 @@ import {
   InvalidRequestError,
   SafetyCheckFailedError,
   InternalError,
+  CancelledError,
+  TimeoutError,
+  GenerationFailedError,
+  InvalidPlanError,
+  ToolExecutionFailedError,
   toAetherAIError,
 } from '../ai-errors.js';
 import type { ILLMEngine } from '../llm/llm-engine.js';
@@ -373,11 +379,12 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     let toolVerified = true;
     let toolResultContext = '';
 
-    const authCtx = {
+    const authCtx: AuthenticationContext = request.auth ?? {
       userId: request.userId,
       sessionId: request.sessionId,
       roles: ['user'],
       permissions: ['*'],
+      workspaceId: request.workspaceId,
     };
 
     // ─── Prompt 7: Pure Reasoning & Agent Planning Request Flow ───────────
@@ -511,8 +518,10 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
             traceId: request.requestId,
             conversationId: request.conversationId,
             requestId: request.requestId,
+            workspaceId: authCtx.workspaceId,
+            signal: request.signal,
           },
-          { idempotencyKey: request.requestId },
+          { idempotencyKey: request.requestId, signal: request.signal },
         );
 
         planExecutionResult = planResult;
@@ -619,9 +628,10 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
       this.reasoningEngine.updateStatus(
         request.requestId,
         'failed',
-        'Generation failed',
+        `Generation failed: ${execution.result.error.message}`,
         'plan_failed',
       );
+      this.reasoningEngine.endReasoning(request.requestId);
       return ok(
         this.responseEngine.buildError(request, intent, execution.result.error.code, startTime),
       );
@@ -633,14 +643,36 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
 
     this.safetyEngine.checkOutput(genResponse.content);
 
-    // ─── Response Synthesis (when native model output is insufficient) ─────
+    // ─── Response Handling (when native model output is insufficient) ─────
     let synthesizedContent = genResponse.content;
-    const modelMetadata = (genResponse as any).metadata;
-    const needsSynthesis =
-      responseSynthesizer.needsSynthesis(genResponse.content) ||
-      modelMetadata?.needsSynthesis === true;
 
-    if (needsSynthesis) {
+    if (!genResponse.content || genResponse.content.trim().length === 0) {
+      if (toolExecuted && planExecutionResult?.steps && planExecutionResult.steps.length > 0) {
+        const synthesisResult = responseSynthesizer.synthesize({
+          request,
+          intent,
+          context,
+          assessment,
+          nativeModelOutput: undefined,
+          nativeModelTokenCount: 0,
+          evidence,
+          toolResults: planExecutionResult.steps.map((s) => s.result),
+          planSummary: planExecutionResult.summary,
+        });
+        synthesizedContent = synthesisResult.content;
+      } else {
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'failed',
+          'Model returned empty response',
+          'plan_failed',
+        );
+        this.reasoningEngine.endReasoning(request.requestId);
+        return ok(
+          this.responseEngine.buildError(request, intent, 'GENERATION_FAILED', startTime),
+        );
+      }
+    } else if (responseSynthesizer.needsSynthesis(genResponse.content)) {
       this.reasoningEngine.updateStatus(
         request.requestId,
         'generating',
@@ -655,7 +687,6 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
         assessment,
         nativeModelOutput: genResponse.content || undefined,
         nativeModelTokenCount: genResponse.usage?.completionTokens,
-        nativeModelConfidence: modelMetadata?.confidence,
         evidence,
         toolResults: planExecutionResult?.steps?.map((s) => s.result),
         planSummary: planExecutionResult?.summary,
@@ -862,6 +893,10 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     const validation = this.validateRequest(request);
     if (!validation.ok) return fail(validation.error);
 
+    if (request.signal?.aborted) {
+      return fail(new CancelledError('processStream request was aborted before start'));
+    }
+
     const safetyCheck = this.safetyEngine.checkInput(request.message, request.userId);
     if (!safetyCheck.safe || safetyCheck.blocked) {
       return fail(new SafetyCheckFailedError(safetyCheck.reasons?.join(', ') ?? 'blocked'));
@@ -949,6 +984,222 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
       return ok(undefined);
     }
 
+    const authCtx: AuthenticationContext = request.auth ?? {
+      userId: request.userId,
+      sessionId: request.sessionId,
+      roles: ['user'],
+      permissions: ['*'],
+      workspaceId: request.workspaceId,
+    };
+
+    const handle = this.streamingEngine.createStream(request.requestId, subscriber);
+
+    // ─── AI Action & Planning Pipeline (AI-01, Batch 3) ───────────────────
+    const isActionRequest =
+      intent.requiresTool ||
+      intent.primaryIntent === 'PROJECT_WORKSPACE_TASK' ||
+      intent.type === 'PROJECT_WORKSPACE_TASK' ||
+      intent.type === 'AUTOMATION_REQUEST' ||
+      intent.type === 'TASK_CREATION' ||
+      intent.type === 'TASK_MANAGEMENT' ||
+      intent.type === 'TOOL_REQUEST';
+
+    let toolResultContext = '';
+    let executedPlanResult: PlanExecutionResult | undefined;
+
+    if (isActionRequest) {
+      if (this.streamingEngine.emitStatus) {
+        this.streamingEngine.emitStatus(handle, 'planning', {
+          details: 'Formulating action plan',
+        });
+      }
+      this.reasoningEngine.updateStatus(
+        request.requestId,
+        'planning',
+        'Formulating tool execution plan',
+        'reasoning_in_progress',
+      );
+
+      const plan = await planningEngine.createPlan(request.message, authCtx, { context, intent });
+      const planValidation = planningEngine.validatePlan(plan, authCtx);
+
+      if (!planValidation.valid) {
+        const errorMsg = `Plan validation failed: ${planValidation.errors.join('; ')}`;
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'failed',
+          errorMsg,
+          'plan_failed',
+        );
+        this.reasoningEngine.endReasoning(request.requestId);
+        this.streamingEngine.failStream(handle, errorMsg, {
+          error: errorMsg,
+          details: errorMsg,
+          verified: false,
+          verificationStatus: 'FAILED',
+        });
+        return fail(new InvalidPlanError(errorMsg));
+      }
+
+      if (planValidation.requiresConfirmation) {
+        const confStep = planValidation.confirmationSteps[0] || plan.steps[0];
+        const stepInput =
+          (confStep && 'toolInput' in confStep
+            ? confStep.toolInput
+            : (confStep as any)?.input) || {};
+        const confReq = this.confManager.createConfirmationRequest(
+          confStep?.toolName || 'execute_action',
+          stepInput,
+          `Action requires confirmation:\n• WHAT: ${confStep?.description}\n• WHY: High impact action modifying permanent records\n• WHICH RESOURCE: ${JSON.stringify(stepInput)}`,
+        );
+
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'completed',
+          'Confirmation required for action',
+          'confirmation_required',
+        );
+        this.reasoningEngine.endReasoning(request.requestId);
+
+        if (this.streamingEngine.emitStatus) {
+          this.streamingEngine.emitStatus(handle, 'confirmation_required', {
+            confirmationRequest: confReq,
+            details: confReq.description,
+            delta: confReq.description,
+          });
+        }
+        this.streamingEngine.completeStream(handle);
+        return ok(undefined);
+      }
+
+      if (plan.steps.length > 0) {
+        const firstTool = plan.steps[0].toolName;
+        if (this.streamingEngine.emitStatus) {
+          this.streamingEngine.emitStatus(handle, 'executing', {
+            toolName: firstTool,
+            details: `Executing ${plan.steps.length} step(s)`,
+          });
+        }
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'generating',
+          'Executing plan steps',
+          'plan_executing',
+        );
+
+        const planResult = await planExecutor.executePlan(
+          plan,
+          {
+            auth: authCtx,
+            traceId: request.requestId,
+            conversationId: request.conversationId,
+            requestId: request.requestId,
+            workspaceId: authCtx.workspaceId,
+            signal: request.signal,
+          },
+          {
+            idempotencyKey: request.requestId,
+            signal: request.signal,
+          },
+        );
+
+        executedPlanResult = planResult;
+
+        if (request.signal?.aborted) {
+          const isTimeout =
+            (request.signal?.reason instanceof TimeoutError) ||
+            (request.signal?.reason as any)?.code === 'TIMEOUT' ||
+            (request.signal?.reason as any)?.name === 'TimeoutError';
+          const errMsg = isTimeout
+            ? (request.signal.reason as any)?.message || 'Stream timed out'
+            : 'Stream cancelled during tool execution';
+          this.reasoningEngine.updateStatus(
+            request.requestId,
+            'failed',
+            errMsg,
+            'plan_failed',
+          );
+          this.reasoningEngine.endReasoning(request.requestId);
+          if (isTimeout) {
+            await this.streamingEngine.failStream(handle, errMsg, { error: errMsg, details: errMsg });
+            return fail(new TimeoutError('stream', request.options?.timeout ?? 120_000));
+          } else {
+            await this.streamingEngine.cancelStream(handle);
+            return fail(new CancelledError(errMsg));
+          }
+        }
+
+        if (planResult.status === 'FAILED') {
+          const failMsg = planResult.summary || 'Tool execution failed';
+          this.reasoningEngine.updateStatus(
+            request.requestId,
+            'failed',
+            failMsg,
+            'plan_failed',
+          );
+          this.reasoningEngine.endReasoning(request.requestId);
+          this.streamingEngine.failStream(handle, failMsg, {
+            toolName: firstTool,
+            error: failMsg,
+            details: failMsg,
+            verified: false,
+            verificationStatus: 'FAILED',
+          });
+          return fail(new ToolExecutionFailedError(failMsg));
+        }
+
+        const isVerified =
+          planResult.status === 'SUCCESS' && planResult.verificationStatus === 'VERIFIED';
+        if (this.streamingEngine.emitStatus) {
+          this.streamingEngine.emitStatus(handle, 'verified', {
+            toolName: firstTool,
+            verified: isVerified,
+            verificationStatus: planResult.verificationStatus,
+            details: planResult.summary,
+          });
+        }
+
+        toolResultContext = `\n[Backend Execution & Verification Result]\nPlan Status: ${planResult.status}\nVerification: ${planResult.verificationStatus ?? 'VERIFIED'}\nSummary: ${planResult.summary}\nSteps:\n${JSON.stringify(
+          planResult.steps.map((s) => ({
+            step: s.stepNumber,
+            description: s.description,
+            status: s.status,
+            verified: s.verified,
+            verificationStatus: s.verificationStatus,
+            details: s.verificationDetails,
+            result: s.result,
+            error: s.error,
+          })),
+          null,
+          2,
+        )}`;
+      }
+    }
+
+    if (request.signal?.aborted) {
+      const isTimeout =
+        (request.signal?.reason instanceof TimeoutError) ||
+        (request.signal?.reason as any)?.code === 'TIMEOUT' ||
+        (request.signal?.reason as any)?.name === 'TimeoutError';
+      const errMsg = isTimeout
+        ? (request.signal.reason as any)?.message || 'Stream timed out'
+        : 'Stream cancelled before prompt generation';
+      this.reasoningEngine.updateStatus(
+        request.requestId,
+        'failed',
+        errMsg,
+        'plan_failed',
+      );
+      this.reasoningEngine.endReasoning(request.requestId);
+      if (isTimeout) {
+        await this.streamingEngine.failStream(handle, errMsg, { error: errMsg, details: errMsg });
+        return fail(new TimeoutError('stream', request.options?.timeout ?? 120_000));
+      } else {
+        await this.streamingEngine.cancelStream(handle);
+        return fail(new CancelledError(errMsg));
+      }
+    }
+
     const promptResult = this.promptEngine.build(request.message, context, {
       includeRAG: intent.requiresRAG,
       includeMemory: intent.requiresMemory,
@@ -960,13 +1211,14 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
         'Prompt build failed',
         'plan_failed',
       );
+      this.streamingEngine.failStream(handle, promptResult.error.message);
       return fail(promptResult.error);
     }
 
     const prompt = promptResult.value;
     const strategyInstruction = buildStrategyInstruction(assessment.strategy);
     const strategyContext = strategyInstruction ? `\n\n${strategyInstruction}` : '';
-    const systemContent = `${buildAetherSystemPrompt()}\n\n${prompt.system}${strategyContext}`;
+    const systemContent = `${buildAetherSystemPrompt()}\n\n${prompt.system}${strategyContext}${toolResultContext}`;
     const messages = [
       { role: 'system' as const, content: systemContent },
       ...prompt.messages.map((m) => ({
@@ -982,7 +1234,6 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
       'plan_executing',
     );
 
-    const handle = this.streamingEngine.createStream(request.requestId, subscriber);
     let accumulatedContent = '';
 
     const providerMode = request.options?.providerMode ?? 'auto';
@@ -997,99 +1248,133 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
         signal: request.signal,
         stream: true,
       },
-      (chunk) => {
+      async (chunk) => {
         if (handle.isCancelled) return;
         accumulatedContent += chunk.delta;
-        this.streamingEngine.onLLMChunk(handle, chunk);
+        await this.streamingEngine.onLLMChunk(handle, chunk);
       },
       providerMode,
     );
 
-    if (!execution.result.ok) {
-      // Instead of failing, try to synthesize a response
+    const streamError = !execution.result.ok ? execution.result.error : undefined;
+
+    const isTimeout =
+      streamError instanceof TimeoutError ||
+      (request.signal?.reason instanceof TimeoutError) ||
+      (request.signal?.reason as any)?.code === 'TIMEOUT' ||
+      (request.signal?.reason as any)?.name === 'TimeoutError';
+
+    if (isTimeout) {
+      const timeoutErr =
+        streamError instanceof TimeoutError
+          ? streamError
+          : ((request.signal?.reason as any) ?? new TimeoutError('stream', request.options?.timeout ?? 120_000));
       this.reasoningEngine.updateStatus(
         request.requestId,
-        'generating',
-        'Synthesizing contextual response',
-        'plan_executing',
+        'failed',
+        `Stream timed out: ${timeoutErr.message}`,
+        'plan_failed',
       );
-
-      const synthesisResult = responseSynthesizer.synthesize({
-        request,
-        intent,
-        context,
-        assessment,
-        nativeModelOutput: accumulatedContent || undefined,
+      this.reasoningEngine.endReasoning(request.requestId);
+      await this.streamingEngine.failStream(handle, timeoutErr.message, {
+        error: timeoutErr.message,
+        details: timeoutErr.message,
       });
+      return fail(timeoutErr);
+    }
 
-      // Stream the synthesized response word-by-word
-      const words = synthesisResult.content.split(/(\s+)/);
-      for (let i = 0; i < words.length; i++) {
-        if (handle.isCancelled) break;
-        const isLast = i === words.length - 1;
+    if (request.signal?.aborted || handle.isCancelled || streamError instanceof CancelledError) {
+      this.reasoningEngine.updateStatus(
+        request.requestId,
+        'failed',
+        'Stream cancelled',
+        'plan_failed',
+      );
+      this.reasoningEngine.endReasoning(request.requestId);
+      await this.streamingEngine.cancelStream(handle);
+      return fail(
+        streamError instanceof CancelledError ? streamError : new CancelledError('Stream cancelled'),
+      );
+    }
+
+    if (!execution.result.ok) {
+      if (
+        executedPlanResult &&
+        (executedPlanResult.status === 'SUCCESS' ||
+          executedPlanResult.status === 'PARTIAL_SUCCESS')
+      ) {
+        const verifiedMessage =
+          responseSynthesizer.synthesize({
+            request,
+            intent,
+            context,
+            assessment,
+            nativeModelOutput: undefined,
+            nativeModelTokenCount: 0,
+            evidence: executedPlanResult.evidence ? [...executedPlanResult.evidence] : [],
+            toolResults: executedPlanResult.steps.map((s) => s.result),
+            planSummary: executedPlanResult.summary,
+          }).content || executedPlanResult.summary;
+
         this.streamingEngine.onLLMChunk(handle, {
           requestId: request.requestId,
           modelId: request.options?.modelId ?? 'default',
-          delta: words[i],
-          index: i,
-          isLast,
+          delta: verifiedMessage,
+          index: handle.chunkCount,
+          isLast: true,
         });
+        accumulatedContent = verifiedMessage;
+      } else {
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'failed',
+          `Model stream failed: ${execution.result.error.message}`,
+          'plan_failed',
+        );
+        this.reasoningEngine.endReasoning(request.requestId);
+        this.streamingEngine.failStream(handle, execution.result.error.message);
+        return fail(execution.result.error);
       }
-      accumulatedContent = synthesisResult.content;
     }
 
-    // ─── Post-stream synthesis check ──────────────────────────────────────
-    // If the model streamed but produced incoherent output, re-synthesize
-    if (
-      accumulatedContent &&
-      responseSynthesizer.needsSynthesis(accumulatedContent)
-    ) {
-      const synthesisResult = responseSynthesizer.synthesize({
-        request,
-        intent,
-        context,
-        assessment,
-        nativeModelOutput: accumulatedContent,
-      });
-
-      // Stream the synthesized replacement
-      const words = synthesisResult.content.split(/(\s+)/);
-      for (let i = 0; i < words.length; i++) {
-        if (handle.isCancelled) break;
-        const isLast = i === words.length - 1;
-        this.streamingEngine.onLLMChunk(handle, {
-          requestId: request.requestId,
-          modelId: request.options?.modelId ?? 'default',
-          delta: words[i],
-          index: 1000 + i,
-          isLast,
-        });
-      }
-      accumulatedContent = synthesisResult.content;
-    }
-
-    // If nothing was streamed at all (empty response), synthesize
     if (!accumulatedContent || accumulatedContent.trim().length === 0) {
-      const synthesisResult = responseSynthesizer.synthesize({
-        request,
-        intent,
-        context,
-        assessment,
-      });
+      if (
+        executedPlanResult &&
+        (executedPlanResult.status === 'SUCCESS' ||
+          executedPlanResult.status === 'PARTIAL_SUCCESS')
+      ) {
+        const verifiedMessage =
+          responseSynthesizer.synthesize({
+            request,
+            intent,
+            context,
+            assessment,
+            nativeModelOutput: undefined,
+            nativeModelTokenCount: 0,
+            evidence: executedPlanResult.evidence ? [...executedPlanResult.evidence] : [],
+            toolResults: executedPlanResult.steps.map((s) => s.result),
+            planSummary: executedPlanResult.summary,
+          }).content || executedPlanResult.summary;
 
-      const words = synthesisResult.content.split(/(\s+)/);
-      for (let i = 0; i < words.length; i++) {
-        if (handle.isCancelled) break;
-        const isLast = i === words.length - 1;
         this.streamingEngine.onLLMChunk(handle, {
           requestId: request.requestId,
           modelId: request.options?.modelId ?? 'default',
-          delta: words[i],
-          index: 2000 + i,
-          isLast,
+          delta: verifiedMessage,
+          index: handle.chunkCount,
+          isLast: true,
         });
+        accumulatedContent = verifiedMessage;
+      } else {
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'failed',
+          'Model produced empty response',
+          'plan_failed',
+        );
+        this.reasoningEngine.endReasoning(request.requestId);
+        this.streamingEngine.failStream(handle, 'Model produced empty response');
+        return fail(new GenerationFailedError('Model returned empty stream output'));
       }
-      accumulatedContent = synthesisResult.content;
     }
 
     // Store in conversation memory (Session Isolation)
@@ -1392,7 +1677,7 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
       message: greetingMsg,
       intent,
       task: { ...agentTask, status: 'completed' },
-      status: 'ready',
+      status: 'success',
       verificationStatus: 'VERIFIED',
       confidence: 'HIGH_CONFIDENCE',
       latencyMs: Date.now() - startTime,

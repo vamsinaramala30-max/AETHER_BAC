@@ -26,6 +26,7 @@ export class ProjectsRepository {
     return {
       id: p.id,
       ownerId: p.ownerId,
+      workspaceId: p.workspaceId,
       name: p.name,
       slug: p.id,
       description: p.description || null,

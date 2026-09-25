@@ -132,8 +132,20 @@ export class Retriever implements IRetriever {
       const chunk = await this.chunkStore.getById(id);
       if (chunk) {
         // Enforce user/workspace/project isolation
-        if (scope?.userId && chunk.userId && chunk.userId !== scope.userId) continue;
-        if (scope?.workspaceId && chunk.workspaceId && chunk.workspaceId !== scope.workspaceId) continue;
+        if (scope?.workspaceId) {
+          if (chunk.workspaceId !== scope.workspaceId) continue;
+        } else if (chunk.workspaceId) {
+          if (!scope?.userId || chunk.userId !== scope.userId) continue;
+        }
+
+        if (scope?.userId) {
+          if (chunk.userId && chunk.userId !== scope.userId) {
+            if (!scope.workspaceId || chunk.workspaceId !== scope.workspaceId) continue;
+          }
+        } else if (chunk.userId) {
+          continue;
+        }
+
         if (scope?.projectId && chunk.projectId && chunk.projectId !== scope.projectId) continue;
         chunks.push(chunk);
       }

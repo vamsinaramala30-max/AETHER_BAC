@@ -7,8 +7,8 @@ export interface RateLimitConfigOptions extends Partial<Options> {
 }
 
 export const rateLimitConfig: RateLimitConfigOptions = {
-  windowMs: env.RATE_LIMIT_WINDOW_MS,
-  max: env.RATE_LIMIT_MAX_REQUESTS,
+  windowMs: env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000,
+  max: env.RATE_LIMIT_MAX_REQUESTS || 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -33,3 +33,60 @@ export const strictRateLimitConfig: RateLimitConfigOptions = {
     },
   },
 };
+
+export const aiRateLimitConfig: RateLimitConfigOptions = {
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 AI requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Too many AI requests. Please slow down.',
+    },
+  },
+};
+
+export const uploadRateLimitConfig: RateLimitConfigOptions = {
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 file uploads per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Upload rate limit exceeded. Please wait a moment.',
+    },
+  },
+};
+
+export const automationRateLimitConfig: RateLimitConfigOptions = {
+  windowMs: 60 * 1000, // 1 minute
+  max: 30, // 30 automation triggers per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Automation execution rate limit exceeded. Please wait a moment.',
+    },
+  },
+};
+
+export const searchRateLimitConfig: RateLimitConfigOptions = {
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 search queries per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMITED',
+      message: 'Search rate limit exceeded. Please wait a moment.',
+    },
+  },
+};
+

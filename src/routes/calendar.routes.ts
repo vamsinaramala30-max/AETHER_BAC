@@ -163,33 +163,52 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
 router.get('/events', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
+    await ensureDefaultCalendars(userId);
+
+    const calendars = await db.userCalendar.findMany({
+      where: { userId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    const primaryCal = calendars.find((c) => c.isPrimary) || calendars[0];
+    const defaultCalId = primaryCal?.id || '';
+    const calMap = new Map(calendars.map((c) => [c.id, c.id]));
+
     const events = await db.calendarEvent.findMany({
       where: { userId, deletedAt: null },
       orderBy: { startDate: 'asc' },
     });
 
-    const mapped = events.map((e) => ({
-      id: e.id,
-      calendarId: e.projectId ? '' : '', // client resolves via its calendarId lookup
-      title: e.title,
-      start: e.startDate.toISOString(),
-      end: e.endDate.toISOString(),
-      isAllDay: e.allDay,
-      location: e.location,
-      description: e.description,
-      color: e.color || '#38bdf8',
-      status: 'confirmed',
-      organizer: {
-        id: userId,
-        displayName: req.user?.fullName || req.user?.email || 'User',
-        email: req.user?.email || '',
-        role: 'organizer',
-      },
-      projectId: e.projectId,
-      taskId: e.taskId,
-      createdAt: e.createdAt.toISOString(),
-      updatedAt: e.updatedAt.toISOString(),
-    }));
+    const mapped = events.map((e) => {
+      let resolvedCalId = defaultCalId;
+      if (e.reminders && typeof e.reminders === 'object' && (e.reminders as any).calendarId) {
+        const storedId = (e.reminders as any).calendarId;
+        if (calMap.has(storedId)) {
+          resolvedCalId = storedId;
+        }
+      }
+      return {
+        id: e.id,
+        calendarId: resolvedCalId,
+        title: e.title,
+        start: e.startDate.toISOString(),
+        end: e.endDate.toISOString(),
+        isAllDay: e.allDay,
+        location: e.location,
+        description: e.description,
+        color: e.color || '#38bdf8',
+        status: 'confirmed',
+        organizer: {
+          id: userId,
+          displayName: req.user?.fullName || req.user?.email || 'User',
+          email: req.user?.email || '',
+          role: 'organizer',
+        },
+        projectId: e.projectId,
+        taskId: e.taskId,
+        createdAt: e.createdAt.toISOString(),
+        updatedAt: e.updatedAt.toISOString(),
+      };
+    });
 
     res.status(200).json({ data: mapped });
   } catch (err) {
@@ -220,13 +239,22 @@ router.post('/events', async (req: Request, res: Response, next: NextFunction) =
       projectId,
       taskId,
       calendarId,
+      reminders,
     } = req.body;
 
-    // Resolve calendarId back to a UserCalendar if provided
-    let resolvedCalendarId: string | null = null;
+    await ensureDefaultCalendars(userId);
+    const calendars = await db.userCalendar.findMany({
+      where: { userId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    const primaryCal = calendars.find((c) => c.isPrimary) || calendars[0];
+    let resolvedCalendarId: string = primaryCal?.id || '';
+
     if (calendarId) {
-      const cal = await db.userCalendar.findFirst({ where: { id: calendarId, userId } });
-      resolvedCalendarId = cal?.id || null;
+      const cal = calendars.find((c) => c.id === calendarId);
+      if (cal) {
+        resolvedCalendarId = cal.id;
+      }
     }
 
     const created = await db.calendarEvent.create({
@@ -242,6 +270,10 @@ router.post('/events', async (req: Request, res: Response, next: NextFunction) =
         description: description || null,
         projectId: projectId || null,
         taskId: taskId || null,
+        reminders: {
+          ...(typeof reminders === 'object' && reminders !== null ? reminders : {}),
+          calendarId: resolvedCalendarId,
+        },
       },
     });
 
@@ -278,10 +310,36 @@ router.patch('/events/:id', async (req: Request, res: Response, next: NextFuncti
   try {
     const userId = req.user!.id;
     const { id } = req.params;
-    const { title, start, end, isAllDay, color, location, description } = req.body;
+    const { title, start, end, isAllDay, color, location, description, calendarId, reminders } =
+      req.body;
 
-    const updated = await db.calendarEvent.updateMany({
-      where: { id, userId },
+    const existing = await db.calendarEvent.findFirst({
+      where: { id, userId, deletedAt: null },
+    });
+    if (!existing) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    let updatedReminders: Record<string, any> =
+      typeof existing.reminders === 'object' && existing.reminders !== null
+        ? { ...(existing.reminders as Record<string, any>) }
+        : {};
+
+    if (typeof reminders === 'object' && reminders !== null) {
+      updatedReminders = { ...updatedReminders, ...reminders };
+    }
+    if (calendarId) {
+      const cal = await db.userCalendar.findFirst({
+        where: { id: calendarId, userId, deletedAt: null },
+      });
+      if (cal) {
+        updatedReminders.calendarId = cal.id;
+      }
+    }
+
+    const updated = await db.calendarEvent.update({
+      where: { id },
       data: {
         ...(title !== undefined && { title }),
         ...(start && { startDate: new Date(start) }),
@@ -290,16 +348,38 @@ router.patch('/events/:id', async (req: Request, res: Response, next: NextFuncti
         ...(color !== undefined && { color }),
         ...(location !== undefined && { location }),
         ...(description !== undefined && { description }),
+        reminders: updatedReminders,
       },
     });
 
-    if (updated.count === 0) {
-      res.status(404).json({ error: 'Event not found' });
-      return;
-    }
+    const primaryCal = await db.userCalendar.findFirst({
+      where: { userId, isPrimary: true, deletedAt: null },
+    });
+    const resolvedCalId = updatedReminders.calendarId || primaryCal?.id || '';
 
-    const item = await db.calendarEvent.findUnique({ where: { id } });
-    res.status(200).json({ data: item });
+    res.status(200).json({
+      data: {
+        id: updated.id,
+        calendarId: resolvedCalId,
+        title: updated.title,
+        start: updated.startDate.toISOString(),
+        end: updated.endDate.toISOString(),
+        isAllDay: updated.allDay,
+        location: updated.location,
+        description: updated.description,
+        color: updated.color,
+        status: 'confirmed',
+        organizer: {
+          id: userId,
+          displayName: req.user?.fullName || req.user?.email || 'User',
+          email: req.user?.email || '',
+        },
+        projectId: updated.projectId,
+        taskId: updated.taskId,
+        createdAt: updated.createdAt.toISOString(),
+        updatedAt: updated.updatedAt.toISOString(),
+      },
+    });
   } catch (err) {
     next(err);
   }

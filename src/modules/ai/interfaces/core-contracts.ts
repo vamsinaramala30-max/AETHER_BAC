@@ -56,7 +56,7 @@ import type { ProviderManager } from '../llm/provider-manager.js';
 // ─── 1. Model Provider Interface ──────────────────────────────────────────────
 
 export interface ModelStatusInfo {
-  readonly state: 'NOT_LOADED' | 'LOADING' | 'READY' | 'ERROR' | 'UNAVAILABLE';
+  readonly state: 'NOT_LOADED' | 'LOADING' | 'READY' | 'ERROR' | 'UNAVAILABLE' | 'BUSY';
   readonly modelName?: string;
   readonly error?: string;
   readonly loadDurationSeconds?: number;

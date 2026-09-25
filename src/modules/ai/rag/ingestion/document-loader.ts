@@ -53,6 +53,8 @@ export class DocumentLoader implements IDocumentLoader {
     'application/pdf',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
   ]);
 
   public async load(source: DocumentSource): Promise<Result<RawDocument>> {

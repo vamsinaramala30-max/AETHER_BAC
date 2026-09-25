@@ -129,10 +129,14 @@ app.get('/metrics', (_req: Request, res: Response) => {
 });
 
 // ============================================================================
-// API Routes
+// API Routes & Rate Limiting
 // ============================================================================
 import { apiRoutes } from './src/routes/index';
 import { authModuleRoutes } from './src/modules/auth/auth.routes';
+import { globalRateLimiter } from './src/middleware/rateLimit.middleware';
+
+// Apply global rate limiter across all API routes
+app.use('/api', globalRateLimiter);
 
 // Mount module routes directly at /api/auth for OAuth
 app.use('/api/auth', authModuleRoutes);
@@ -142,6 +146,7 @@ app.use('/api/v1', apiRoutes);
 
 // Also mount auth at /api/v1/auth for backwards compatibility
 app.use('/api/v1/auth', authModuleRoutes);
+
 
 // ============================================================================
 // Error Handling Middleware

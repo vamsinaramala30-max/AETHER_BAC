@@ -10,7 +10,17 @@ import { memoryEngine } from './memory/memory-engine.js';
 import type { IMemoryEngine } from './memory/memory-engine.js';
 import { globalAiEngine } from './core/ai-engine.js';
 
+import { CancelledError, TimeoutError } from './ai-errors.js';
+
+interface ActiveStreamEntry {
+  abortController: AbortController;
+  requestId: string;
+  createdAt: number;
+}
+
 export class AiExpressController {
+  private static activeStreams = new Map<string, ActiveStreamEntry>();
+
   public async chat(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req.user as any)?.id || (req as any).userId || 'anonymous';
@@ -34,21 +44,108 @@ export class AiExpressController {
   }
 
   public async stream(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const user = (req as any).user;
+    const userId = user?.id || (req as any).userId || 'anonymous';
+    const workspaceId = user?.workspaceId || (req as any).workspaceId;
+    const body = req.body || {};
+    const message =
+      body.message ||
+      body.content ||
+      (Array.isArray(body.messages) && body.messages[body.messages.length - 1]?.content) ||
+      '';
+    const conversationId = body.conversationId || body.conversation_id || `conv_${Date.now()}`;
+    const modelId = body.modelId || body.model_id || body.model;
+    const providerMode = body.providerMode;
+    const sessionId = body.sessionId || `sess_${userId}`;
+    const requestId =
+      body.requestId ||
+      body.idempotencyKey ||
+      `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const streamKey = `${userId}:${conversationId}`;
+    const existing = AiExpressController.activeStreams.get(streamKey);
+    if (existing) {
+      const incomingReqId = body.requestId || body.idempotencyKey;
+      if (incomingReqId && existing.requestId === incomingReqId) {
+        res.status(409).json({
+          error: 'DUPLICATE_REQUEST_IN_FLIGHT',
+          message: 'An AI stream with this request identifier is currently processing.',
+        });
+        return;
+      }
+      // If a previous stream is still in progress for this conversation,
+      // cancel it cleanly so the new user prompt takes precedence.
+      existing.abortController.abort(new CancelledError('Stream superseded by a new user message'));
+      AiExpressController.activeStreams.delete(streamKey);
+    }
+
+    const abortController = new AbortController();
+    AiExpressController.activeStreams.set(streamKey, {
+      abortController,
+      requestId,
+      createdAt: Date.now(),
+    });
+
+    const onClientClose = () => {
+      if (!res.writableEnded && !abortController.signal.aborted) {
+        abortController.abort(new CancelledError('Client disconnected'));
+      }
+    };
+    req.on('close', onClientClose);
+
+    const timeoutMs =
+      typeof body.timeout === 'number' && body.timeout > 0 ? body.timeout : 120_000;
+    const timeoutTimer = setTimeout(() => {
+      if (!res.writableEnded && !abortController.signal.aborted) {
+        abortController.abort(new TimeoutError('stream', timeoutMs));
+      }
+    }, timeoutMs);
+
+    let terminalChunkEmitted = false;
+    let accumulatedContent = '';
+
+    const writeChunk = async (chunk: any): Promise<boolean> => {
+      if (res.writableEnded || res.destroyed) return false;
+      if (chunk?.isLast) {
+        terminalChunkEmitted = true;
+      }
+      const payload = `data: ${JSON.stringify(chunk)}\n\n`;
+      const ok = res.write(payload);
+      if (!ok && !res.writableEnded && !res.destroyed) {
+        await new Promise<void>((resolve) => {
+          const onDrain = () => {
+            cleanup();
+            resolve();
+          };
+          const onClose = () => {
+            cleanup();
+            resolve();
+          };
+          const cleanup = () => {
+            res.removeListener('drain', onDrain);
+            res.removeListener('close', onClose);
+          };
+          res.once('drain', onDrain);
+          res.once('close', onClose);
+        });
+      }
+      return !res.writableEnded && !res.destroyed;
+    };
+
     try {
-      const userId = (req.user as any)?.id || (req as any).userId || 'anonymous';
-      const body = req.body || {};
-      const message =
-        body.message ||
-        body.content ||
-        (Array.isArray(body.messages) && body.messages[body.messages.length - 1]?.content) ||
-        '';
-      const conversationId = body.conversationId || body.conversation_id || `conv_${Date.now()}`;
-      const modelId = body.modelId || body.model_id || body.model;
-      const providerMode = body.providerMode;
+      const auth = {
+        userId,
+        sessionId,
+        roles: user?.role ? [user.role] : ['user'],
+        permissions: ['*'],
+        workspaceId,
+      };
 
       res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.flushHeaders?.();
 
       if (conversationId && message) {
         await messageService
@@ -61,28 +158,87 @@ export class AiExpressController {
           .catch(() => {});
       }
 
-      let accumulatedContent = '';
-
       const result = await globalAiEngine.processStream(
         {
-          requestId: `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          requestId,
           userId,
-          sessionId: body.sessionId || `sess_${userId}`,
+          workspaceId,
+          auth,
+          sessionId,
           conversationId,
           message,
-          options: { streaming: true, modelId, providerMode },
+          options: { streaming: true, modelId, providerMode, timeout: timeoutMs },
+          signal: abortController.signal,
           timestamp: Date.now(),
         },
-        (chunk: any) => {
+        async (chunk: any) => {
           if (chunk?.delta) {
             accumulatedContent +=
               typeof chunk.delta === 'string' ? chunk.delta : chunk.delta.content ?? '';
           }
-          res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+          await writeChunk(chunk);
         },
       );
 
-      if (conversationId && accumulatedContent) {
+      if (!res.writableEnded && !res.destroyed) {
+        if (abortController.signal.aborted) {
+          const isTimeout =
+            abortController.signal.reason instanceof TimeoutError ||
+            (abortController.signal.reason as any)?.code === 'TIMEOUT' ||
+            (abortController.signal.reason as any)?.name === 'TimeoutError';
+          if (!terminalChunkEmitted) {
+            const errorMsg = isTimeout
+              ? (abortController.signal.reason as any)?.message || 'Stream timed out'
+              : undefined;
+            await writeChunk({
+              requestId,
+              delta: '',
+              index: 0,
+              isLast: true,
+              status: isTimeout ? 'failed' : 'cancelled',
+              error: errorMsg,
+              details: errorMsg,
+              timestamp: Date.now(),
+            });
+          }
+          res.end();
+        } else if (!result.ok) {
+          if (!terminalChunkEmitted) {
+            await writeChunk({
+              requestId,
+              delta: '',
+              index: 0,
+              isLast: true,
+              status: 'failed',
+              error: result.error.message,
+              details: result.error.message,
+              timestamp: Date.now(),
+            });
+          }
+          res.end();
+        } else {
+          if (!terminalChunkEmitted) {
+            await writeChunk({
+              requestId,
+              delta: '',
+              index: 0,
+              isLast: true,
+              status: 'completed',
+              timestamp: Date.now(),
+            });
+          }
+          // Emit [DONE] ONLY on successful terminal completion
+          res.write('data: [DONE]\n\n');
+          res.end();
+        }
+      }
+
+      if (
+        result.ok &&
+        conversationId &&
+        accumulatedContent.trim() &&
+        !abortController.signal.aborted
+      ) {
         await messageService
           .addMessage({
             conversationId,
@@ -92,17 +248,35 @@ export class AiExpressController {
           })
           .catch(() => {});
       }
-
-      if (!result.ok) {
-        res.write(`data: ${JSON.stringify({ error: result.error })}\n\n`);
-      }
-
-      res.write('data: [DONE]\n\n');
-      res.end();
     } catch (err) {
       if (!res.headersSent) {
         next(err);
-      } else {
+      } else if (!res.writableEnded && !res.destroyed) {
+        if (!terminalChunkEmitted) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          res.write(
+            `data: ${JSON.stringify({
+              requestId,
+              delta: '',
+              index: 0,
+              isLast: true,
+              status: 'failed',
+              error: errMsg,
+              details: errMsg,
+              timestamp: Date.now(),
+            })}\n\n`,
+          );
+        }
+        res.end();
+      }
+    } finally {
+      clearTimeout(timeoutTimer);
+      req.removeListener('close', onClientClose);
+      const current = AiExpressController.activeStreams.get(streamKey);
+      if (current?.requestId === requestId) {
+        AiExpressController.activeStreams.delete(streamKey);
+      }
+      if (!res.writableEnded && !res.destroyed) {
         res.end();
       }
     }

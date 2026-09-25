@@ -6,6 +6,8 @@ import { GoalsRepository } from './goals.repository';
 import { GoalEntity } from './goals.entity';
 import { CreateGoalDTO, UpdateGoalDTO, GoalFilterDTO } from './goals.dto';
 import { GoalStatus } from '../projects.constants';
+import { db } from '../../../database/client';
+import { AppError } from '../../../middleware/error.middleware';
 
 export class GoalsService {
   constructor(private readonly repository: GoalsRepository) {}
@@ -49,9 +51,22 @@ export class GoalsService {
     return this.repository.save(goal as GoalEntity);
   }
 
-  async getGoal(id: string): Promise<GoalEntity> {
+  async getGoal(id: string, userId?: string): Promise<GoalEntity> {
     const goal = await this.repository.findById(id);
-    if (!goal) throw new Error(`Goal with ID ${id} not found.`);
+    if (!goal) throw new AppError(`Goal with ID ${id} not found.`, 404, 'NOT_FOUND');
+    if (userId && goal.userId !== userId) {
+      let isMember = false;
+      const workspaceId = (goal as any).workspaceId;
+      if (workspaceId) {
+        const membership = await db.workspaceMember.findFirst({
+          where: { workspaceId, userId },
+        });
+        isMember = !!membership;
+      }
+      if (!isMember) {
+        throw new AppError('Forbidden: Access to goal denied', 403, 'FORBIDDEN');
+      }
+    }
     return goal;
   }
 
@@ -59,8 +74,8 @@ export class GoalsService {
     return this.repository.findMany(filter);
   }
 
-  async updateGoal(id: string, dto: UpdateGoalDTO): Promise<GoalEntity> {
-    const goal = await this.getGoal(id);
+  async updateGoal(id: string, dto: UpdateGoalDTO, userId?: string): Promise<GoalEntity> {
+    const goal = await this.getGoal(id, userId);
 
     if (dto.title !== undefined) goal.title = dto.title;
     if (dto.description !== undefined) goal.description = dto.description;
@@ -85,8 +100,8 @@ export class GoalsService {
     return this.repository.save(goal);
   }
 
-  async deleteGoal(id: string): Promise<boolean> {
-    await this.getGoal(id);
+  async deleteGoal(id: string, userId?: string): Promise<boolean> {
+    await this.getGoal(id, userId);
     return this.repository.delete(id);
   }
 }

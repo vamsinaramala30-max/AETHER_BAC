@@ -4,8 +4,12 @@ import { CreateDocumentDto, UpdateDocumentDto, QueryDocumentsDto } from './docum
 export class DocumentsController {
   constructor(private readonly documentsService: DocumentsService) {}
 
-  async create(req: { body: CreateDocumentDto; user: { id: string } }) {
-    return this.documentsService.createDocument(req.body, req.user.id);
+  async create(req: { body: CreateDocumentDto; user: { id: string }; headers?: any }) {
+    const workspaceId =
+      req.body?.workspaceId ||
+      req.headers?.['x-workspace-id'] ||
+      undefined;
+    return this.documentsService.createDocument(req.body, req.user.id, workspaceId);
   }
 
   async findOne(req: { params: { id: string }; user: { id: string } }) {
@@ -16,8 +20,13 @@ export class DocumentsController {
     return this.documentsService.updateDocument(req.params.id, req.body, req.user.id);
   }
 
-  async list(req: { query: QueryDocumentsDto; user: { id: string } }) {
-    return this.documentsService.listDocuments(req.query, req.user.id);
+  async list(req: { query: QueryDocumentsDto; user: { id: string }; headers?: any }) {
+    const workspaceId =
+      req.query?.workspaceId ||
+      req.headers?.['x-workspace-id'] ||
+      undefined;
+    const query = { ...req.query, workspaceId };
+    return this.documentsService.listDocuments(query, req.user.id);
   }
 
   async extractInfo(req: { params: { id: string }; user: { id: string } }) {

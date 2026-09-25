@@ -16,6 +16,8 @@ export const WORKSPACE_ROUTES = {
     COMPLETE: '/workspaces/:workspaceId/focus/:id/complete',
     DISTRACTION: '/workspaces/:workspaceId/focus/:id/distraction',
     ANALYTICS: '/workspaces/:workspaceId/focus/analytics',
+    HISTORY: '/workspaces/:workspaceId/focus/history',
+    DELETE: '/workspaces/:workspaceId/focus/:id',
   },
   RECENT_FILES: {
     ROOT: '/workspaces/:workspaceId/recent-files',

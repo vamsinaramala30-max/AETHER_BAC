@@ -29,6 +29,8 @@ export class FocusController {
         workspaceId,
         type: req.body.type || 'focus',
         durationMinutes: req.body.durationMinutes || 25,
+        taskId: req.body.taskId || null,
+        projectId: req.body.projectId || null,
       };
       const session = await this.focusService.startSession(userId, dto);
       res.status(201).json({ success: true, data: session });
@@ -54,6 +56,28 @@ export class FocusController {
       const workspaceId = req.params.workspaceId || (req as any).user?.workspaceId || '';
       const data = await this.focusService.getAnalytics({ workspaceId, userId });
       res.status(200).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async handleHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || '';
+      const workspaceId = req.params.workspaceId || (req as any).user?.workspaceId || '';
+      const sessions = await this.focusService.getHistory(workspaceId, userId);
+      res.status(200).json({ success: true, data: sessions });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async handleDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || '';
+      const targetId = req.params.sessionId || req.params.id;
+      const deleted = await this.focusService.deleteSession(targetId, userId);
+      res.status(200).json({ success: true, deleted });
     } catch (err) {
       next(err);
     }

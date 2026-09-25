@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, AutomationStatus } from '@prisma/client';
 import { cronScheduler } from '../../../cron/scheduler';
 import { AutomationRepository } from '../repositories/automation.repository';
 import { ExecutionEngine } from '../engine/execution-engine';
@@ -57,14 +57,36 @@ export class AutomationScheduler {
       enabled: true,
       handler: async () => {
         logger.info(`[AutomationScheduler] Cron triggered for automation '${id}' (${name})`);
-        await this.executionEngine.execute(id, {
-          triggeredBy: 'CRON_SCHEDULER',
-          schedule: cronExpr,
-          timestamp: new Date().toISOString(),
-        });
+        try {
+          // Verify automation state in DB before executing
+          const auto = await this.autoRepo.findById(id);
+          if (!auto || auto.deletedAt || !auto.isEnabled || auto.status !== AutomationStatus.ACTIVE) {
+            logger.warn(
+              `[AutomationScheduler] Automation '${id}' is deleted, disabled, or inactive in database. Unscheduling task.`,
+            );
+            this.unscheduleAutomation(id);
+            return;
+          }
+
+          await this.executionEngine.execute(
+            id,
+            {
+              triggeredBy: 'CRON_SCHEDULER',
+              schedule: cronExpr,
+              timestamp: new Date().toISOString(),
+            },
+            auto.userId || undefined,
+          );
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : String(err);
+          logger.error(
+            `[AutomationScheduler] Error executing scheduled automation '${id}': ${errorMessage}`,
+          );
+        }
       },
     });
   }
+
 
   /**
    * Unschedules an automation task.

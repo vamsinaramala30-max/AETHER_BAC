@@ -4,6 +4,7 @@ export interface DocumentMetadata {
   fileSize: number;
   mimeType: string;
   originalName: string;
+  workspaceId?: string;
   encoding?: string;
   pageCount?: number;
   wordCount?: number;

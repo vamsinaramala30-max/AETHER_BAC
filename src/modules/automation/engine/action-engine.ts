@@ -159,10 +159,10 @@ export class ActionEngine {
           name: String(params.name || 'New Project'),
           description: params.description ? String(params.description) : undefined,
           workspaceId: String(
-            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+            context.workspaceId || params.workspaceId || '00000000-0000-0000-0000-000000000000',
           ),
           ownerId: String(
-            params.ownerId || context.userId || '00000000-0000-0000-0000-000000000000',
+            context.userId || params.ownerId || '00000000-0000-0000-0000-000000000000',
           ),
         });
 
@@ -195,9 +195,9 @@ export class ActionEngine {
       case 'CREATE_CALENDAR_EVENT':
         return this.calendarAdapter.createEvent({
           workspaceId: String(
-            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+            context.workspaceId || params.workspaceId || '00000000-0000-0000-0000-000000000000',
           ),
-          userId: String(params.userId || context.userId || '00000000-0000-0000-0000-000000000000'),
+          userId: String(context.userId || params.userId || '00000000-0000-0000-0000-000000000000'),
           title: String(params.title || 'Automated Event'),
           description: params.description ? String(params.description) : undefined,
           startDate: String(params.startDate || new Date().toISOString()),
@@ -208,9 +208,9 @@ export class ActionEngine {
       case 'CALENDAR_CREATE_REMINDER':
         return this.calendarAdapter.createReminder({
           workspaceId: String(
-            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+            context.workspaceId || params.workspaceId || '00000000-0000-0000-0000-000000000000',
           ),
-          userId: String(params.userId || context.userId || '00000000-0000-0000-0000-000000000000'),
+          userId: String(context.userId || params.userId || '00000000-0000-0000-0000-000000000000'),
           title: String(params.title || 'Reminder'),
           reminderTime: String(params.reminderTime || params.time || new Date().toISOString()),
         });
@@ -220,7 +220,7 @@ export class ActionEngine {
       case 'CREATE_KNOWLEDGE':
         return this.knowledgeAdapter.createKnowledgeItem({
           workspaceId: String(
-            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+            context.workspaceId || params.workspaceId || '00000000-0000-0000-0000-000000000000',
           ),
           title: String(params.title || 'Automated Knowledge Item'),
           content: String(params.content || ''),
@@ -229,7 +229,7 @@ export class ActionEngine {
       case 'KNOWLEDGE_SAVE_AI_RESULT':
         return this.knowledgeAdapter.saveAIResult({
           workspaceId: String(
-            params.workspaceId || context.workspaceId || '00000000-0000-0000-0000-000000000000',
+            context.workspaceId || params.workspaceId || '00000000-0000-0000-0000-000000000000',
           ),
           title: String(params.title || 'AI Generated Insights'),
           aiResponse: String(params.aiResponse || params.content || ''),
@@ -260,7 +260,7 @@ export class ActionEngine {
       case 'NOTIFICATION_CREATE':
       case 'SEND_NOTIFICATION':
         return this.notificationsAdapter.createNotification({
-          userId: String(params.userId || context.userId || '00000000-0000-0000-0000-000000000000'),
+          userId: String(context.userId || params.userId || '00000000-0000-0000-0000-000000000000'),
           title: String(params.title || 'Automation Notification'),
           message: String(params.message || 'Notification content'),
           link: params.link ? String(params.link) : undefined,
@@ -268,10 +268,11 @@ export class ActionEngine {
 
       case 'NOTIFICATION_REMINDER':
         return this.notificationsAdapter.createReminder({
-          userId: String(params.userId || context.userId || '00000000-0000-0000-0000-000000000000'),
+          userId: String(context.userId || params.userId || '00000000-0000-0000-0000-000000000000'),
           title: String(params.title || 'Task Reminder'),
           message: String(params.message || 'Reminder details'),
         });
+
 
       // ─── Agent Actions ───────────────────────────────────────────────────────
       case 'AGENT_RUN':

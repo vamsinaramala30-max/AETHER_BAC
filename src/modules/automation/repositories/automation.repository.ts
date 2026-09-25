@@ -66,12 +66,15 @@ export class AutomationRepository extends PrismaService {
 
   public async findByWorkspaceId(workspaceId: string, page: number = 1, limit: number = 50) {
     const skip = (page - 1) * limit;
+    const where: Prisma.AutomationWhereInput = {
+      workspaceId,
+      deletedAt: null,
+    };
+
     let [total, items] = await Promise.all([
-      this.prisma.automation.count({
-        where: { deletedAt: null },
-      }),
+      this.prisma.automation.count({ where }),
       this.prisma.automation.findMany({
-        where: { deletedAt: null },
+        where,
         orderBy: { updatedAt: 'desc' },
         skip,
         take: limit,
@@ -83,12 +86,15 @@ export class AutomationRepository extends PrismaService {
 
   public async findByUserId(userId: string, page: number = 1, limit: number = 50) {
     const skip = (page - 1) * limit;
+    const where: Prisma.AutomationWhereInput = {
+      userId,
+      deletedAt: null,
+    };
+
     let [total, items] = await Promise.all([
-      this.prisma.automation.count({
-        where: { deletedAt: null },
-      }),
+      this.prisma.automation.count({ where }),
       this.prisma.automation.findMany({
-        where: { deletedAt: null },
+        where,
         orderBy: { updatedAt: 'desc' },
         skip,
         take: limit,
@@ -97,6 +103,7 @@ export class AutomationRepository extends PrismaService {
 
     return { items, total, page, limit, totalPages: Math.ceil(total / limit) || 1 };
   }
+
 
   public async findScheduledAutomations() {
     return this.prisma.automation.findMany({
@@ -152,8 +159,9 @@ export class AutomationRepository extends PrismaService {
       data: {
         deletedAt: new Date(),
         isEnabled: false,
-        status: AutomationStatus.PAUSED,
+        status: AutomationStatus.CANCELLED,
       },
     });
   }
+
 }

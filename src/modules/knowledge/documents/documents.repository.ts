@@ -8,7 +8,33 @@ const isValidUuid = (id: string): boolean => {
   return uuidRegex.test(id);
 };
 
-async function getOrCreateKnowledgeBaseId(): Promise<string> {
+async function getOrCreateKnowledgeBaseId(workspaceId?: string, userId?: string): Promise<string> {
+  let targetWorkspaceId = workspaceId;
+  if (!targetWorkspaceId && userId) {
+    const member = await db.workspaceMember.findFirst({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+    if (member) {
+      targetWorkspaceId = member.workspaceId;
+    }
+  }
+
+  if (targetWorkspaceId) {
+    let kb = await db.knowledgeBase.findFirst({
+      where: { workspaceId: targetWorkspaceId },
+    });
+    if (!kb) {
+      kb = await db.knowledgeBase.create({
+        data: {
+          workspaceId: targetWorkspaceId,
+          name: 'Workspace Knowledge Base',
+        },
+      });
+    }
+    return kb.id;
+  }
+
   let kb = await db.knowledgeBase.findFirst();
   if (!kb) {
     let ws = await db.workspace.findFirst();
@@ -33,9 +59,11 @@ async function getOrCreateKnowledgeBaseId(): Promise<string> {
 export class DocumentsRepository {
   async create(
     doc: Omit<DocumentEntity, 'id' | 'createdAt' | 'updatedAt' | 'version'>,
+    workspaceId?: string,
   ): Promise<DocumentEntity> {
-    const kbId = await getOrCreateKnowledgeBaseId();
+    const kbId = await getOrCreateKnowledgeBaseId(workspaceId, doc.ownerId);
 
+    const docWorkspaceId = workspaceId || (doc.metadata as any)?.workspaceId;
     const payload = JSON.stringify({
       title: doc.title,
       description: doc.description || '',
@@ -43,7 +71,15 @@ export class DocumentsRepository {
       tags: doc.tags || [],
       attachedFileIds: (doc.metadata as any)?.attachedFileIds || [],
       ownerId: doc.ownerId,
-      metadata: doc.metadata || {},
+      workspaceId: docWorkspaceId,
+      permissions: doc.permissions || {
+        canRead: [doc.ownerId],
+        canWrite: [doc.ownerId],
+      },
+      metadata: {
+        ...doc.metadata,
+        workspaceId: docWorkspaceId,
+      },
     });
 
     const created = await db.document.create({
@@ -64,10 +100,13 @@ export class DocumentsRepository {
       category: doc.category || 'Reports',
       tags: doc.tags || [],
       fileKey: created.fileUrl || '',
-      metadata: doc.metadata,
+      metadata: {
+        ...doc.metadata,
+        workspaceId: docWorkspaceId,
+      },
       ownerId: doc.ownerId,
       sharedUserIds: [],
-      permissions: { canRead: [], canWrite: [] },
+      permissions: doc.permissions || { canRead: [doc.ownerId], canWrite: [doc.ownerId] },
       version: 1,
       createdAt: created.createdAt,
       updatedAt: created.updatedAt,
@@ -76,13 +115,19 @@ export class DocumentsRepository {
 
   async findById(id: string): Promise<DocumentEntity | null> {
     if (!isValidUuid(id)) return null;
-    const doc = await db.document.findUnique({ where: { id } });
+    const doc = await db.document.findUnique({
+      where: { id },
+      include: { knowledgeBase: true },
+    });
     if (!doc) return null;
 
     let parsed: any = {};
     try {
       if (doc.content) parsed = JSON.parse(doc.content);
     } catch {}
+
+    const docWorkspaceId =
+      parsed.workspaceId || parsed.metadata?.workspaceId || doc.knowledgeBase?.workspaceId;
 
     return {
       id: doc.id,
@@ -92,26 +137,37 @@ export class DocumentsRepository {
       category: parsed.category || 'Reports',
       tags: parsed.tags || [],
       fileKey: doc.fileUrl || '',
-      metadata: parsed.metadata || {
-        fileSize: 0,
-        mimeType: 'application/pdf',
-        originalName: doc.fileName || '',
+      metadata: {
+        fileSize: parsed.metadata?.fileSize || 0,
+        mimeType: parsed.metadata?.mimeType || 'application/pdf',
+        originalName: parsed.metadata?.originalName || doc.fileName || '',
+        workspaceId: docWorkspaceId,
+        ...parsed.metadata,
       },
       ownerId: parsed.ownerId || '',
-      sharedUserIds: [],
-      permissions: { canRead: [], canWrite: [] },
+      sharedUserIds: parsed.sharedUserIds || [],
+      permissions: parsed.permissions || {
+        canRead: parsed.ownerId ? [parsed.ownerId] : [],
+        canWrite: parsed.ownerId ? [parsed.ownerId] : [],
+      },
       version: 1,
       createdAt: doc.createdAt,
       updatedAt: doc.updatedAt,
     };
   }
 
-  async update(id: string, updates: Partial<DocumentEntity>): Promise<DocumentEntity | null> {
+  async update(
+    id: string,
+    updates: Partial<DocumentEntity>,
+    workspaceId?: string,
+  ): Promise<DocumentEntity | null> {
     if (!isValidUuid(id)) return null;
     const existing = await this.findById(id);
     if (!existing) return null;
 
     const merged = { ...existing, ...updates };
+    const docWorkspaceId =
+      workspaceId || (merged.metadata as any)?.workspaceId || (existing.metadata as any)?.workspaceId;
 
     const payload = JSON.stringify({
       title: merged.title,
@@ -120,7 +176,12 @@ export class DocumentsRepository {
       tags: merged.tags,
       attachedFileIds: (merged.metadata as any)?.attachedFileIds || [],
       ownerId: merged.ownerId,
-      metadata: merged.metadata,
+      workspaceId: docWorkspaceId,
+      permissions: merged.permissions,
+      metadata: {
+        ...merged.metadata,
+        workspaceId: docWorkspaceId,
+      },
     });
 
     const updated = await db.document.update({
@@ -135,6 +196,10 @@ export class DocumentsRepository {
 
     return {
       ...merged,
+      metadata: {
+        ...merged.metadata,
+        workspaceId: docWorkspaceId,
+      },
       updatedAt: updated.updatedAt,
     };
   }
@@ -154,16 +219,56 @@ export class DocumentsRepository {
     userId: string,
   ): Promise<{ data: DocumentEntity[]; total: number }> {
     try {
+      if (!userId) {
+        return { data: [], total: 0 };
+      }
+
+      // Find all workspaces where user is a member
+      const memberships = await db.workspaceMember.findMany({
+        where: { userId },
+        select: { workspaceId: true },
+      });
+      const userWorkspaceIds = memberships.map((m) => m.workspaceId);
+
+      // If a specific workspace is requested, verify user belongs to it
+      if (query.workspaceId && !userWorkspaceIds.includes(query.workspaceId)) {
+        return { data: [], total: 0 };
+      }
+
+      const targetWorkspaceIds = query.workspaceId ? [query.workspaceId] : userWorkspaceIds;
+
       const page = Math.max(1, query.page || 1);
       const limit = Math.max(1, query.limit || 50);
 
+      // Build safe scoped query: documents belonging to user's knowledge base or owned by user
+      const whereCondition: any = {
+        OR: [
+          ...(targetWorkspaceIds.length > 0
+            ? [
+                {
+                  knowledgeBase: {
+                    workspaceId: { in: targetWorkspaceIds },
+                  },
+                },
+              ]
+            : []),
+          {
+            content: {
+              contains: `"ownerId":"${userId}"`,
+            },
+          },
+        ],
+      };
+
       const [docs, total] = await Promise.all([
         db.document.findMany({
+          where: whereCondition,
           orderBy: { createdAt: 'desc' },
           take: limit,
           skip: (page - 1) * limit,
+          include: { knowledgeBase: true },
         }),
-        db.document.count(),
+        db.document.count({ where: whereCondition }),
       ]);
 
       const data: DocumentEntity[] = docs.map((doc) => {
@@ -171,6 +276,10 @@ export class DocumentsRepository {
         try {
           if (doc.content) parsed = JSON.parse(doc.content);
         } catch {}
+
+        const docWorkspaceId =
+          parsed.workspaceId || parsed.metadata?.workspaceId || doc.knowledgeBase?.workspaceId;
+
         return {
           id: doc.id,
           title: doc.fileName || parsed.title || 'Untitled Document',
@@ -179,14 +288,19 @@ export class DocumentsRepository {
           category: parsed.category || 'Reports',
           tags: parsed.tags || [],
           fileKey: doc.fileUrl || '',
-          metadata: parsed.metadata || {
-            fileSize: 0,
-            mimeType: 'application/pdf',
-            originalName: doc.fileName || '',
+          metadata: {
+            fileSize: parsed.metadata?.fileSize || 0,
+            mimeType: parsed.metadata?.mimeType || 'application/pdf',
+            originalName: parsed.metadata?.originalName || doc.fileName || '',
+            workspaceId: docWorkspaceId,
+            ...parsed.metadata,
           },
           ownerId: parsed.ownerId || userId,
-          sharedUserIds: [],
-          permissions: { canRead: [], canWrite: [] },
+          sharedUserIds: parsed.sharedUserIds || [],
+          permissions: parsed.permissions || {
+            canRead: parsed.ownerId ? [parsed.ownerId] : [userId],
+            canWrite: parsed.ownerId ? [parsed.ownerId] : [userId],
+          },
           version: 1,
           createdAt: doc.createdAt,
           updatedAt: doc.updatedAt,
@@ -206,7 +320,7 @@ export class DocumentsRepository {
         );
       }
 
-      return { data: filtered, total: filtered.length };
+      return { data: filtered, total };
     } catch {
       return { data: [], total: 0 };
     }

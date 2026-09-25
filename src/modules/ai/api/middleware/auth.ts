@@ -62,8 +62,8 @@ export class DefaultAuthProvider implements IAuthProvider {
       }
     }
 
-    // 2. In non-production test/dev mode, allow explicit test identity if provided
-    if (process.env.NODE_ENV !== 'production') {
+    // 2. In test mode only, allow explicit test identity if provided
+    if (process.env.NODE_ENV === 'test') {
       const userId = headers['x-user-id'] || this.extractUserFromToken(headers.authorization);
       if (userId) {
         const sessionId = headers['x-session-id'] || `sess_${userId}_default`;

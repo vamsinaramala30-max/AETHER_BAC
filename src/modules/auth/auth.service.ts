@@ -176,40 +176,44 @@ export class AuthService {
    * ------------------------------------------------------------------------
    */
   public async refresh(refreshToken: string): Promise<LoginResponse> {
-    if (!refreshToken) {
+    if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.trim() === '') {
       throw new AppError('Refresh token is required', 400, 'REFRESH_TOKEN_REQUIRED');
     }
 
-    const session = await this.repo.findSessionByToken(refreshToken);
+    const trimmedToken = refreshToken.trim();
+
+    // Verify JWT cryptographic signature if token is formatted as JWT
+    try {
+      jwt.verify(trimmedToken, securityConfig.jwt.refreshSecret);
+    } catch (err: unknown) {
+      if (err instanceof jwt.TokenExpiredError) {
+        await this.repo.deleteSessionByToken(trimmedToken).catch(() => null);
+        throw new AppError('Refresh token is expired', 401, 'INVALID_REFRESH_TOKEN');
+      }
+      if (err instanceof jwt.JsonWebTokenError) {
+        throw new AppError('Invalid refresh token signature', 401, 'INVALID_REFRESH_TOKEN');
+      }
+    }
+
+    const session = await this.repo.findSessionByToken(trimmedToken);
 
     if (!session || session.expiresAt < new Date()) {
       if (session) {
-        await this.repo.deleteSessionByToken(refreshToken);
+        await this.repo.deleteSessionByToken(trimmedToken).catch(() => null);
       }
 
       throw new AppError('Refresh token is expired or invalid', 401, 'INVALID_REFRESH_TOKEN');
     }
 
-    /**
-     * Find the session again so the related user
-     * can be accessed if the repository includes it.
-     */
-    const fullSession = await this.repo.findSessionByToken(refreshToken);
+    // Delete previous session (token rotation)
+    await this.repo.deleteSessionByToken(trimmedToken).catch(() => null);
 
-    if (!fullSession) {
-      throw new AppError('Session not found', 401, 'INVALID_REFRESH_TOKEN');
-    }
-
-    await this.repo.deleteSessionByToken(refreshToken);
-
-    const sessionUserEmail = (fullSession as any)?.user?.email;
-
-    if (!sessionUserEmail) {
+    const sessionUser = (session as any)?.user;
+    if (!sessionUser) {
       throw new AppError('Session user information is missing', 401, 'INVALID_REFRESH_TOKEN');
     }
 
-    const user = await this.repo.findUserByEmail(sessionUserEmail);
-
+    const user = await this.repo.findUserById(sessionUser.id);
     if (!user) {
       throw new AppError('User not found', 401, 'USER_NOT_FOUND');
     }

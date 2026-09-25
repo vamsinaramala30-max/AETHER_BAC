@@ -90,8 +90,20 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
 
       // Filter by collection and multi-tenant scopes
       const filteredPostings = postings.filter((p) => {
-        if (scope?.userId && p.userId && p.userId !== scope.userId) return false;
-        if (scope?.workspaceId && p.workspaceId && p.workspaceId !== scope.workspaceId) return false;
+        if (scope?.workspaceId) {
+          if (p.workspaceId !== scope.workspaceId) return false;
+        } else if (p.workspaceId) {
+          if (!scope?.userId || p.userId !== scope.userId) return false;
+        }
+
+        if (scope?.userId) {
+          if (p.userId && p.userId !== scope.userId) {
+            if (!scope.workspaceId || p.workspaceId !== scope.workspaceId) return false;
+          }
+        } else if (p.userId) {
+          if (!scope?.workspaceId) return false;
+        }
+
         if (scope?.projectId && p.projectId && p.projectId !== scope.projectId) return false;
         if (
           effectiveCollectionIds &&
@@ -163,6 +175,7 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
   }
 
   private tokenize(text: string): string[] {
+    if (!text || typeof text !== 'string') return [];
     return text
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { automationController } from './automation.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validation.middleware';
+import { automationRateLimiter } from '../../middleware/rateLimit.middleware';
 import {
   createAutomationSchema,
   updateAutomationSchema,
@@ -15,7 +16,7 @@ const router: Router = Router();
 router.use(authenticate);
 
 // Intent Parser & Dashboard Stats
-router.post('/parse-intent', automationController.parseIntent.bind(automationController));
+router.post('/parse-intent', automationRateLimiter, automationController.parseIntent.bind(automationController));
 router.get('/stats', automationController.getStats.bind(automationController));
 
 // Activity audit logs & Templates
@@ -31,11 +32,13 @@ router.get('/', automationController.getAutomations.bind(automationController));
 
 router.post(
   '/',
+  automationRateLimiter,
   validate(createAutomationSchema),
   automationController.createAutomation.bind(automationController),
 );
 router.post(
   '/automations',
+  automationRateLimiter,
   validate(createAutomationSchema),
   automationController.createAutomation.bind(automationController),
 );
@@ -58,9 +61,11 @@ router.post('/:id/activate', automationController.activateAutomation.bind(automa
 router.post('/:id/pause', automationController.pauseAutomation.bind(automationController));
 router.post(
   '/:id/run',
+  automationRateLimiter,
   validate(runAutomationSchema),
   automationController.runAutomation.bind(automationController),
 );
+
 
 // Execution history & Activity
 router.get('/:id/activity', automationController.getAutomationActivity.bind(automationController));

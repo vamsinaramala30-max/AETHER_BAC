@@ -13,6 +13,13 @@ const allowedMimeTypes = [
   'text/plain',
   'text/csv',
   'application/json',
+  'text/markdown',
+  'text/x-markdown',
+  'text/html',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
 ];
 
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {

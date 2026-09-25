@@ -48,6 +48,8 @@ export interface IResponseEngine {
 function errorCodeToStatus(code: AIErrorCode): AIResponseStatus {
   switch (code) {
     case 'MODEL_UNAVAILABLE':
+    case 'PROVIDER_UNAVAILABLE':
+    case 'NETWORK_ERROR':
     case 'MODEL_LOAD_FAILED':
     case 'RUNTIME_UNAVAILABLE':
     case 'NOT_CONFIGURED':

@@ -129,7 +129,7 @@ export class HealthChecker {
 
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1500);
+      const timeout = setTimeout(() => controller.abort(), 2000);
 
       const response = await fetch(`${baseUrl}/health`, {
         signal: controller.signal,
@@ -139,6 +139,11 @@ export class HealthChecker {
 
       if (!response || !response.ok) {
         return { status: 'DOWN', message: 'AETHER_MODEL server unreachable on port 5002' };
+      }
+
+      const data = (await response.json().catch(() => null)) as { status?: string; model_loaded?: boolean } | null;
+      if (data?.status === 'LOADING') {
+        return { status: 'DEGRADED', message: 'AETHER_MODEL is loading weights' };
       }
 
       return { status: 'UP', message: 'AETHER_MODEL server healthy' };

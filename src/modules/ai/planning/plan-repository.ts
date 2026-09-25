@@ -5,8 +5,9 @@
  * Includes seamless fallback to memory persistence for isolated unit tests.
  */
 
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { db } from '../../../database/client.js';
+import { AppError } from '../../../middleware/error.middleware.js';
 import type {
   AgentPlan,
   AgentPlanStep,
@@ -40,16 +41,16 @@ export class PlanRepository implements IPlanRepository {
   private readonly memoryStore = new Map<string, AgentPlan>();
 
   public async savePlan(plan: AgentPlan): Promise<AgentPlan> {
-    // 1. Try persisting to PostgreSQL database if IDs are valid UUIDs for Prisma schema
-    try {
-      if (
-        isUuid(plan.userId) &&
-        isUuid(plan.id) &&
-        (!plan.workspaceId || isUuid(plan.workspaceId)) &&
-        (!plan.projectId || isUuid(plan.projectId)) &&
-        db &&
-        typeof (db as any).agentPlan?.upsert === 'function'
-      ) {
+    // 1. If IDs are valid UUIDs for Prisma schema and db is configured, persist to PostgreSQL
+    if (
+      isUuid(plan.userId) &&
+      isUuid(plan.id) &&
+      (!plan.workspaceId || isUuid(plan.workspaceId)) &&
+      (!plan.projectId || isUuid(plan.projectId)) &&
+      db &&
+      typeof (db as any).agentPlan?.upsert === 'function'
+    ) {
+      try {
         const persisted = await (db as any).agentPlan.upsert({
           where: { id: plan.id },
           create: {
@@ -116,16 +117,19 @@ export class PlanRepository implements IPlanRepository {
           },
         });
 
-        // Mirror in memory store for fast lookups
+        // Mirror in memory store for fast caching
         this.memoryStore.set(plan.id, plan);
         return this.mapFromPrisma(persisted);
+      } catch (err) {
+        throw new AppError(
+          `Database persistence failed for AgentPlan: ${(err as Error).message}`,
+          500,
+          'DATABASE_PERSISTENCE_FAILED',
+        );
       }
-    } catch (err) {
-      // Database not active or table not initialized yet in this environment
-      // Fallback cleanly to in-memory store
     }
 
-    // In-memory fallback
+    // In-memory fallback strictly for isolated test fixtures (non-UUID IDs)
     const copy: AgentPlan = {
       ...plan,
       updatedAt: new Date().toISOString(),
@@ -139,14 +143,14 @@ export class PlanRepository implements IPlanRepository {
     userId?: string,
     workspaceId?: string,
   ): Promise<AgentPlan | null> {
-    try {
-      if (
-        isUuid(id) &&
-        (!userId || isUuid(userId)) &&
-        (!workspaceId || isUuid(workspaceId)) &&
-        db &&
-        typeof (db as any).agentPlan?.findUnique === 'function'
-      ) {
+    if (
+      isUuid(id) &&
+      (!userId || isUuid(userId)) &&
+      (!workspaceId || isUuid(workspaceId)) &&
+      db &&
+      typeof (db as any).agentPlan?.findUnique === 'function'
+    ) {
+      try {
         const found = await (db as any).agentPlan.findUnique({
           where: { id },
           include: { steps: { orderBy: { order: 'asc' } }, dependencies: true },
@@ -162,9 +166,14 @@ export class PlanRepository implements IPlanRepository {
           }
           return this.mapFromPrisma(found);
         }
+        return null;
+      } catch (err) {
+        throw new AppError(
+          `Database query failed for AgentPlan: ${(err as Error).message}`,
+          500,
+          'DATABASE_QUERY_FAILED',
+        );
       }
-    } catch {
-      // Fall back to memory store
     }
 
     const memoryPlan = this.memoryStore.get(id);
@@ -267,7 +276,7 @@ export class PlanRepository implements IPlanRepository {
     const newPlan: AgentPlan = {
       ...prev,
       ...updatedPlan,
-      id: updatedPlan.id && updatedPlan.id !== prev.id ? updatedPlan.id : `plan_${Date.now()}_v${nextVersion}`,
+      id: updatedPlan.id && updatedPlan.id !== prev.id ? updatedPlan.id : randomUUID(),
       version: nextVersion,
       userId: effectiveUserId,
       createdAt: new Date().toISOString(),

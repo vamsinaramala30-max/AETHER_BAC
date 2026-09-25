@@ -1,28 +1,55 @@
 import { CorsOptions } from 'cors';
 import { env } from './env';
 
-const allowedOrigins = env.CORS_ORIGIN.split(',').map((origin) => origin.trim());
+const allowedOrigins = env.CORS_ORIGIN.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 export const corsConfig: CorsOptions = {
   origin: (
     origin: string | undefined,
     callback: (err: Error | null, allow?: boolean | string) => void,
   ) => {
-    // If no origin (e.g. mobile apps, curl, server-to-server) or wildcard configured, allow
-    if (!origin || allowedOrigins.includes('*')) {
+    // If no origin (e.g. mobile apps, curl, server-to-server), allow
+    if (!origin) {
       callback(null, true);
       return;
     }
 
-    // Allow local network IP addresses in development mode (for mobile device testing)
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // In production, strictly reject wildcard origins when credentials are enabled
+    if (isProduction) {
+      const isAllowed = allowedOrigins.some(
+        (o) => o !== '*' && (o === origin || new RegExp(`^${o.replace(/\*/g, '.*')}$`).test(origin)),
+      );
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+      return;
+    }
+
+    // In development / test mode:
+    if (allowedOrigins.includes('*')) {
+      callback(null, true);
+      return;
+    }
+
     const isLocalNetworkIp =
-      process.env.NODE_ENV !== 'production' &&
-      /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
+      /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
         origin,
       );
 
+    const isLocalhost =
+      origin.startsWith('http://localhost') ||
+      origin.startsWith('http://127.0.0.1');
+
     if (
       allowedOrigins.includes(origin) ||
+      isLocalhost ||
       isLocalNetworkIp ||
       allowedOrigins.some(
         (o) => o !== '*' && new RegExp(`^${o.replace(/\*/g, '.*')}$`).test(origin),
@@ -30,12 +57,7 @@ export const corsConfig: CorsOptions = {
     ) {
       callback(null, true);
     } else {
-      // Return true if Vercel app or fallback domain matches, or log CORS rejection
-      if (origin.endsWith('.vercel.app') || origin.includes('localhost')) {
-        callback(null, true);
-      } else {
-        callback(null, false);
-      }
+      callback(null, false);
     }
   },
   credentials: true,
