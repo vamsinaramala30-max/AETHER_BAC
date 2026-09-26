@@ -36,6 +36,7 @@ import {
   toAetherAIError,
 } from '../ai-errors.js';
 import type { ILLMEngine } from '../llm/llm-engine.js';
+import type { GenerationResponse } from '../llm/llm-types.js';
 import { ProviderManager } from '../llm/provider-manager.js';
 import { buildAetherSystemPrompt } from '../prompts/aether-system-context.js';
 import { buildStrategyInstruction } from '../prompts/reasoning-prompts.js';
@@ -233,6 +234,9 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     }
     if (intent.type === 'MEMORY_FORGET') {
       return this.handleMemoryForget(request, intent, context, startTime, agentTask);
+    }
+    if (intent.type === 'MEMORY_RECALL') {
+      return this.handleMemoryRecall(request, intent, context, startTime, agentTask);
     }
     if (intent.type === 'GREETING') {
       return this.handleGreeting(request, intent, context, startTime, agentTask);
@@ -624,75 +628,125 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
       providerMode,
     );
 
+    let synthesizedContent = '';
+    let genResponse: GenerationResponse;
+
     if (!execution.result.ok) {
-      this.reasoningEngine.updateStatus(
-        request.requestId,
-        'failed',
-        `Generation failed: ${execution.result.error.message}`,
-        'plan_failed',
-      );
-      this.reasoningEngine.endReasoning(request.requestId);
-      return ok(
-        this.responseEngine.buildError(request, intent, execution.result.error.code, startTime),
-      );
-    }
-
-    const genResponse = execution.result.value;
-
-    // ─── Safety: Output Check ──────────────────────────────────────────────
-
-    this.safetyEngine.checkOutput(genResponse.content);
-
-    // ─── Response Handling (when native model output is insufficient) ─────
-    let synthesizedContent = genResponse.content;
-
-    if (!genResponse.content || genResponse.content.trim().length === 0) {
-      if (toolExecuted && planExecutionResult?.steps && planExecutionResult.steps.length > 0) {
-        const synthesisResult = responseSynthesizer.synthesize({
-          request,
-          intent,
-          context,
-          assessment,
-          nativeModelOutput: undefined,
-          nativeModelTokenCount: 0,
-          evidence,
-          toolResults: planExecutionResult.steps.map((s) => s.result),
-          planSummary: planExecutionResult.summary,
-        });
-        synthesizedContent = synthesisResult.content;
-      } else {
-        this.reasoningEngine.updateStatus(
-          request.requestId,
-          'failed',
-          'Model returned empty response',
-          'plan_failed',
-        );
-        this.reasoningEngine.endReasoning(request.requestId);
-        return ok(
-          this.responseEngine.buildError(request, intent, 'GENERATION_FAILED', startTime),
-        );
-      }
-    } else if (responseSynthesizer.needsSynthesis(genResponse.content)) {
-      this.reasoningEngine.updateStatus(
-        request.requestId,
-        'generating',
-        'Synthesizing contextual response',
-        'plan_executing',
-      );
-
       const synthesisResult = responseSynthesizer.synthesize({
         request,
         intent,
         context,
         assessment,
-        nativeModelOutput: genResponse.content || undefined,
-        nativeModelTokenCount: genResponse.usage?.completionTokens,
         evidence,
-        toolResults: planExecutionResult?.steps?.map((s) => s.result),
-        planSummary: planExecutionResult?.summary,
       });
 
-      synthesizedContent = synthesisResult.content;
+      const isKnownSynthesizable =
+        (intent.requiresRAG && (context.ragContext?.documents.length ?? 0) > 0) ||
+        intent.type === 'KNOWLEDGE_QUESTION' ||
+        intent.type === 'KNOWLEDGE_REQUEST' ||
+        intent.type === 'AETHER_PRODUCT_QUESTION' ||
+        intent.type === 'CONVERSATIONAL' ||
+        intent.type === 'CONVERSATION' ||
+        synthesisResult.strategy === 'general_question';
+
+      if (isKnownSynthesizable && synthesisResult.synthesized && synthesisResult.content) {
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'generating',
+          'Synthesizing grounded response',
+          'plan_executing',
+        );
+        synthesizedContent = synthesisResult.content;
+        genResponse = {
+          requestId: request.requestId,
+          modelId: request.options?.modelId ?? 'default',
+          content: synthesizedContent,
+          finishReason: 'stop',
+          latencyMs: Date.now() - startTime,
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        };
+      } else {
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'failed',
+          `Generation failed: ${execution.result.error.message}`,
+          'plan_failed',
+        );
+        this.reasoningEngine.endReasoning(request.requestId);
+        return ok(
+          this.responseEngine.buildError(request, intent, execution.result.error.code, startTime),
+        );
+      }
+    } else {
+      genResponse = execution.result.value;
+
+      // ─── Safety: Output Check ──────────────────────────────────────────────
+
+      this.safetyEngine.checkOutput(genResponse.content);
+
+      // ─── Response Handling (when native model output is insufficient) ─────
+      synthesizedContent = genResponse.content;
+
+      if (!genResponse.content || genResponse.content.trim().length === 0) {
+        if (toolExecuted && planExecutionResult?.steps && planExecutionResult.steps.length > 0) {
+          const synthesisResult = responseSynthesizer.synthesize({
+            request,
+            intent,
+            context,
+            assessment,
+            nativeModelOutput: undefined,
+            nativeModelTokenCount: 0,
+            evidence,
+            toolResults: planExecutionResult.steps.map((s) => s.result),
+            planSummary: planExecutionResult.summary,
+          });
+          synthesizedContent = synthesisResult.content;
+        } else if (
+          (intent.requiresRAG || intent.type === 'KNOWLEDGE_QUESTION' || intent.type === 'KNOWLEDGE_REQUEST') &&
+          (context.ragContext?.documents.length ?? 0) > 0
+        ) {
+          const synthesisResult = responseSynthesizer.synthesize({
+            request,
+            intent,
+            context,
+            assessment,
+            evidence,
+          });
+          synthesizedContent = synthesisResult.content;
+        } else {
+          this.reasoningEngine.updateStatus(
+            request.requestId,
+            'failed',
+            'Model returned empty response',
+            'plan_failed',
+          );
+          this.reasoningEngine.endReasoning(request.requestId);
+          return ok(
+            this.responseEngine.buildError(request, intent, 'GENERATION_FAILED', startTime),
+          );
+        }
+      } else if (responseSynthesizer.needsSynthesis(genResponse.content)) {
+        this.reasoningEngine.updateStatus(
+          request.requestId,
+          'generating',
+          'Synthesizing contextual response',
+          'plan_executing',
+        );
+
+        const synthesisResult = responseSynthesizer.synthesize({
+          request,
+          intent,
+          context,
+          assessment,
+          nativeModelOutput: genResponse.content || undefined,
+          nativeModelTokenCount: genResponse.usage?.completionTokens,
+          evidence,
+          toolResults: planExecutionResult?.steps?.map((s) => s.result),
+          planSummary: planExecutionResult?.summary,
+        });
+
+        synthesizedContent = synthesisResult.content;
+      }
     }
 
     // ─── Verification State Determination (Prompt 25) ─────────────────────
@@ -1625,6 +1679,97 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
       status: 'success',
       verificationStatus,
       confidence: 'HIGH_CONFIDENCE',
+      latencyMs: Date.now() - startTime,
+      timestamp: Date.now(),
+    };
+
+    return ok(response);
+  }
+
+  private async handleMemoryRecall(
+    request: AIRequest,
+    intent: Intent,
+    context: AIContext,
+    startTime: number,
+    agentTask: AgentTask,
+  ): Promise<Result<AIResponse>> {
+    let memories = context.longTermMemory ? [...context.longTermMemory] : [];
+    if (memories.length === 0) {
+      const searchRes = await this.memoryEngine.searchMemory({
+        userId: request.userId || request.auth?.userId || '',
+        workspaceId: request.workspaceId || request.auth?.workspaceId,
+        text: request.message,
+        topK: 5,
+        scoreThreshold: 0.1,
+      });
+      if (searchRes.ok && searchRes.value.length > 0) {
+        memories = [...searchRes.value];
+        (context as any).longTermMemory = memories;
+      }
+    }
+
+    const synthesized = responseSynthesizer.synthesize({
+      request,
+      intent,
+      context,
+      assessment: this.reasoningEngine.assessRequest(request, intent, context),
+      nativeModelOutput: undefined,
+      nativeModelTokenCount: 0,
+      evidence: memories.map((m) => ({
+        sourceType: 'approved_memory' as const,
+        sourceId: m.id,
+        content: m.content,
+        relevance: m.importance,
+        verified: true,
+        verificationStatus: 'VERIFIED' as const,
+      })),
+    });
+
+    const responseMessage =
+      synthesized.content ||
+      (memories.length > 0
+        ? `Based on your stored memory: ${memories.map((m) => m.content).join('; ')}`
+        : "I don't have any stored memory about that yet.");
+
+    this.reasoningEngine.updateStatus(
+      request.requestId,
+      'completed',
+      'Memory recall directive completed',
+      'plan_completed',
+    );
+    this.reasoningEngine.endReasoning(request.requestId);
+
+    this.memoryEngine.addConversationMessage(
+      request.userId,
+      request.sessionId,
+      request.conversationId,
+      'user',
+      request.message,
+    );
+    this.memoryEngine.addConversationMessage(
+      request.userId,
+      request.sessionId,
+      request.conversationId,
+      'assistant',
+      responseMessage,
+    );
+    this.convManager.completeTurn(
+      request.conversationId,
+      `turn_${request.requestId}`,
+      responseMessage,
+    );
+
+    const response: AIResponse = {
+      requestId: request.requestId,
+      userId: request.userId,
+      sessionId: request.sessionId,
+      conversationId: request.conversationId,
+      message: responseMessage,
+      intent,
+      task: { ...agentTask, status: 'completed' },
+      status: 'success',
+      verificationStatus: memories.length > 0 ? 'VERIFIED' : 'NOT_VERIFIABLE',
+      confidence: memories.length > 0 ? 'HIGH_CONFIDENCE' : 'MEDIUM_CONFIDENCE',
       latencyMs: Date.now() - startTime,
       timestamp: Date.now(),
     };

@@ -31,7 +31,7 @@ const testUser: AuthenticationContext = {
   workspaceId: '00000000-0000-0000-0000-000000000000',
 };
 
-describe('Streaming Tools End-to-End Action Pipeline (AI-01, AI-03, TOOL-01)', { timeout: 45000 }, () => {
+describe('Streaming Tools End-to-End Action Pipeline (AI-01, AI-03, TOOL-01)', { timeout: 90000 }, () => {
   beforeAll(async () => {
     try {
       await db.user.upsert({

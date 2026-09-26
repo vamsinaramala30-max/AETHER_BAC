@@ -39,7 +39,7 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
       'http://localhost:5002',
     defaultTimeoutMs = Number(process.env['AETHER_MODEL_TIMEOUT_MS']) ||
       Number(process.env['LOCAL_LLM_TIMEOUT']) ||
-      15_000,
+      60_000,
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultTimeoutMs = defaultTimeoutMs;
@@ -216,9 +216,8 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
         const systemMsg =
           request.messages.find((m) => m.role === 'system')?.content || CANONICAL_IDENTITY_PROMPT;
 
-        // Build full context prompt: system + conversation history + user message
+        // Build context prompt: conversation history + user message (systemMsg passed via context)
         const contextParts: string[] = [];
-        if (systemMsg) contextParts.push(systemMsg);
         for (const m of request.messages) {
           if (m.role !== 'system') {
             contextParts.push(`${m.role}: ${m.content}`);
@@ -425,9 +424,8 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
       const systemMsg =
         request.messages.find((m) => m.role === 'system')?.content || CANONICAL_IDENTITY_PROMPT;
 
-      // Build full context prompt
+      // Build context prompt: conversation history + user message (systemMsg passed via context)
       const contextParts: string[] = [];
-      if (systemMsg) contextParts.push(systemMsg);
       for (const m of request.messages) {
         if (m.role !== 'system') {
           contextParts.push(`${m.role}: ${m.content}`);

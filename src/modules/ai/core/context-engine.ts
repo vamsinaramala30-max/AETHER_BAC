@@ -141,8 +141,8 @@ export class ContextEngine implements IContextEngine {
             topK: this.config?.rag?.topK ?? 5,
             scoreThreshold: this.config?.rag?.scoreThreshold ?? 0.5,
             collectionIds: request.options?.ragCollectionIds,
-            userId: request.userId,
-            workspaceId: request.workspaceId,
+            userId: request.userId || request.auth?.userId,
+            workspaceId: request.workspaceId || request.auth?.workspaceId,
             projectId: request.projectId,
           });
 
@@ -191,7 +191,8 @@ export class ContextEngine implements IContextEngine {
       if (shouldFetchMemory && this.memoryEngine) {
         try {
           const memResult = await this.memoryEngine.searchMemory({
-            userId: request.userId,
+            userId: request.userId || request.auth?.userId || '',
+            workspaceId: request.workspaceId || request.auth?.workspaceId,
             text: request.message,
             topK: 5,
             scoreThreshold: 0.1,
