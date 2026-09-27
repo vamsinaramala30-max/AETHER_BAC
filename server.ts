@@ -9,10 +9,19 @@ import helmet from 'helmet';
 import session from 'express-session';
 import passport from 'passport';
 
+// Load environment files before validation
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
-dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-const PORT = parseInt(process.env.PORT || '5001', 10);
+// Strict environment configuration validation
+import { validateEnv, env } from './src/config/env';
+import { connectDatabase, disconnectDatabase } from './src/database/client';
+import { cronScheduler } from './src/cron/scheduler';
+
+// Validate required environment variables at launch
+validateEnv();
+
+const PORT = env.PORT || parseInt(process.env.PORT || '5001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const LOG_DIR = path.join(process.cwd(), 'logs');
 
@@ -27,7 +36,7 @@ const logFormat = winston.format.combine(
 );
 
 export const logger = winston.createLogger({
-  level: process.env.LOG_LEVEL || 'info',
+  level: env.LOG_LEVEL || process.env.LOG_LEVEL || 'info',
   format: logFormat,
   transports: [
     new winston.transports.Console({
@@ -76,18 +85,15 @@ app.use(
 import { corsMiddleware } from './src/middleware/cors.middleware';
 app.use(corsMiddleware);
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: `${env.UPLOAD_MAX_SIZE_MB || 25}mb` }));
+app.use(express.urlencoded({ extended: true, limit: `${env.UPLOAD_MAX_SIZE_MB || 25}mb` }));
 
 // ============================================================================
 // Session Configuration (required by Passport)
 // ============================================================================
 app.use(
   session({
-    secret:
-      process.env.SESSION_SECRET ||
-      process.env.JWT_SECRET ||
-      'aether-session-secret-change-in-production',
+    secret: env.SESSION_SECRET || env.JWT_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -106,7 +112,6 @@ import './src/auth/passport';
 app.use(passport.initialize());
 app.use(passport.session());
 
-// ============================================================================
 // ============================================================================
 // Correlation & Distributed Tracing Middleware (Prompt 9)
 // ============================================================================
@@ -147,52 +152,83 @@ app.use('/api/v1', apiRoutes);
 // Also mount auth at /api/v1/auth for backwards compatibility
 app.use('/api/v1/auth', authModuleRoutes);
 
-
 // ============================================================================
-// Error Handling Middleware
+// 404 Handler & Canonical Error Handling Middleware
 // ============================================================================
 import { errorHandler } from './src/middleware/error.middleware';
-app.use(errorHandler);
 
-// 404 handler (after all routes)
+// 404 handler (after all valid routes)
 app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: 'Endpoint not found or module uninitialized' });
 });
 
-// Global error handler
+// Canonical error handler (maps exceptions to safe 17-class error taxonomy)
+app.use(errorHandler);
+
+// Global unhandled fallback error handler
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error('Unhandled Exception:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: process.env.NODE_ENV === 'development' ? err.message : undefined,
-  });
+  logger.error('Unhandled Exception in pipeline:', err);
+  if (!res.headersSent) {
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    });
+  }
 });
 
 // ============================================================================
-// Server Initialization
+// Server Initialization & Graceful Lifecycle
 // ============================================================================
 const server = http.createServer(app);
+let isShuttingDown = false;
 
-server.listen(PORT, HOST, () => {
-  logger.info(
-    `AETHER Backend Server successfully initialized and running at http://${HOST}:${PORT}`,
-  );
-  logger.info(`API available at http://${HOST}:${PORT}/api/v1`);
-  logger.info(`OAuth routes available at http://${HOST}:${PORT}/api/auth`);
-});
+export const startServer = async (): Promise<http.Server> => {
+  try {
+    logger.info('Verifying authoritative PostgreSQL connectivity before startup...');
+    await connectDatabase();
+    logger.info('PostgreSQL connection verified.');
 
-const gracefulShutdown = (signal: string) => {
+    return new Promise((resolve) => {
+      server.listen(PORT, HOST, () => {
+        logger.info(
+          `AETHER Backend Server successfully initialized and running at http://${HOST}:${PORT}`,
+        );
+        logger.info(`API available at http://${HOST}:${PORT}/api/v1`);
+        logger.info(`OAuth routes available at http://${HOST}:${PORT}/api/auth`);
+        logger.info(`Health checks available at http://${HOST}:${PORT}/health, /health/live, /health/ready`);
+        resolve(server);
+      });
+    });
+  } catch (error) {
+    logger.error('FATAL: Database connection failed during server startup. Aborting initialization.', error);
+    process.exit(1);
+  }
+};
+
+export const gracefulShutdown = async (signal: string): Promise<void> => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
   logger.warn(`Received ${signal}. Starting graceful shutdown...`);
 
-  server.close(() => {
-    logger.info('HTTP server closed. Cleaning up background resources...');
-    process.exit(0);
-  });
-
-  setTimeout(() => {
+  const forceTimeout = setTimeout(() => {
     logger.error('Forced shutdown invoked due to timeout');
     process.exit(1);
   }, 10000);
+
+  server.close(async () => {
+    logger.info('HTTP server closed. Cleaning up background resources...');
+    try {
+      cronScheduler.stopAll();
+      await disconnectDatabase();
+      logger.info('All resources cleanly terminated.');
+      clearTimeout(forceTimeout);
+      process.exit(0);
+    } catch (err) {
+      logger.error('Error during resource cleanup:', err);
+      clearTimeout(forceTimeout);
+      process.exit(1);
+    }
+  });
 };
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
@@ -206,5 +242,10 @@ process.on('uncaughtException', (error: Error) => {
   logger.error('Uncaught Exception thrown:', error);
   process.exit(1);
 });
+
+// Start listening if not running in a test harness
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
 
 export { app, server };

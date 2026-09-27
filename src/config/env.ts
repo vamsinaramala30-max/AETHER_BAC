@@ -57,7 +57,15 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_STORAGE_BUCKET: z.string().default('aether-assets'),
 
-  // AI Providers
+  // AI Providers & Model Service
+  AI_PRIMARY_PROVIDER: z.string().default('aether'),
+  AI_FALLBACK_PROVIDER: z.string().default('none'),
+  AETHER_MODEL_BASE_URL: z.string().default('http://localhost:5002'),
+  AETHER_MODEL_URL: z.string().default('http://localhost:5002'),
+  AETHER_MODEL_TIMEOUT_MS: z
+    .string()
+    .transform((val) => parseInt(val, 10))
+    .default('60000'),
   GEMINI_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
 
@@ -94,12 +102,45 @@ const parseEnv = (): EnvConfig => {
   const result = envSchema.safeParse(process.env);
 
   if (!result.success) {
-    console.error('❌ Environment Variable Validation Error:');
-    console.error(JSON.stringify(result.error.format(), null, 2));
-    throw new Error('Invalid environment variables provided.');
+    const errorDetails = result.error.errors.map((err) => ({
+      field: err.path.join('.'),
+      message: err.message,
+    }));
+    console.error('❌ FATAL: Environment Variable Validation Error:');
+    errorDetails.forEach((err) => {
+      console.error(`   - ${err.field}: ${err.message}`);
+    });
+    throw new Error(
+      `Invalid environment configuration. Missing or invalid variables: ${errorDetails.map((e) => e.field).join(', ')}`,
+    );
+  }
+
+  // Production security checks
+  if (result.data.NODE_ENV === 'production') {
+    const insecureSecrets = [
+      'aether-session-secret-change-in-production',
+      'your-jwt-secret-key-at-least-32-chars',
+      'your-jwt-refresh-secret-key',
+      'super_secret_aether_jwt_key_change_me_in_production_32bytes',
+      'super_secret_aether_refresh_jwt_key_change_me_in_production_32bytes',
+    ];
+
+    if (insecureSecrets.includes(result.data.JWT_SECRET)) {
+      console.error('❌ FATAL: Insecure default JWT_SECRET detected in production environment.');
+      throw new Error('Insecure JWT_SECRET detected in production. Production deployment halted.');
+    }
+    if (insecureSecrets.includes(result.data.JWT_REFRESH_SECRET)) {
+      console.error('❌ FATAL: Insecure default JWT_REFRESH_SECRET detected in production environment.');
+      throw new Error('Insecure JWT_REFRESH_SECRET detected in production. Production deployment halted.');
+    }
+    if (insecureSecrets.includes(result.data.SESSION_SECRET)) {
+      console.error('❌ FATAL: Insecure default SESSION_SECRET detected in production environment.');
+      throw new Error('Insecure SESSION_SECRET detected in production. Production deployment halted.');
+    }
   }
 
   return result.data;
 };
 
 export const env: EnvConfig = parseEnv();
+export const validateEnv = (): EnvConfig => parseEnv();

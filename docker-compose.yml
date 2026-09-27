@@ -57,6 +57,14 @@ services:
       REDIS_PASSWORD: aether_redis_secure_123
       JWT_SECRET: super_secret_aether_jwt_key_change_me_in_production_32bytes
       JWT_REFRESH_SECRET: super_secret_aether_refresh_jwt_key_change_me_in_production_32bytes
+      SESSION_SECRET: super_secret_aether_session_key_change_me_32bytes
+      AETHER_MODEL_BASE_URL: http://host.docker.internal:5002
+      AETHER_MODEL_URL: http://host.docker.internal:5002
+    healthcheck:
+      test: ['CMD', 'wget', '--no-verbose', '--tries=1', '--spider', 'http://localhost:5001/health/live']
+      interval: 15s
+      timeout: 5s
+      retries: 3
     depends_on:
       postgres:
         condition: service_healthy
