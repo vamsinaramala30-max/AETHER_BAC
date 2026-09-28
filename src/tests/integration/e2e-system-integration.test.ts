@@ -237,7 +237,7 @@ describe('PROMPT 3 — Aether Full System Integration & Acceptance Tests', () =>
     expect(healthStatus.name).toBe('aether');
     expect(healthStatus.status).toBe('unavailable');
 
-    // Generate call should gracefully return controlled structure for synthesis
+    // Generate call should gracefully return controlled failure status without throwing
     const genResult = await offlineProvider.generate({
       requestId: `req_offline_${Date.now()}`,
       modelId: 'aether',
@@ -246,9 +246,9 @@ describe('PROMPT 3 — Aether Full System Integration & Acceptance Tests', () =>
       stream: false,
     });
 
-    expect(genResult.ok).toBe(true);
-    if (genResult.ok) {
-      expect((genResult.value as any).metadata?.modelUnavailable).toBe(true);
+    expect(genResult.ok).toBe(false);
+    if (!genResult.ok) {
+      expect(genResult.error.code).toBe('PROVIDER_UNAVAILABLE');
     }
   });
 

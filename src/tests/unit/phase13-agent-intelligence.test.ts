@@ -65,6 +65,7 @@ describe('AETHER Phase 13 — Agent Intelligence Layer', () => {
     requestId: `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     userId: testAuth.userId,
     sessionId: testAuth.sessionId,
+    workspaceId: testAuth.workspaceId,
     conversationId: convId,
     message,
     timestamp: Date.now(),

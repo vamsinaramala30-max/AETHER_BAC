@@ -124,6 +124,7 @@ export class HealthChecker {
   private async checkModelProvider(): Promise<Omit<ComponentHealth, 'name' | 'lastChecked' | 'latencyMs'>> {
     const baseUrl =
       process.env['AETHER_MODEL_BASE_URL'] ??
+      process.env['AETHER_MODEL_URL'] ??
       process.env['LOCAL_LLM_BASE_URL'] ??
       'http://localhost:5002';
 

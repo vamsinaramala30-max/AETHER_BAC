@@ -55,7 +55,7 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
     healthStatus.status = healthStatus.status === 'ok' ? 'degraded' : healthStatus.status;
   }
 
-  const statusCode = healthStatus.status === 'ok' ? 200 : 503;
+  const statusCode = healthStatus.services.database === 'up' ? 200 : 503;
   res.status(statusCode).json(healthStatus);
 });
 
@@ -112,7 +112,9 @@ router.get('/diagnostics', async (_req: Request, res: Response): Promise<void> =
         },
         googleOAuth: {
           configured: googleClientId && googleClientSecret,
-          callbackUrl: process.env.GOOGLE_CALLBACK_URL || 'Default Render URL',
+          callbackUrl:
+            process.env.GOOGLE_CALLBACK_URL ||
+            (process.env.APP_URL ? `${process.env.APP_URL}/api/auth/google/callback` : 'Not configured'),
         },
         email: emailHealth,
         storage: {
@@ -180,7 +182,11 @@ router.get('/readiness', async (_req: Request, res: Response): Promise<void> => 
 
   // 3. AETHER_MODEL Health Check
   try {
-    const modelUrl = process.env['AETHER_MODEL_URL'] || 'http://localhost:5002';
+    const modelUrl =
+      process.env['AETHER_MODEL_BASE_URL'] ||
+      process.env['AETHER_MODEL_URL'] ||
+      process.env['LOCAL_LLM_BASE_URL'] ||
+      'http://localhost:5002';
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 3000);
     const resp = await fetch(`${modelUrl}/health`, { signal: controller.signal });

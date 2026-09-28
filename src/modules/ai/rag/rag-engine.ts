@@ -183,9 +183,18 @@ export class RAGEngine implements IRAGEngine, IRAGProvider {
     if (!chunkResult.ok) return chunkResult;
 
     // Attach collectionId and multi-tenant scopes to chunk metadata and properties
-    const userId = (source as any).metadata?.userId as string | undefined;
-    const workspaceId = (source as any).metadata?.workspaceId as string | undefined;
-    const projectId = (source as any).metadata?.projectId as string | undefined;
+    const userId =
+      (source as any).userId ||
+      (source as any).metadata?.userId ||
+      raw.metadata?.userId as string | undefined;
+    const workspaceId =
+      (source as any).workspaceId ||
+      (source as any).metadata?.workspaceId ||
+      raw.metadata?.workspaceId as string | undefined;
+    const projectId =
+      (source as any).projectId ||
+      (source as any).metadata?.projectId ||
+      raw.metadata?.projectId as string | undefined;
 
     // Deduplication check using SHA-256 content fingerprint
     const contentStr = typeof raw.content === 'string' ? raw.content : raw.content.toString('utf-8');
