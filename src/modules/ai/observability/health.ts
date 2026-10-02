@@ -127,29 +127,43 @@ export class HealthChecker {
       process.env['AETHER_MODEL_URL'] ??
       process.env['LOCAL_LLM_BASE_URL'] ??
       'http://localhost:5002';
+    const apiKey = process.env['AETHER_MODEL_API_KEY'];
 
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000);
+      const headers: Record<string, string> = {};
+      if (apiKey) {
+        headers['X-Aether-Model-Key'] = apiKey;
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
 
       const response = await fetch(`${baseUrl}/health`, {
+        headers,
         signal: controller.signal,
       }).catch(() => null);
 
       clearTimeout(timeout);
 
       if (!response || !response.ok) {
-        return { status: 'DOWN', message: 'AETHER_MODEL server unreachable on port 5002' };
+        return { status: 'DOWN', message: `AETHER_MODEL server unreachable at ${baseUrl}` };
       }
 
-      const data = (await response.json().catch(() => null)) as { status?: string; model_loaded?: boolean } | null;
-      if (data?.status === 'LOADING') {
-        return { status: 'DEGRADED', message: 'AETHER_MODEL is loading weights' };
+      const data = (await response.json().catch(() => null)) as { status?: string; state?: string; ok?: boolean; model_loaded?: boolean } | null;
+      const effectiveStatus = data?.status || data?.state;
+      if (effectiveStatus === 'LOADING' || effectiveStatus === 'STARTING') {
+        return { status: 'DEGRADED', message: 'AETHER_MODEL is starting/loading weights' };
+      }
+      if (effectiveStatus === 'DEGRADED') {
+        return { status: 'DEGRADED', message: 'AETHER_MODEL running in degraded state' };
+      }
+      if (effectiveStatus === 'FAILED' || effectiveStatus === 'ERROR') {
+        return { status: 'DOWN', message: 'AETHER_MODEL reported failure state' };
       }
 
       return { status: 'UP', message: 'AETHER_MODEL server healthy' };
     } catch {
-      return { status: 'DOWN', message: 'AETHER_MODEL offline' };
+      return { status: 'DOWN', message: `AETHER_MODEL offline at ${baseUrl}` };
     }
   }
 

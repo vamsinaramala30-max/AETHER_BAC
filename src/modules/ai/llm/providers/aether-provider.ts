@@ -32,6 +32,7 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
 
   private readonly baseUrl: string;
   private readonly defaultTimeoutMs: number;
+  private readonly apiKey?: string;
 
   constructor(
     baseUrl = process.env['AETHER_MODEL_BASE_URL'] ||
@@ -40,9 +41,23 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
     defaultTimeoutMs = Number(process.env['AETHER_MODEL_TIMEOUT_MS']) ||
       Number(process.env['LOCAL_LLM_TIMEOUT']) ||
       60_000,
+    apiKey = process.env['AETHER_MODEL_API_KEY'],
   ) {
     this.baseUrl = baseUrl.replace(/\/$/, '');
     this.defaultTimeoutMs = defaultTimeoutMs;
+    this.apiKey = apiKey;
+  }
+
+  private getHeaders(extraHeaders?: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...extraHeaders,
+    };
+    if (this.apiKey) {
+      headers['X-Aether-Model-Key'] = this.apiKey;
+      headers['Authorization'] = `Bearer ${this.apiKey}`;
+    }
+    return headers;
   }
 
   public async healthCheck(): Promise<ProviderStatus> {
@@ -50,8 +65,12 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 2_000);
-      const res = await fetch(`${this.baseUrl}/health`, { signal: controller.signal });
+      const res = await fetch(`${this.baseUrl}/health`, {
+        headers: this.getHeaders(),
+        signal: controller.signal,
+      });
       clearTimeout(timer);
+
 
       if (!res.ok) {
         if (res.status === 429) {
@@ -95,10 +114,20 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
         };
       }
 
+      if (rawStatus === 'GENERATING') {
+        return {
+          name: this.name,
+          status: 'available',
+          message: `aether: ${body?.model || 'Model'} generating [MODEL_GENERATING]`,
+          checkedAt,
+        };
+      }
+
       if (
         rawStatus === 'READY' ||
         rawStatus === 'NOT_LOADED' ||
         rawStatus === 'UNINITIALIZED' ||
+        rawStatus === 'STARTING' ||
         body?.ok === true
       ) {
         return {
@@ -132,7 +161,10 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 2_000);
-      const res = await fetch(`${this.baseUrl}/model/status`, { signal: controller.signal });
+      const res = await fetch(`${this.baseUrl}/model/status`, {
+        headers: this.getHeaders(),
+        signal: controller.signal,
+      });
       clearTimeout(timer);
 
       if (!res.ok) {
@@ -145,13 +177,13 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
       const body = (await res.json()) as any;
       const rawState = body?.state || body?.status;
       let state: 'NOT_LOADED' | 'LOADING' | 'READY' | 'ERROR' | 'UNAVAILABLE' | 'BUSY' = 'READY';
-      if (rawState === 'NOT_LOADED' || rawState === 'UNINITIALIZED') {
+      if (rawState === 'NOT_LOADED' || rawState === 'UNINITIALIZED' || rawState === 'STARTING') {
         state = 'NOT_LOADED';
       } else if (rawState === 'LOADING') {
         state = 'LOADING';
       } else if (rawState === 'READY') {
         state = 'READY';
-      } else if (rawState === 'BUSY' || rawState === 'RATE_LIMITED') {
+      } else if (rawState === 'GENERATING' || rawState === 'BUSY' || rawState === 'RATE_LIMITED') {
         state = 'BUSY';
       } else if (rawState === 'FAILED' || rawState === 'ERROR') {
         state = 'ERROR';
@@ -240,10 +272,11 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
 
         const res = await fetch(`${this.baseUrl}/v1/generate`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: this.getHeaders(),
           body: JSON.stringify(body),
           signal,
         });
+
 
         clearTimeout(timer);
 
@@ -448,12 +481,13 @@ export class AetherModelProvider implements ILLMProvider, IModelProvider {
 
       const res = await fetch(`${this.baseUrl}/v1/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getHeaders(),
         body: JSON.stringify(body),
         signal,
       });
 
       clearTimeout(timer);
+
 
       if (res.status === 503) {
         let errData: any;
