@@ -57,8 +57,11 @@ export class Retriever implements IRetriever {
         collectionIds: query.collectionIds,
       };
 
-      // Embed the query
-      const embeddingResult = await this.embeddingEngine.embed(query.text);
+      // Embed the query (prefer precomputed embedding if provided)
+      const embeddingResult =
+        query.embedding && query.embedding.length > 0
+          ? ok(query.embedding)
+          : await this.embeddingEngine.embed(query.text);
 
       let retrievedChunks: DocumentChunk[];
 
@@ -88,6 +91,10 @@ export class Retriever implements IRetriever {
           this.keywordIndex.search(query.text, query.topK * 2, query.collectionIds, scope),
         ]);
 
+        if (vectorResults.length === 0 && keywordResults.length === 0) {
+          return ok([]);
+        }
+
         const hybridResults = this.hybridSearch.fuse(vectorResults, keywordResults, query.topK * 2);
 
         if (hybridResults.length === 0) return ok([]);
@@ -106,8 +113,10 @@ export class Retriever implements IRetriever {
       };
 
       const reranked = await this.reranker.rerank(rerankRequest);
+      const threshold = typeof query.scoreThreshold === 'number' ? query.scoreThreshold : (this.config.scoreThreshold ?? 0);
+      const filtered = threshold > 0 ? reranked.filter((r) => r.score >= threshold) : reranked;
       return ok(
-        reranked.map((r) => ({
+        filtered.map((r) => ({
           ...r.chunk,
           metadata: {
             ...r.chunk.metadata,
