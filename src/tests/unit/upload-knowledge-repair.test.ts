@@ -545,4 +545,156 @@ describe('Phase 5: Upload Preview & Knowledge API Production Repair Suite', () =
       expect(capturedError.errorCode).toBe('FILE_NOT_FOUND');
     });
   });
+
+  // ==========================================================================
+  // 4. REMAINING AUDIT REPAIRS: NOTES AI ROUTES & NULL-SAFE WORKSPACE UPLOADS
+  // ==========================================================================
+  describe('Remaining Audit Repairs: Notes AI & Upload Null Safety', () => {
+    it('knowledge routes mount /notes/:id/ai, /notes/:id/ai-process, and /notes/:id/ai/apply POST', () => {
+      const paths = knowledgeRoutes.stack
+        .filter((l: any) => l.route)
+        .map((l: any) => ({
+          path: l.route.path,
+          methods: Object.keys(l.route.methods),
+        }));
+
+      expect(paths.some((p) => p.path === '/notes/:id/ai' && p.methods.includes('post'))).toBe(true);
+      expect(paths.some((p) => p.path === '/notes/:id/ai-process' && p.methods.includes('post'))).toBe(true);
+      expect(paths.some((p) => p.path === '/notes/:id/ai/apply' && p.methods.includes('post'))).toBe(true);
+    });
+
+    it('upload single normalizes empty string workspaceId ("") to null without 500 error', async () => {
+      const mockCreated = {
+        id: fileId1,
+        filename: 'test-empty-workspace.txt',
+        mimeType: 'text/plain',
+        size: 10,
+        storagePath: 'test_path.txt',
+        status: 'READY',
+        userId: userA,
+        workspaceId: null,
+      };
+
+      vi.spyOn(db.file, 'create').mockResolvedValue(mockCreated as any);
+
+      const service = new UploadService();
+      const mockFile = {
+        originalname: 'test-empty-workspace.txt',
+        mimetype: 'text/plain',
+        size: 10,
+        buffer: Buffer.from('hello world'),
+      } as Express.Multer.File;
+
+      const result = await service.handleSingleUpload(mockFile, userA, '   ');
+
+      expect(result).toBeDefined();
+      expect(result.workspaceId).toBeNull();
+      expect(db.file.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            workspaceId: null,
+            userId: userA,
+          }),
+        }),
+      );
+    });
+
+    it('upload single normalizes undefined workspaceId to null without 500 error', async () => {
+      const mockCreated = {
+        id: fileId1,
+        filename: 'test-undefined-workspace.txt',
+        mimeType: 'text/plain',
+        size: 10,
+        storagePath: 'test_path.txt',
+        status: 'READY',
+        userId: userA,
+        workspaceId: null,
+      };
+
+      vi.spyOn(db.file, 'create').mockResolvedValue(mockCreated as any);
+
+      const service = new UploadService();
+      const mockFile = {
+        originalname: 'test-undefined-workspace.txt',
+        mimetype: 'text/plain',
+        size: 10,
+        buffer: Buffer.from('hello undefined'),
+      } as Express.Multer.File;
+
+      const result = await service.handleSingleUpload(mockFile, userA, undefined);
+
+      expect(result).toBeDefined();
+      expect(result.workspaceId).toBeNull();
+      expect(db.file.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            workspaceId: null,
+            userId: userA,
+          }),
+        }),
+      );
+    });
+
+    it('upload single preserves valid workspace UUID and checks workspace membership', async () => {
+      const mockCreated = {
+        id: fileId1,
+        filename: 'test-workspace.txt',
+        mimeType: 'text/plain',
+        size: 10,
+        storagePath: 'test_path.txt',
+        status: 'READY',
+        userId: userA,
+        workspaceId: workspaceA,
+      };
+
+      vi.spyOn(db.workspaceMember, 'findFirst').mockResolvedValue({
+        id: 'member-1',
+        workspaceId: workspaceA,
+        userId: userA,
+        role: 'MEMBER',
+      } as any);
+      vi.spyOn(db.file, 'create').mockResolvedValue(mockCreated as any);
+
+      const service = new UploadService();
+      const mockFile = {
+        originalname: 'test-workspace.txt',
+        mimetype: 'text/plain',
+        size: 10,
+        buffer: Buffer.from('hello workspace'),
+      } as Express.Multer.File;
+
+      const result = await service.handleSingleUpload(mockFile, userA, workspaceA);
+
+      expect(result).toBeDefined();
+      expect(result.workspaceId).toBe(workspaceA);
+      expect(db.workspaceMember.findFirst).toHaveBeenCalledWith({
+        where: { workspaceId: workspaceA, userId: userA },
+      });
+      expect(db.file.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            workspaceId: workspaceA,
+            userId: userA,
+          }),
+        }),
+      );
+    });
+
+    it('upload single rejects invalid non-empty workspaceId format with 400 INVALID_WORKSPACE_ID', async () => {
+      const service = new UploadService();
+      const mockFile = {
+        originalname: 'test-invalid-workspace.txt',
+        mimetype: 'text/plain',
+        size: 10,
+        buffer: Buffer.from('hello invalid'),
+      } as Express.Multer.File;
+
+      await expect(service.handleSingleUpload(mockFile, userA, 'invalid-non-uuid')).rejects.toThrow(
+        expect.objectContaining({
+          statusCode: 400,
+          errorCode: 'INVALID_WORKSPACE_ID',
+        }),
+      );
+    });
+  });
 });

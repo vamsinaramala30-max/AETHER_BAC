@@ -139,6 +139,7 @@ model User {
   memberships     WorkspaceMember[]
   projects        Project[]         @relation("ProjectOwner")
   files           File[]
+  fileVersions    FileVersion[]     @relation("UserFileVersions")
   notifications   Notification[]
   auditLogs       AuditLog[]
   sessions        Session[]
@@ -661,27 +662,49 @@ model Folder {
 // ============================================================================
 
 model File {
-  id          String           @id @default(uuid()) @db.Uuid
-  filename    String
-  mimeType    String
-  size        Int
-  storagePath String
-  status      FileStatus       @default(PENDING)
-  userId      String           @db.Uuid
-  workspaceId String?          @db.Uuid
-  projectId   String?          @db.Uuid
-  folderId    String?          @db.Uuid
-  description String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id             String           @id @default(uuid()) @db.Uuid
+  filename       String
+  mimeType       String
+  size           Int
+  storagePath    String
+  status         FileStatus       @default(PENDING)
+  userId         String           @db.Uuid
+  workspaceId    String?          @db.Uuid
+  projectId      String?          @db.Uuid
+  folderId       String?          @db.Uuid
+  description    String?
+  lastAccessedAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder      Folder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  attachments TaskAttachment[]
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder         Folder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  attachments    TaskAttachment[]
+  versions       FileVersion[]
 
   @@index([userId])
   @@index([workspaceId])
+  @@index([projectId])
+  @@index([userId, lastAccessedAt])
   @@map("files")
+}
+
+model FileVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileId      String   @db.Uuid
+  version     Int
+  size        Int
+  storagePath String
+  createdBy   String   @db.Uuid
+  createdAt   DateTime @default(now())
+  comment     String?
+
+  file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  user        User     @relation("UserFileVersions", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([fileId, version])
+  @@map("file_versions")
 }
 
 // ============================================================================

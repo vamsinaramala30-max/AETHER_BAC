@@ -159,6 +159,48 @@ router.post('/notes/reorder', async (req, res, next) => {
   }
 });
 
+router.post('/notes/:id/ai', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notesController.aiProcess({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/notes/:id/ai-process', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notesController.aiProcess({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/notes/:id/ai/apply', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notesController.applyAiSuggestion({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Notebooks Endpoints
 router.get('/notebooks', async (req, res, next) => {
   try {
@@ -356,6 +398,34 @@ router.get('/documents/:id', async (req, res, next) => {
     const userId = (req as any).user?.id || '';
     const result = await documentsController.findOne({
       params: req.params as any,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/documents/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await documentsController.update({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/documents/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await documentsController.update({
+      params: req.params as any,
+      body: req.body,
       user: { id: userId },
     });
     res.status(200).json({ success: true, data: result });

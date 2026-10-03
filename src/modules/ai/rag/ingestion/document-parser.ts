@@ -22,7 +22,29 @@ export interface IDocumentParser {
 
 class TextBasedParser implements IDocumentParser {
   public supports(mimeType: string): boolean {
-    return mimeType === 'text/plain' || mimeType === 'text/markdown' || mimeType === 'text/csv';
+    const m = (mimeType || '').toLowerCase();
+    return (
+      m === 'text/plain' ||
+      m === 'text/markdown' ||
+      m === 'text/x-markdown' ||
+      m === 'text/csv' ||
+      m === 'text/tab-separated-values' ||
+      m === 'text/tsv' ||
+      m === 'text/css' ||
+      m === 'text/xml' ||
+      m === 'application/xml' ||
+      m === 'application/x-yaml' ||
+      m === 'text/yaml' ||
+      m === 'text/x-yaml' ||
+      m === 'application/javascript' ||
+      m === 'text/javascript' ||
+      m === 'application/typescript' ||
+      m === 'text/typescript' ||
+      m === 'application/sql' ||
+      m === 'text/x-sql' ||
+      m === 'application/toml' ||
+      m.startsWith('text/')
+    );
   }
 
   public async parse(document: RawDocument): Promise<Result<ParsedDocument>> {

@@ -6,6 +6,8 @@ import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { createProjectSchema, updateProjectSchema } from '../validators/project.validator';
 
+import { uploadController } from '../modules/upload/upload.controller';
+
 const _sharedRepo = new ProjectsModuleSharedRepository();
 const _service = new ProjectsOrchestrationService(_sharedRepo);
 const projectController = new ProjectsOrchestrationController(_service);
@@ -18,6 +20,10 @@ router.get('/', (req, res, next) => projectController.getDashboard(req, res, nex
 router.post('/', validate(createProjectSchema), (req, res, next) =>
   projectController.create(req, res, next),
 );
+router.get('/:id/files', (req, res, next) => {
+  (req.query as any).projectId = req.params.id;
+  return uploadController.listFiles(req, res, next);
+});
 router.get('/:id', (req, res, next) => projectController.getById(req, res, next));
 router.put('/:id', validate(updateProjectSchema), (req, res, next) =>
   projectController.update(req, res, next),
