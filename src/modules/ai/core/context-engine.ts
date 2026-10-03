@@ -175,12 +175,14 @@ export class ContextEngine implements IContextEngine {
 
       // ─── 5. User Context / Long-Term Memory (Priority 5) ──────────────────
       let longTermMemory: readonly MemoryItem[] | undefined;
+      const targetUserId = request.userId || request.auth?.userId || '';
       const shouldFetchMemory =
         Boolean(
           this.memoryEngine &&
             (intent.requiresMemory ||
               intent.requiredContext?.memory ||
               intent.type === 'MEMORY_RECALL' ||
+              request.options?.enableMemory === true ||
               lowerMessage.includes('priority') ||
               lowerMessage.includes('remember') ||
               lowerMessage.includes('what should i do next')) &&
@@ -191,7 +193,7 @@ export class ContextEngine implements IContextEngine {
       if (shouldFetchMemory && this.memoryEngine) {
         try {
           const memResult = await this.memoryEngine.searchMemory({
-            userId: request.userId || request.auth?.userId || '',
+            userId: targetUserId,
             workspaceId: request.workspaceId || request.auth?.workspaceId,
             text: request.message,
             topK: 5,
@@ -199,7 +201,7 @@ export class ContextEngine implements IContextEngine {
           });
 
           if (memResult.ok && memResult.value.length > 0) {
-            const userMemories = memResult.value.filter((m) => m.userId === request.userId);
+            const userMemories = memResult.value.filter((m) => !targetUserId || m.userId === targetUserId);
             const seenContent = new Set<string>();
             const uniqueMemories: MemoryItem[] = [];
 
@@ -321,7 +323,7 @@ export class ContextEngine implements IContextEngine {
         total: maxContextTokens,
         system: tokenBudget.system,
         history: historyTokens,
-        context: totalAllocated - historyTokens - requestTokenCount,
+        context: tokenBudget.context,
         response: tokenBudget.response,
         remaining: remainingTokens,
       };

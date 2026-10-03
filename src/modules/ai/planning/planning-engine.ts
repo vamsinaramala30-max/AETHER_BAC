@@ -42,6 +42,7 @@ import '../tools/workspace-tools.js';
 import '../tools/knowledge-tools.js';
 import '../tools/note-tools.js';
 import '../tools/memory-tools.js';
+import '../tools/planning-tools.js';
 
 export interface PlanOptions {
   readonly mode?: PlanExecutionMode;

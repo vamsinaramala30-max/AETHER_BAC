@@ -11,6 +11,8 @@ import type { IMemoryEngine } from './memory/memory-engine.js';
 import { globalAiEngine } from './core/ai-engine.js';
 
 import { CancelledError, TimeoutError } from './ai-errors.js';
+import { db } from '../../database/client.js';
+import { toUuid } from './storage/repositories/memory-repository.js';
 
 interface ActiveStreamEntry {
   abortController: AbortController;
@@ -100,6 +102,12 @@ export class AiExpressController {
         abortController.abort(new TimeoutError('stream', timeoutMs));
       }
     }, timeoutMs);
+
+    const keepaliveTimer = setInterval(() => {
+      if (!res.writableEnded && !res.destroyed) {
+        res.write(': keepalive\n\n');
+      }
+    }, 15000);
 
     let terminalChunkEmitted = false;
     let accumulatedContent = '';
@@ -270,6 +278,7 @@ export class AiExpressController {
         res.end();
       }
     } finally {
+      clearInterval(keepaliveTimer);
       clearTimeout(timeoutTimer);
       req.removeListener('close', onClientClose);
       const current = AiExpressController.activeStreams.get(streamKey);
@@ -288,6 +297,126 @@ export class AiExpressController {
       const sessionId = (req as any).sessionID || `sess_${userId}`;
       const result = await coreAiController.processRequest(req.body, userId, sessionId);
       res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getPrompts(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req.user as any)?.id || (req as any).userId;
+      if (!userId || userId === 'anonymous') {
+        res.status(401).json({ success: false, error: { message: 'Authentication required' } });
+        return;
+      }
+
+      const records = await db.aIMemory.findMany({
+        where: {
+          userId,
+          category: 'PROMPT',
+          status: 'active',
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      if (records.length > 0) {
+        const prompts = records.map((r: any) => {
+          const meta = (r.metadata as any) || {};
+          return {
+            id: meta.originalId || r.id,
+            title: meta.title || 'Custom Prompt',
+            description: meta.description || '',
+            template: r.content || meta.template || '',
+            category: meta.category || 'utility',
+            tokensEstimate: meta.tokensEstimate || Math.ceil((r.content || '').length / 4),
+          };
+        });
+        res.status(200).json({ success: true, data: prompts });
+        return;
+      }
+
+      // Default system blueprints when user has no custom prompts
+      const defaultPrompts = [
+        {
+          id: 'p_1',
+          title: 'Strict Refactor Context Isolation',
+          description: 'Forces precise module boundaries without injecting boilerplate scaffolding.',
+          template:
+            'Analyze the module code targeting component boundaries. Rewrite ensuring input contracts remain strictly invariant. Do not remove internal business logic hooks.',
+          category: 'engineering',
+          tokensEstimate: 45,
+        },
+        {
+          id: 'p_2',
+          title: 'Technical Spec Parsing',
+          description:
+            'Converts unstructured markdown transcripts into clear semantic functional definitions.',
+          template:
+            'Extract features, internal domain properties, and operational parameters from the following specifications: {{input}}',
+          category: 'analysis',
+          tokensEstimate: 32,
+        },
+      ];
+
+      res.status(200).json({ success: true, data: defaultPrompts });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async savePrompt(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req.user as any)?.id || (req as any).userId;
+      if (!userId || userId === 'anonymous') {
+        res.status(401).json({ success: false, error: { message: 'Authentication required' } });
+        return;
+      }
+
+      const body = req.body || {};
+      const promptId = body.id || `p_${Date.now()}`;
+      const memoryId = toUuid(promptId);
+      const workspaceId = (req.user as any)?.workspaceId || (req as any).workspaceId || undefined;
+
+      const metadata = {
+        originalId: promptId,
+        title: body.title || 'Untitled Blueprint',
+        description: body.description || '',
+        template: body.template || '',
+        category: body.category || 'utility',
+        tokensEstimate: body.tokensEstimate || Math.ceil((body.template || '').length / 4),
+      };
+
+      await db.aIMemory.upsert({
+        where: { id: memoryId },
+        create: {
+          id: memoryId,
+          userId,
+          workspaceId,
+          category: 'PROMPT',
+          content: body.template || '',
+          importance: 0.8,
+          confidence: 'user_provided',
+          scope: 'user',
+          status: 'active',
+          metadata,
+        },
+        update: {
+          content: body.template || '',
+          metadata,
+          updatedAt: new Date(),
+        },
+      });
+
+      const saved = {
+        id: promptId,
+        title: metadata.title,
+        description: metadata.description,
+        template: metadata.template,
+        category: metadata.category,
+        tokensEstimate: metadata.tokensEstimate,
+      };
+
+      res.status(200).json({ success: true, data: saved });
     } catch (err) {
       next(err);
     }

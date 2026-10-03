@@ -5,12 +5,19 @@ import { KnowledgeService } from '../modules/knowledge/knowledge.service';
 import { KnowledgeRepository } from '../modules/knowledge/knowledge.repository';
 import { NotesController } from '../modules/knowledge/notes/notes/notes.controller';
 import { DocumentsController } from '../modules/knowledge/documents/documents.controller';
-
+import { NotebooksController } from '../modules/knowledge/notes/notebooks/notebooks.controller';
+import { NotebooksService } from '../modules/knowledge/notes/notebooks/notebooks.service';
+import { SectionsController } from '../modules/knowledge/notes/sections/sections.controller';
+import { SectionsService } from '../modules/knowledge/notes/sections/sections.service';
 
 const _knowledgeRepo = new KnowledgeRepository();
 const _knowledgeService = new KnowledgeService(_knowledgeRepo);
 const notesController = new NotesController(_knowledgeService.notesService);
 const documentsController = new DocumentsController(_knowledgeService.documentsService);
+const notebooksService = new NotebooksService(_knowledgeRepo.notebooks, _knowledgeRepo.sections);
+const notebooksController = new NotebooksController(notebooksService);
+const sectionsService = new SectionsService(_knowledgeRepo.sections, _knowledgeRepo.notebooks);
+const sectionsController = new SectionsController(sectionsService);
 
 const router = Router();
 
@@ -128,6 +135,193 @@ router.delete('/notes/:id', async (req, res, next) => {
   }
 });
 
+router.patch('/notes/:id/move', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notesController.move({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/notes/reorder', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notesController.reorder({ body: req.body, user: { id: userId } });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Notebooks Endpoints
+router.get('/notebooks', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notebooksController.list({ user: { id: userId } });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/notebooks', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notebooksController.create({ body: req.body, user: { id: userId } });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/notebooks/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notebooksController.findOne({
+      params: req.params as any,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/notebooks/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notebooksController.update({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/notebooks/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notebooksController.remove({
+      params: req.params as any,
+      user: { id: userId },
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/notebooks/reorder', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await notebooksController.reorder({ body: req.body, user: { id: userId } });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Sections Endpoints
+router.get('/notebooks/:notebookId/sections', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await sectionsController.list({
+      params: req.params as any,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/notebooks/:notebookId/sections', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await sectionsController.create({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/sections/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await sectionsController.findOne({
+      params: req.params as any,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/sections/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await sectionsController.update({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/sections/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await sectionsController.remove({
+      params: req.params as any,
+      user: { id: userId },
+    });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/sections/reorder', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await sectionsController.reorder({ body: req.body, user: { id: userId } });
+    res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/sections/:id/move', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await sectionsController.move({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Documents Endpoints
 router.get('/documents', async (req, res, next) => {
   try {
@@ -183,6 +377,57 @@ router.post('/documents/search', searchRateLimiter, async (req, res, next) => {
       workspaceId,
     );
     res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/retrieve', searchRateLimiter, async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) {
+      res.status(401).json({ success: false, error: { message: 'Authentication required' } });
+      return;
+    }
+    const workspaceId = getWorkspaceId(req);
+    const query = req.body?.query || req.body?.text || '';
+    const topK = typeof req.body?.top_k === 'number' ? req.body.top_k : (typeof req.body?.topK === 'number' ? req.body.topK : 5);
+    const minScore = typeof req.body?.min_score === 'number' ? req.body.min_score : 0.1;
+    const collectionIds = req.body?.collection_ids || req.body?.collectionIds;
+    const filters = req.body?.filters;
+
+    const ragResult = await _knowledgeService.documentsService.retrieve({
+      queryText: query,
+      userId,
+      topK,
+      scoreThreshold: minScore,
+      workspaceId,
+      collectionIds,
+      filters,
+    });
+
+    if (!ragResult.ok) {
+      res.status(500).json({ success: false, error: { message: ragResult.error.message } });
+      return;
+    }
+
+    const value = ragResult.value;
+    const results = (value.documents || []).map((doc: any, idx: number) => ({
+      chunk_id: doc.id || `chunk_${idx}`,
+      document_id: doc.documentId || doc.id || '',
+      content: doc.content || doc.text || '',
+      chunk_index: doc.chunkIndex ?? idx,
+      score: doc.score ?? 1.0,
+      document_name: doc.title || doc.documentName || doc.documentTitle || 'Document',
+    }));
+
+    res.status(200).json({
+      success: true,
+      results,
+      total: value.totalRetrieved ?? results.length,
+      rerank_applied: true,
+      data: value,
+    });
   } catch (err) {
     next(err);
   }

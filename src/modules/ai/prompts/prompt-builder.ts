@@ -129,19 +129,21 @@ export class PromptBuilder implements IPromptBuilder {
   }
 
   private buildMemoryBlock(
-    memories: readonly { content: string; type: string; importance: number }[],
+    memories: readonly { content: string; type?: string; importance: number }[],
     maxTokens: number,
   ): string {
     const lines: string[] = [];
     let usedTokens = 0;
+    const effectiveLimit = Math.max(maxTokens, 400);
 
     // Sort by importance desc
     const sorted = [...memories].sort((a, b) => b.importance - a.importance);
 
     for (const mem of sorted) {
-      const line = `[${mem.type}] ${mem.content}`;
+      const type = mem.type || (mem as any).category || 'fact';
+      const line = `[${type}] ${mem.content}`;
       const tokens = defaultTokenizer.count(line).tokenCount;
-      if (usedTokens + tokens > maxTokens) break;
+      if (lines.length > 0 && usedTokens + tokens > effectiveLimit) break;
       lines.push(line);
       usedTokens += tokens;
     }

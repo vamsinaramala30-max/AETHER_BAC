@@ -18,6 +18,7 @@ router.use(authenticate);
 // Intent Parser & Dashboard Stats
 router.post('/parse-intent', automationRateLimiter, automationController.parseIntent.bind(automationController));
 router.get('/stats', automationController.getStats.bind(automationController));
+router.get('/health', automationController.getSchedulerHealth.bind(automationController));
 
 // Activity audit logs & Templates
 router.get('/automation-activity', automationController.getAllActivity.bind(automationController));
@@ -71,7 +72,7 @@ router.post(
 router.get('/:id/activity', automationController.getAutomationActivity.bind(automationController));
 router.get('/:id/executions', automationController.getExecutions.bind(automationController));
 
-// Execution Approvals
+// Execution Approvals & Cancellation
 router.post(
   '/:id/executions/:executionId/approve',
   validate(approveExecutionSchema),
@@ -81,6 +82,14 @@ router.post(
   '/:id/executions/:executionId/reject',
   validate(rejectExecutionSchema),
   automationController.rejectExecution.bind(automationController),
+);
+router.post(
+  '/:id/executions/:executionId/cancel',
+  automationController.cancelExecution.bind(automationController),
+);
+router.post(
+  '/executions/:executionId/cancel',
+  automationController.cancelExecution.bind(automationController),
 );
 
 // Compatibility route bindings for frontend integrations & tasks

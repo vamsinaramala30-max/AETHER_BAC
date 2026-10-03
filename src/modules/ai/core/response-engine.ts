@@ -126,6 +126,7 @@ export class ResponseEngine implements IResponseEngine {
       reasoning: 'failed',
       intent,
       status,
+      confidence: 'LOW_CONFIDENCE',
       verificationStatus: verificationStatus ?? 'FAILED',
       latencyMs,
       timestamp: now,

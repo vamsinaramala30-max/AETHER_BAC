@@ -46,6 +46,8 @@ router.post('/chat/stream', aiRateLimiter, (req, res, next) => aiController.stre
 router.post('/prompt', aiRateLimiter, validate(generatePromptSchema), (req, res, next) =>
   aiController.generatePrompt(req, res, next),
 );
+router.get('/prompts', (req, res, next) => aiController.getPrompts(req, res, next));
+router.post('/prompts', (req, res, next) => aiController.savePrompt(req, res, next));
 
 // Autonomous Agent Execution Loop Routes (Prompt 8)
 router.post('/agent/execute', aiRateLimiter, (req, res, next) => executionController.startExecution(req, res, next));

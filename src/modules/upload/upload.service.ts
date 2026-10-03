@@ -2,9 +2,10 @@ import { FileStatus } from '@prisma/client';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
-import { logger } from '../../config';
+import { logger, env } from '../../config';
 import { db } from '../../database/client';
 import { AppError } from '../../middleware/error.middleware';
+import { StorageService } from '../../storage/StorageService';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 
@@ -18,6 +19,12 @@ const isValidUuid = (id: string): boolean => {
 };
 
 export class UploadService {
+  private storageService: StorageService;
+
+  constructor() {
+    this.storageService = new StorageService();
+  }
+
   public async handleSingleUpload(
     file: Express.Multer.File,
     userId?: string,
@@ -70,6 +77,24 @@ export class UploadService {
     } catch (fsErr) {
       logger.error('Failed writing file to disk:', fsErr);
       throw new AppError('Failed to store uploaded file', 500, 'FILE_STORAGE_ERROR');
+    }
+
+    // Persist via StorageService driver when configured (e.g. Supabase persistent cloud storage)
+    try {
+      if (env.STORAGE_DRIVER === 'supabase') {
+        const buffer =
+          file.buffer ||
+          (file.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null);
+        if (buffer) {
+          await this.storageService.upload(
+            buffer,
+            fileNameOnDisk,
+            file.mimetype || 'application/octet-stream',
+          );
+        }
+      }
+    } catch (cloudErr) {
+      logger.warn('StorageService cloud upload failed; local copy remains active:', cloudErr);
     }
 
     try {
@@ -289,11 +314,38 @@ export class UploadService {
         throw new AppError('Unauthorized to access this file', 403, 'FORBIDDEN');
       }
     }
-    const safeBaseName = path.basename(file.storagePath);
-    const fullPath = path.resolve(UPLOAD_DIR, safeBaseName);
-    if (!fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
+    const safeBaseName = file.storagePath ? path.basename(file.storagePath) : '';
+    const fullPath = safeBaseName ? path.resolve(UPLOAD_DIR, safeBaseName) : '';
+    if (fullPath && !fullPath.startsWith(path.resolve(UPLOAD_DIR))) {
       throw new AppError('Unauthorized path access', 403, 'FORBIDDEN');
     }
     return { ...file, fullPath };
+  }
+
+  public async getFileStreamOrBuffer(fileRecord: {
+    id: string;
+    storagePath?: string | null;
+    fullPath?: string;
+  }): Promise<{ buffer?: Buffer; fullPath?: string }> {
+    const fullPath = fileRecord.fullPath;
+    if (fullPath && fs.existsSync(fullPath)) {
+      return { fullPath };
+    }
+
+    if (fileRecord.storagePath) {
+      try {
+        const buffer = await this.storageService.getFileBuffer(fileRecord.storagePath);
+        if (buffer && buffer.length > 0) {
+          return { buffer };
+        }
+      } catch (storageErr) {
+        logger.warn(
+          `StorageService could not retrieve buffer for ${fileRecord.id} (${fileRecord.storagePath}):`,
+          storageErr,
+        );
+      }
+    }
+
+    return {};
   }
 }

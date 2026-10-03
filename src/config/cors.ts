@@ -25,8 +25,9 @@ export const corsConfig: CorsOptions = {
 
     // In production, strictly reject wildcard origins when credentials are enabled
     if (isProduction) {
+      // Must not allow wildcards (*, *.vercel.app, etc.) with credentials: true
       const isAllowed = allowedOrigins.some(
-        (o) => o !== '*' && (o === origin || new RegExp(`^${o.replace(/\*/g, '.*')}$`).test(origin)),
+        (o) => o && !o.includes('*') && o === origin,
       );
 
       if (isAllowed) {

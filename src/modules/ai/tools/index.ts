@@ -22,11 +22,6 @@ export * from './automation-tools.js';
 export * from './workspace-tools.js';
 export * from './note-tools.js';
 export * from './memory-tools.js';
-export {
-  searchKnowledgeTool,
-  addKnowledgeDocumentTool,
-  deleteKnowledgeDocumentTool,
-  getDocumentTool,
-  listDocumentsTool,
-  knowledgeTools,
-} from './knowledge-tools.js';
+export * from './planning-tools.js';
+export * from './knowledge-tools.js';
+

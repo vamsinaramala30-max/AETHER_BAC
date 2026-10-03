@@ -4,12 +4,13 @@
  * Queries real database entities for tasks, projects, goals, and logged time.
  */
 
-import type { ToolDefinition, ToolExecutionContext } from './tool-types.js';
+import type { ToolDefinition, ToolExecutionContext, ToolVerificationResult } from './tool-types.js';
 import { toolRegistry } from './tool-registry.js';
 import { TasksRepository } from '../../projects/tasks/tasks.repository.js';
 import { GoalsRepository } from '../../projects/goals/goals.repository.js';
 import { ProjectsRepository } from '../../projects/projects.repository.js';
 import { TaskStatus } from '../../projects/projects.constants.js';
+import { db } from '../../../database/client.js';
 
 const tasksRepo = new TasksRepository();
 const goalsRepo = new GoalsRepository();
@@ -229,12 +230,321 @@ export const getFocusSessionsTool: ToolDefinition<GetFocusSessionsInput, FocusSe
   },
 };
 
+// ─── Resolve Workspace Helper ───────────────────────────────────────────────
+
+async function resolveWorkspaceId(userId: string, contextWorkspaceId?: string): Promise<string> {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (contextWorkspaceId && isUuid.test(contextWorkspaceId)) {
+    return contextWorkspaceId;
+  }
+  const member = await db.workspaceMember.findFirst({ where: { userId } });
+  if (member?.workspaceId) {
+    return member.workspaceId;
+  }
+  const ws = await db.workspace.findFirst({ where: { deletedAt: null } });
+  if (ws?.id) {
+    return ws.id;
+  }
+  const newWs = await db.workspace.create({
+    data: {
+      name: 'Default Workspace',
+      slug: `ws-${Date.now().toString(36)}`,
+      members: { create: { userId, role: 'OWNER' } },
+    },
+  });
+  return newWs.id;
+}
+
+// ─── Create Calendar Event Tool ──────────────────────────────────────────────
+
+export interface CreateCalendarEventInput extends Record<string, unknown> {
+  readonly title: string;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly description?: string;
+  readonly location?: string;
+  readonly allDay?: boolean;
+  readonly projectId?: string;
+  readonly taskId?: string;
+}
+
+export interface CreateCalendarEventOutput {
+  readonly eventId: string;
+  readonly title: string;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly location?: string;
+  readonly createdAt: string;
+}
+
+export const createCalendarEventTool: ToolDefinition<
+  CreateCalendarEventInput,
+  CreateCalendarEventOutput
+> = {
+  id: 'tool_create_calendar_event',
+  name: 'create_calendar_event',
+  description: 'Creates a calendar event or scheduled meeting in the user calendar.',
+  category: 'productivity',
+  riskLevel: 'LOW_RISK',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Event title', minLength: 1, maxLength: 255 },
+      startDate: { type: 'string', description: 'Start date and time (ISO 8601)' },
+      endDate: { type: 'string', description: 'End date and time (ISO 8601)' },
+      description: { type: 'string', description: 'Optional description of event' },
+      location: { type: 'string', description: 'Location or meeting link' },
+      allDay: { type: 'boolean', description: 'Whether event spans all day' },
+      projectId: { type: 'string', description: 'Optional associated project ID' },
+      taskId: { type: 'string', description: 'Optional associated task ID' },
+    },
+    required: ['title', 'startDate', 'endDate'],
+  },
+  requiredPermissions: ['calendar:write'],
+  handler: async (
+    input: CreateCalendarEventInput,
+    context: ToolExecutionContext,
+  ): Promise<CreateCalendarEventOutput> => {
+    const userId = context.auth.userId;
+    const workspaceId = await resolveWorkspaceId(userId, context.auth.workspaceId);
+
+    const start = new Date(input.startDate);
+    const end = new Date(input.endDate);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new Error('Invalid ISO date format for startDate or endDate.');
+    }
+    if (end < start) {
+      throw new Error('Event endDate must be greater than or equal to startDate.');
+    }
+
+    const event = await db.calendarEvent.create({
+      data: {
+        workspaceId,
+        userId,
+        title: input.title,
+        description: input.description || null,
+        startDate: start,
+        endDate: end,
+        allDay: !!input.allDay,
+        location: input.location || null,
+        projectId: input.projectId || null,
+        taskId: input.taskId || null,
+      },
+    });
+
+    return {
+      eventId: event.id,
+      title: event.title,
+      startDate: event.startDate.toISOString(),
+      endDate: event.endDate.toISOString(),
+      location: event.location || undefined,
+      createdAt: event.createdAt.toISOString(),
+    };
+  },
+  verify: async (output: CreateCalendarEventOutput): Promise<ToolVerificationResult> => {
+    const event = await db.calendarEvent.findFirst({
+      where: { id: output.eventId, deletedAt: null },
+    });
+    if (!event) {
+      return {
+        verified: false,
+        error: `Calendar event ${output.eventId} was not found in PostgreSQL.`,
+      };
+    }
+    return {
+      verified: true,
+      details: `Calendar event "${event.title}" verified in PostgreSQL.`,
+      verifiedObject: event,
+    };
+  },
+};
+
+// ─── Update Calendar Event Tool ──────────────────────────────────────────────
+
+export interface UpdateCalendarEventInput extends Record<string, unknown> {
+  readonly eventId: string;
+  readonly title?: string;
+  readonly startDate?: string;
+  readonly endDate?: string;
+  readonly description?: string;
+  readonly location?: string;
+}
+
+export interface UpdateCalendarEventOutput {
+  readonly eventId: string;
+  readonly title: string;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly updatedAt: string;
+}
+
+export const updateCalendarEventTool: ToolDefinition<
+  UpdateCalendarEventInput,
+  UpdateCalendarEventOutput
+> = {
+  id: 'tool_update_calendar_event',
+  name: 'update_calendar_event',
+  description: 'Updates an existing calendar event title, timing, description, or location.',
+  category: 'productivity',
+  riskLevel: 'LOW_RISK',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      eventId: { type: 'string', description: 'Unique calendar event ID' },
+      title: { type: 'string', description: 'Updated title' },
+      startDate: { type: 'string', description: 'Updated start date (ISO 8601)' },
+      endDate: { type: 'string', description: 'Updated end date (ISO 8601)' },
+      description: { type: 'string', description: 'Updated description' },
+      location: { type: 'string', description: 'Updated location or link' },
+    },
+    required: ['eventId'],
+  },
+  requiredPermissions: ['calendar:write'],
+  handler: async (
+    input: UpdateCalendarEventInput,
+    context: ToolExecutionContext,
+  ): Promise<UpdateCalendarEventOutput> => {
+    const userId = context.auth.userId;
+    const roles = context.auth.roles || [];
+    const isAdmin = roles.includes('admin') || roles.includes('ADMIN') || roles.includes('SUPERADMIN');
+
+    const existing = await db.calendarEvent.findFirst({
+      where: { id: input.eventId, deletedAt: null },
+    });
+    if (!existing) {
+      throw new Error(`Calendar event "${input.eventId}" not found.`);
+    }
+    if (existing.userId !== userId && !isAdmin) {
+      throw new Error(`Access denied: Calendar event "${input.eventId}" belongs to another user.`);
+    }
+
+    const updated = await db.calendarEvent.update({
+      where: { id: input.eventId },
+      data: {
+        ...(input.title ? { title: input.title } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+        ...(input.startDate ? { startDate: new Date(input.startDate) } : {}),
+        ...(input.endDate ? { endDate: new Date(input.endDate) } : {}),
+        ...(input.location !== undefined ? { location: input.location } : {}),
+      },
+    });
+
+    return {
+      eventId: updated.id,
+      title: updated.title,
+      startDate: updated.startDate.toISOString(),
+      endDate: updated.endDate.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    };
+  },
+  verify: async (
+    output: UpdateCalendarEventOutput,
+    input: UpdateCalendarEventInput,
+  ): Promise<ToolVerificationResult> => {
+    const event = await db.calendarEvent.findFirst({
+      where: { id: output.eventId, deletedAt: null },
+    });
+    if (!event) {
+      return { verified: false, error: `Calendar event ${output.eventId} not found after update.` };
+    }
+    if (input.title && event.title !== input.title) {
+      return { verified: false, error: `Calendar event title was not updated in database.` };
+    }
+    return {
+      verified: true,
+      details: `Calendar event "${event.title}" update verified in PostgreSQL.`,
+      verifiedObject: event,
+    };
+  },
+};
+
+// ─── Create Reminder Tool ────────────────────────────────────────────────────
+
+export interface CreateReminderInput extends Record<string, unknown> {
+  readonly title: string;
+  readonly message: string;
+  readonly dueDate?: string;
+  readonly link?: string;
+}
+
+export interface CreateReminderOutput {
+  readonly reminderId: string;
+  readonly title: string;
+  readonly message: string;
+  readonly createdAt: string;
+}
+
+export const createReminderTool: ToolDefinition<CreateReminderInput, CreateReminderOutput> = {
+  id: 'tool_create_reminder',
+  name: 'create_reminder',
+  description: 'Creates a reminder or notification for a user in the workspace.',
+  category: 'productivity',
+  riskLevel: 'LOW_RISK',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      title: { type: 'string', description: 'Reminder title', minLength: 1, maxLength: 255 },
+      message: { type: 'string', description: 'Reminder description or alert details', minLength: 1 },
+      dueDate: { type: 'string', description: 'Optional reminder due date (ISO 8601)' },
+      link: { type: 'string', description: 'Optional resource link associated with the reminder' },
+    },
+    required: ['title', 'message'],
+  },
+  requiredPermissions: ['notifications:write'],
+  handler: async (
+    input: CreateReminderInput,
+    context: ToolExecutionContext,
+  ): Promise<CreateReminderOutput> => {
+    const userId = context.auth.userId;
+
+    const notif = await db.notification.create({
+      data: {
+        userId,
+        title: input.title,
+        message: input.message,
+        type: 'SYSTEM',
+        metadata: {
+          reminder: true,
+          dueDate: input.dueDate || null,
+        },
+        link: input.link || null,
+      },
+    });
+
+    return {
+      reminderId: notif.id,
+      title: notif.title,
+      message: notif.message,
+      createdAt: notif.createdAt.toISOString(),
+    };
+  },
+  verify: async (output: CreateReminderOutput): Promise<ToolVerificationResult> => {
+    const notif = await db.notification.findUnique({
+      where: { id: output.reminderId },
+    });
+    if (!notif) {
+      return {
+        verified: false,
+        error: `Reminder notification ${output.reminderId} was not found in database.`,
+      };
+    }
+    return {
+      verified: true,
+      details: `Reminder "${notif.title}" verified in PostgreSQL.`,
+      verifiedObject: notif,
+    };
+  },
+};
+
 // ─── All Productivity Tools ──────────────────────────────────────────────────
 
 export const productivityTools = [
   getProductivitySummaryTool,
   getTodaysScheduleTool,
   getFocusSessionsTool,
+  createCalendarEventTool,
+  updateCalendarEventTool,
+  createReminderTool,
 ] as const;
 
 // Auto-register tools on load
@@ -247,3 +557,4 @@ for (const tool of productivityTools) {
     // Already registered
   }
 }
+

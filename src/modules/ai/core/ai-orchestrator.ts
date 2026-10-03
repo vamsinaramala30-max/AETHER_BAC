@@ -241,6 +241,9 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     if (intent.type === 'GREETING') {
       return this.handleGreeting(request, intent, context, startTime, agentTask);
     }
+    if (intent.type === 'TOOL_REQUEST' && this.isCalculation(request.message)) {
+      return this.handleCalculation(request, intent, context, startTime, agentTask);
+    }
 
     // ─── Clarification Handling ────────────────────────────────────────────
 
@@ -577,8 +580,8 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     // ─── Build Prompt ──────────────────────────────────────────────────────
 
     const promptResult = this.promptEngine.build(request.message, context, {
-      includeRAG: intent.requiresRAG,
-      includeMemory: intent.requiresMemory,
+      includeRAG: Boolean(context.ragContext?.documents?.length || intent.requiresRAG),
+      includeMemory: Boolean(context.longTermMemory?.length || intent.requiresMemory),
     });
     if (!promptResult.ok) {
       this.reasoningEngine.updateStatus(
@@ -632,51 +635,16 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     let genResponse: GenerationResponse;
 
     if (!execution.result.ok) {
-      const synthesisResult = responseSynthesizer.synthesize({
-        request,
-        intent,
-        context,
-        assessment,
-        evidence,
-      });
-
-      const isKnownSynthesizable =
-        (intent.requiresRAG && (context.ragContext?.documents.length ?? 0) > 0) ||
-        intent.type === 'KNOWLEDGE_QUESTION' ||
-        intent.type === 'KNOWLEDGE_REQUEST' ||
-        intent.type === 'AETHER_PRODUCT_QUESTION' ||
-        intent.type === 'CONVERSATIONAL' ||
-        intent.type === 'CONVERSATION' ||
-        synthesisResult.strategy === 'general_question';
-
-      if (isKnownSynthesizable && synthesisResult.synthesized && synthesisResult.content) {
-        this.reasoningEngine.updateStatus(
-          request.requestId,
-          'generating',
-          'Synthesizing grounded response',
-          'plan_executing',
-        );
-        synthesizedContent = synthesisResult.content;
-        genResponse = {
-          requestId: request.requestId,
-          modelId: request.options?.modelId ?? 'default',
-          content: synthesizedContent,
-          finishReason: 'stop',
-          latencyMs: Date.now() - startTime,
-          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        };
-      } else {
-        this.reasoningEngine.updateStatus(
-          request.requestId,
-          'failed',
-          `Generation failed: ${execution.result.error.message}`,
-          'plan_failed',
-        );
-        this.reasoningEngine.endReasoning(request.requestId);
-        return ok(
-          this.responseEngine.buildError(request, intent, execution.result.error.code, startTime),
-        );
-      }
+      this.reasoningEngine.updateStatus(
+        request.requestId,
+        'failed',
+        `Generation failed: ${execution.result.error.message}`,
+        'plan_failed',
+      );
+      this.reasoningEngine.endReasoning(request.requestId);
+      return ok(
+        this.responseEngine.buildError(request, intent, execution.result.error.code, startTime),
+      );
     } else {
       genResponse = execution.result.value;
 
@@ -914,6 +882,21 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     );
 
     this.convManager.completeTurn(request.conversationId, turn.turnId, finalContent);
+
+    this.memoryEngine.addConversationMessage(
+      request.userId,
+      request.sessionId,
+      request.conversationId,
+      'user',
+      request.message,
+    );
+    this.memoryEngine.addConversationMessage(
+      request.userId,
+      request.sessionId,
+      request.conversationId,
+      'assistant',
+      finalContent,
+    );
 
     const finalTaskStatus = finalVerificationStatus === 'FAILED' ? 'failed' : 'completed';
 
@@ -1255,8 +1238,8 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     }
 
     const promptResult = this.promptEngine.build(request.message, context, {
-      includeRAG: intent.requiresRAG,
-      includeMemory: intent.requiresMemory,
+      includeRAG: Boolean(context.ragContext?.documents?.length || intent.requiresRAG),
+      includeMemory: Boolean(context.longTermMemory?.length || intent.requiresMemory),
     });
     if (!promptResult.ok) {
       this.reasoningEngine.updateStatus(
@@ -1725,7 +1708,26 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
       })),
     });
 
+    let historyContextAnswer = '';
+    if (memories.length === 0) {
+      const history = context.conversationHistory || [];
+      for (let i = history.length - 1; i >= 0; i--) {
+        const item = history[i];
+        if (item && item.role === 'user') {
+          const match = item.content.match(
+            /(?:my project is called|my project is|project is called|project named)\s+([a-zA-Z0-9_\-\s]+)/i,
+          );
+          if (match && match[1]) {
+            const name = match[1].trim().replace(/[.,!?]+$/, '');
+            historyContextAnswer = `Your project is called ${name}.`;
+            break;
+          }
+        }
+      }
+    }
+
     const responseMessage =
+      historyContextAnswer ||
       synthesized.content ||
       (memories.length > 0
         ? `Based on your stored memory: ${memories.map((m) => m.content).join('; ')}`
@@ -1830,6 +1832,86 @@ export class AIOrchestrator implements IAIOrchestrator, ICoreOrchestrator {
     };
 
     return ok(response);
+  }
+
+  private handleCalculation(
+    request: AIRequest,
+    intent: Intent,
+    _context: AIContext,
+    startTime: number,
+    agentTask: AgentTask,
+  ): Result<AIResponse> {
+    const mathMatch = request.message.match(
+      /(?:what is |calculate |evaluate |solve )?\s*(-?\d+(?:\.\d+)?)\s*([\+\-\*\/×÷]|plus|minus|times|multiplied by|divided by)\s*(-?\d+(?:\.\d+)?)\s*\??/i,
+    );
+    let calcMessage = '0';
+    if (mathMatch && mathMatch[1] && mathMatch[2] && mathMatch[3]) {
+      const n1 = parseFloat(mathMatch[1]);
+      const op = mathMatch[2].trim().toLowerCase();
+      const n2 = parseFloat(mathMatch[3]);
+      let res = 0;
+      if (op === '+' || op === 'plus') res = n1 + n2;
+      else if (op === '-' || op === 'minus') res = n1 - n2;
+      else if (op === '*' || op === '×' || op === 'times' || op === 'multiplied by') res = n1 * n2;
+      else if (op === '/' || op === '÷' || op === 'divided by') res = n2 !== 0 ? n1 / n2 : NaN;
+      calcMessage = `${res}`;
+    }
+
+    this.reasoningEngine.updateStatus(
+      request.requestId,
+      'completed',
+      'Direct calculation solved',
+      'plan_completed',
+    );
+    this.reasoningEngine.endReasoning(request.requestId);
+
+    this.memoryEngine.addConversationMessage(
+      request.userId,
+      request.sessionId,
+      request.conversationId,
+      'user',
+      request.message,
+    );
+    this.memoryEngine.addConversationMessage(
+      request.userId,
+      request.sessionId,
+      request.conversationId,
+      'assistant',
+      calcMessage,
+    );
+    this.convManager.completeTurn(
+      request.conversationId,
+      `turn_${request.requestId}`,
+      calcMessage,
+    );
+
+    const response: AIResponse = {
+      requestId: request.requestId,
+      userId: request.userId,
+      sessionId: request.sessionId,
+      conversationId: request.conversationId,
+      message: calcMessage,
+      intent,
+      task: {
+        ...agentTask,
+        taskType: 'SIMPLE',
+        toolsRequired: false,
+        status: 'completed',
+      },
+      status: 'success',
+      verificationStatus: 'VERIFIED',
+      confidence: 'HIGH_CONFIDENCE',
+      latencyMs: Date.now() - startTime,
+      timestamp: Date.now(),
+    };
+
+    return ok(response);
+  }
+
+  private isCalculation(message: string): boolean {
+    const mathRegex =
+      /^(?:what is |calculate |evaluate |solve )?\s*-?\d+(?:\.\d+)?\s*(?:[\+\-\*\/×÷]|plus|minus|times|multiplied by|divided by)\s*-?\d+(?:\.\d+)?\s*\??$/i;
+    return mathRegex.test(message.trim());
   }
 
   private validateRequest(request: AIRequest): Result<void> {

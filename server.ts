@@ -17,6 +17,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 import { validateEnv, env } from './src/config/env';
 import { connectDatabase, disconnectDatabase } from './src/database/client';
 import { cronScheduler } from './src/cron/scheduler';
+import { automationScheduler } from './src/modules/automation/scheduler/automation-scheduler';
 
 // Validate required environment variables at launch
 validateEnv();
@@ -127,6 +128,8 @@ app.use(correlationMiddleware);
 app.get('/health/live', (req: Request, res: Response) => healthController.getLiveness(req, res));
 app.get('/health/ready', (req: Request, res: Response) => healthController.getReadiness(req, res));
 app.get('/health', (req: Request, res: Response) => healthController.checkHealth(req, res));
+app.get('/ready', (req: Request, res: Response) => healthController.getReadiness(req, res));
+app.get('/live', (req: Request, res: Response) => healthController.getLiveness(req, res));
 
 app.get('/metrics', (_req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/plain; version=0.0.4');
@@ -188,6 +191,9 @@ export const startServer = async (): Promise<http.Server> => {
     await connectDatabase();
     logger.info('PostgreSQL connection verified.');
 
+    logger.info('Starting authoritative background AutomationScheduler...');
+    await automationScheduler.start();
+
     return new Promise((resolve) => {
       server.listen(PORT, HOST, () => {
         logger.info(
@@ -218,6 +224,7 @@ export const gracefulShutdown = async (signal: string): Promise<void> => {
   server.close(async () => {
     logger.info('HTTP server closed. Cleaning up background resources...');
     try {
+      automationScheduler.stop();
       cronScheduler.stopAll();
       await disconnectDatabase();
       logger.info('All resources cleanly terminated.');

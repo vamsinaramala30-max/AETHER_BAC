@@ -448,140 +448,101 @@ export const listDocumentsTool: ToolDefinition<ListDocumentsInput, ListDocuments
   },
 };
 
-// ─── Create Note Tool ────────────────────────────────────────────────────────
 
-export interface CreateNoteInput extends Record<string, unknown> {
-  readonly title: string;
-  readonly content?: string;
-  readonly category?: string;
-  readonly tags?: readonly string[];
-}
+// ─── Retrieve Document Tool (Authoritative Alias) ─────────────────────────────
 
-export interface CreateNoteOutput {
-  readonly noteId: string;
-  readonly title: string;
-  readonly createdAt: string;
-}
-
-export const createNoteTool: ToolDefinition<CreateNoteInput, CreateNoteOutput> = {
-  id: 'tool_create_note',
-  name: 'create_note',
-  description: 'Creates a new note page in the user workspace.',
-  category: 'knowledge',
-  riskLevel: 'LOW_RISK',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      title: { type: 'string', description: 'Note title', minLength: 1, maxLength: 300 },
-      content: { type: 'string', description: 'Note content' },
-      category: { type: 'string', description: 'Category' },
-      tags: { type: 'array', items: { type: 'string' }, description: 'Tags' },
-    },
-    required: ['title'],
-  },
-  requiredPermissions: ['knowledge:write'],
-  handler: async (
-    input: CreateNoteInput,
-    context: ToolExecutionContext,
-  ): Promise<CreateNoteOutput> => {
-    const userId = context.auth.userId;
-    const created = await notesRepo.create(userId, {
-      title: input.title,
-      content: input.content || '',
-      category: input.category || 'General',
-      tags: (input.tags as string[]) || [],
-      isPinned: false,
-      isFavorite: false,
-      isArchived: false,
-      isQuickNote: true,
-      notebookId: null,
-      sectionId: null,
-      order: 0,
-      sharedWithUserIds: [],
-      attachmentIds: [],
-    });
-
-    return {
-      noteId: created.id,
-      title: created.title,
-      createdAt: created.createdAt ? new Date(created.createdAt).toISOString() : new Date().toISOString(),
-    };
-  },
-  verify: async (
-    output: CreateNoteOutput,
-    input: CreateNoteInput,
-    context?: ToolExecutionContext,
-  ): Promise<ToolVerificationResult> => {
-    const userId = context?.auth.userId || '';
-    const saved = await notesRepo.findById(output.noteId, userId);
-    if (!saved) {
-      return { verified: false, error: `Note "${output.noteId}" could not be retrieved from database.` };
-    }
-    if (saved.title !== input.title) {
-      return { verified: false, error: `Note title mismatch in database.` };
-    }
-    return {
-      verified: true,
-      details: `Note "${saved.title}" (ID: ${saved.id}) verified in database.`,
-      verifiedObject: saved,
-    };
-  },
+export const retrieveDocumentTool: ToolDefinition<GetDocumentInput, DocumentDetails> = {
+  ...getDocumentTool,
+  id: 'tool_retrieve_document',
+  name: 'retrieve_document',
+  description:
+    'Retrieves metadata and content for a specific document by ID (authoritative alias for get_document).',
 };
 
-// ─── Delete Note Tool ────────────────────────────────────────────────────────
+// ─── Summarize Document Tool ─────────────────────────────────────────────────
 
-export interface DeleteNoteInput extends Record<string, unknown> {
-  readonly noteId: string;
+export interface SummarizeDocumentInput extends Record<string, unknown> {
+  readonly documentId: string;
+  readonly maxLength?: number;
 }
 
-export interface DeleteNoteOutput {
-  readonly noteId: string;
-  readonly deleted: boolean;
+export interface DocumentSummaryReport {
+  readonly documentId: string;
+  readonly title: string;
+  readonly category: string;
+  readonly wordCount: number;
+  readonly characterCount: number;
+  readonly summary: string;
+  readonly tags: readonly string[];
+  readonly status: string;
+  readonly analyzedAt: string;
 }
 
-export const deleteNoteTool: ToolDefinition<DeleteNoteInput, DeleteNoteOutput> = {
-  id: 'tool_delete_note',
-  name: 'delete_note',
-  description: 'Deletes a note page from the workspace. Requires confirmation.',
+export const summarizeDocumentTool: ToolDefinition<
+  SummarizeDocumentInput,
+  DocumentSummaryReport
+> = {
+  id: 'tool_summarize_document',
+  name: 'summarize_document',
+  description:
+    'Analyzes and generates a structured summary of a document stored in the knowledge base.',
   category: 'knowledge',
-  riskLevel: 'HIGH_IMPACT',
-  requiresConfirmation: true,
+  riskLevel: 'READ_ONLY',
   inputSchema: {
     type: 'object',
     properties: {
-      noteId: { type: 'string', description: 'The unique ID of the note to delete' },
+      documentId: { type: 'string', description: 'The document ID to summarize' },
+      maxLength: {
+        type: 'integer',
+        description: 'Maximum summary length in characters',
+        minimum: 50,
+        maximum: 5000,
+      },
     },
-    required: ['noteId'],
+    required: ['documentId'],
   },
-  requiredPermissions: ['knowledge:write'],
+  requiredPermissions: ['knowledge:read'],
   handler: async (
-    input: DeleteNoteInput,
-    context: ToolExecutionContext,
-  ): Promise<DeleteNoteOutput> => {
-    const userId = context.auth.userId;
-    const note = await notesRepo.findById(input.noteId, userId);
-    if (!note) {
-      throw new Error(`Note "${input.noteId}" not found.`);
+    input: SummarizeDocumentInput,
+    _context: ToolExecutionContext,
+  ): Promise<DocumentSummaryReport> => {
+    const doc = await documentsRepo.findById(input.documentId);
+    if (!doc) {
+      throw new Error(`Document "${input.documentId}" not found.`);
     }
-    const deleted = await notesRepo.delete(input.noteId, userId);
+
+    const content = doc.description || doc.title || '';
+    const words = content.trim().split(/\s+/).filter(Boolean);
+    const wordCount = words.length;
+    const characterCount = content.length;
+
+    const maxLength = input.maxLength || 500;
+    let summary = content.length <= maxLength ? content : content.substring(0, maxLength) + '...';
+    if (!summary) {
+      summary = `Document "${doc.title}" has no text body.`;
+    }
+
     return {
-      noteId: input.noteId,
-      deleted,
+      documentId: doc.id,
+      title: doc.title,
+      category: doc.category || 'General',
+      wordCount,
+      characterCount,
+      summary,
+      tags: doc.tags || [],
+      status: doc.status || 'READY',
+      analyzedAt: new Date().toISOString(),
     };
   },
-  verify: async (
-    output: DeleteNoteOutput,
-    _input: DeleteNoteInput,
-    context?: ToolExecutionContext,
-  ): Promise<ToolVerificationResult> => {
-    const userId = context?.auth.userId || '';
-    const note = await notesRepo.findById(output.noteId, userId);
-    if (note !== null) {
-      return { verified: false, error: `Note "${output.noteId}" still exists after deletion.` };
+  verify: async (output: DocumentSummaryReport): Promise<ToolVerificationResult> => {
+    const doc = await documentsRepo.findById(output.documentId);
+    if (!doc) {
+      return { verified: false, error: `Document ${output.documentId} not found in database.` };
     }
     return {
       verified: true,
-      details: `Note "${output.noteId}" verified as deleted from database.`,
+      details: `Document "${doc.title}" summary verified against database state.`,
+      verifiedObject: output,
     };
   },
 };
@@ -593,9 +554,9 @@ export const knowledgeTools = [
   addKnowledgeDocumentTool,
   deleteKnowledgeDocumentTool,
   getDocumentTool,
+  retrieveDocumentTool,
+  summarizeDocumentTool,
   listDocumentsTool,
-  createNoteTool,
-  deleteNoteTool,
 ] as const;
 
 // Auto-register tools on load
@@ -608,3 +569,4 @@ for (const tool of knowledgeTools) {
     // Already registered
   }
 }
+

@@ -150,10 +150,17 @@ export class TasksRepository {
     }
 
     if (!projectId || !isUuid.test(projectId)) {
-      // Find a project or create a fallback project
-      const firstProj = await db.project.findFirst({ where: { deletedAt: null } });
-      if (firstProj) {
-        projectId = firstProj.id;
+      // Find a project belonging to creator or creator's workspace
+      let proj = await db.project.findFirst({ where: { ownerId: creatorId, deletedAt: null } });
+      if (!proj) {
+        const wsMember = await db.workspaceMember.findFirst({ where: { userId: creatorId } });
+        if (wsMember?.workspaceId) {
+          proj = await db.project.findFirst({ where: { workspaceId: wsMember.workspaceId, deletedAt: null } });
+        }
+      }
+
+      if (proj) {
+        projectId = proj.id;
       } else {
         const ownerId = creatorId;
         let wsMember = await db.workspaceMember.findFirst({ where: { userId: ownerId } });

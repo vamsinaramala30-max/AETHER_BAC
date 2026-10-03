@@ -161,9 +161,9 @@ export function buildDefaultAIConfig(overrides?: Partial<AIConfig>): AIConfig {
       defaultTimeoutMs: Number(process.env['LOCAL_LLM_TIMEOUT']) || 120_000,
     },
     embedding: {
-      provider: (process.env['AETHER_EMBEDDING_PROVIDER'] as EmbeddingProviderType) ?? 'ollama',
-      modelId: process.env['AETHER_EMBEDDING_MODEL'] ?? 'nomic-embed-text',
-      dimensions: 768,
+      provider: (process.env['AETHER_EMBEDDING_PROVIDER'] as EmbeddingProviderType) ?? 'llamacpp',
+      modelId: process.env['AETHER_EMBEDDING_MODEL'] ?? 'bge-small-en-v1.5',
+      dimensions: Number(process.env['AETHER_EMBEDDING_DIMENSIONS']) || 384,
       batchSize: 32,
       cacheEnabled: true,
       cacheTTLMs: 3_600_000,

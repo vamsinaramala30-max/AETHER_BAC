@@ -38,8 +38,16 @@ declare global {
 export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
+    const queryToken = typeof req.query?.token === 'string' ? req.query.token.trim() : undefined;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token: string | undefined;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.split(' ')[1];
+    } else if (queryToken) {
+      token = queryToken;
+    }
+
+    if (!token) {
       res.status(401).json({
         success: false,
         error: {
@@ -50,23 +58,13 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Access denied. Missing token value.',
-        },
-      });
-      return;
-    }
-
     const decoded = jwt.verify(token, securityConfig.jwt.secret) as AuthenticatedUser;
     req.user = decoded;
 
     // Workspace membership validation (SEC-08)
-    const workspaceHeader = req.headers['x-workspace-id'];
+    const workspaceHeader =
+      req.headers['x-workspace-id'] ||
+      (typeof req.query?.workspaceId === 'string' ? req.query.workspaceId : undefined);
     if (workspaceHeader && typeof workspaceHeader === 'string') {
       if (!isValidUuid(workspaceHeader)) {
         res.status(400).json({

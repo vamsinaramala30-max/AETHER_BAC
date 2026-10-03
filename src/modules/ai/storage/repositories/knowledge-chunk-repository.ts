@@ -138,6 +138,38 @@ export class KnowledgeChunkRepository implements IKnowledgeChunkRepository {
     projectId?: string;
     documentId?: string;
   }): Promise<readonly DocumentChunk[]> {
+    if (this.useDB) {
+      try {
+        const where: any = {};
+        if (scope.documentId) {
+          where.documentId = toUuid(scope.documentId);
+        }
+        if (scope.workspaceId) {
+          where.workspaceId = toUuid(scope.workspaceId);
+        } else if (scope.userId) {
+          where.userId = toUuid(scope.userId);
+        }
+        if (scope.projectId) {
+          where.projectId = toUuid(scope.projectId);
+        }
+
+        const records = await (db as any).documentChunk.findMany({
+          where,
+          orderBy: { chunkIndex: 'asc' },
+        });
+
+        if (records && records.length > 0) {
+          const chunks = records.map((r: any) => this.recordToChunk(r));
+          for (const c of chunks) {
+            this.chunkCache.set(c.id, c);
+          }
+          return chunks;
+        }
+      } catch {
+        // Fallback to cache filtering
+      }
+    }
+
     return Array.from(this.chunkCache.values()).filter((c) => {
       if (scope.workspaceId) {
         if (c.workspaceId !== scope.workspaceId) return false;
@@ -196,6 +228,14 @@ export class KnowledgeChunkRepository implements IKnowledgeChunkRepository {
   }
 
   public async count(documentId?: string): Promise<number> {
+    if (this.useDB) {
+      try {
+        const where = documentId ? { documentId: toUuid(documentId) } : undefined;
+        return await (db as any).documentChunk.count({ where });
+      } catch {
+        // Fallback to cache count
+      }
+    }
     if (documentId) {
       return Array.from(this.chunkCache.values()).filter((c) => c.documentId === documentId).length;
     }

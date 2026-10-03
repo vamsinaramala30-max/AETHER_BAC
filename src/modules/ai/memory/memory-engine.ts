@@ -176,6 +176,28 @@ export class MemoryEngine implements IMemoryEngine {
 
     try {
       const now = Date.now();
+      const trimmedContent = request.content.trim();
+
+      // Deduplicate: check if an identical active memory already exists for this user
+      const existingMemories = await this.longTermStore.getByUser(request.userId);
+      const duplicate = existingMemories.find(
+        (m) =>
+          m.content.trim().toLowerCase() === trimmedContent.toLowerCase() &&
+          m.metadata?.status !== 'deleted' &&
+          m.metadata?.status !== 'superseded',
+      );
+      if (duplicate) {
+        const updatedImportance = Math.max(duplicate.importance, request.importance ?? 0.7);
+        const updatedItem: MemoryItem = {
+          ...duplicate,
+          importance: updatedImportance,
+          updatedAt: now,
+          version: (duplicate.version ?? 1) + 1,
+        };
+        await this.longTermStore.create(updatedItem);
+        return ok(updatedItem);
+      }
+
       const id = `mem_${now}_${Math.random().toString(36).slice(2, 8)}`;
 
       const startNow = performance.now();
@@ -191,7 +213,7 @@ export class MemoryEngine implements IMemoryEngine {
         projectId: request.projectId,
         type: request.type ?? 'fact',
         scope: request.scope ?? (request.projectId ? 'PROJECT' : request.workspaceId ? 'WORKSPACE' : 'GLOBAL_USER'),
-        content: request.content.trim(),
+        content: trimmedContent,
         importance: request.importance ?? 0.7,
         confidence: request.confidence ?? 'user_provided',
         version: 1,

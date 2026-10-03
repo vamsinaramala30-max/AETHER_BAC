@@ -238,6 +238,25 @@ export class AutomationController {
     }
   }
 
+  public async cancelExecution(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      const result = await automationService.cancelExecution(req.params.executionId, userId);
+      res.status(200).json({ success: true, ...result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getSchedulerHealth(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const health = automationService.getSchedulerHealth();
+      res.status(200).json({ success: true, data: health });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public async getTemplates(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const templates = automationService.getTemplates();

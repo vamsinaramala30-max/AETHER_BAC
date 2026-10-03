@@ -152,6 +152,29 @@ export class DocumentsService {
     return { documents: [], citations: [], totalRetrieved: 0, searchQuery: queryText, estimatedTokens: 0 };
   }
 
+  async retrieve(options: {
+    queryText: string;
+    userId: string;
+    topK?: number;
+    scoreThreshold?: number;
+    workspaceId?: string;
+    collectionIds?: readonly string[];
+    filters?: Record<string, string>;
+  }) {
+    if (!options.userId) {
+      return { ok: false, error: new Error('Unauthorized: valid user ID required') } as const;
+    }
+    return this.ragEngine.query({
+      text: options.queryText,
+      topK: options.topK ?? 5,
+      scoreThreshold: options.scoreThreshold ?? 0.1,
+      userId: options.userId,
+      workspaceId: options.workspaceId,
+      collectionIds: options.collectionIds,
+      filters: options.filters,
+    });
+  }
+
   async extractInformation(id: string, userId: string): Promise<Record<string, unknown>> {
     const doc = await this.getDocument(id, userId);
     return {

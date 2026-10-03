@@ -353,11 +353,22 @@ export const forgetMemoryTool: ToolDefinition<ForgetMemoryInput, ForgetMemoryOut
   },
 };
 
+// ─── Search Memory Tool (Authoritative Alias) ─────────────────────────────────
+
+export const searchMemoryTool: ToolDefinition<RecallMemoryInput, RecallMemoryOutput> = {
+  ...recallMemoryTool,
+  id: 'tool_search_memory',
+  name: 'search_memory',
+  description:
+    'Searches persistent user memory for stored facts, preferences, and knowledge items (authoritative alias for recall_memory).',
+};
+
 // ─── Export All Memory Tools ─────────────────────────────────────────────────
 
 export const memoryTools = [
   storeMemoryTool,
   recallMemoryTool,
+  searchMemoryTool,
   updateMemoryTool,
   forgetMemoryTool,
 ] as const;
@@ -371,3 +382,4 @@ for (const tool of memoryTools) {
     // Already registered
   }
 }
+

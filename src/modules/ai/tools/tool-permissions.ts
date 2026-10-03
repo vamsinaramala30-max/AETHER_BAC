@@ -46,6 +46,13 @@ const PERMISSION_ALIASES: Record<string, string[]> = {
   WORKSPACE_WRITE: ['workspace:write'],
   'workspace:read': ['WORKSPACE_READ'],
   'workspace:write': ['WORKSPACE_WRITE'],
+  CALENDAR_READ: ['calendar:read', 'productivity:read'],
+  CALENDAR_WRITE: ['calendar:write', 'productivity:write', 'calendar:create', 'calendar:update'],
+  'calendar:read': ['CALENDAR_READ', 'productivity:read'],
+  'calendar:write': ['CALENDAR_WRITE', 'calendar:create', 'calendar:update'],
+  'productivity:read': ['calendar:read', 'tasks:read'],
+  'productivity:write': ['calendar:write', 'notifications:write', 'tasks:write'],
+  'notifications:write': ['productivity:write'],
 };
 
 // ─── IToolPermissions Interface ──────────────────────────────────────────────

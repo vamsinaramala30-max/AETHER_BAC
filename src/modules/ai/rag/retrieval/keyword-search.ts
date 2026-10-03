@@ -6,6 +6,7 @@
 
 import type { IKeywordIndex, KeywordSearchResult, DocumentChunk } from '../rag-types.js';
 import type { ChunkId } from '../../ai-types.js';
+import { knowledgeChunkRepository } from '../../storage/repositories/knowledge-chunk-repository.js';
 
 // ─── Term Index Entry ─────────────────────────────────────────────────────────
 
@@ -75,6 +76,17 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
     },
   ): Promise<readonly KeywordSearchResult[]> {
     if (!query || query.trim().length === 0) return [];
+
+    if (this.invertedIndex.size === 0 && scope) {
+      try {
+        const persisted = await knowledgeChunkRepository.findByScope(scope);
+        if (persisted.length > 0) {
+          await this.index(persisted);
+        }
+      } catch {
+        // Fallback
+      }
+    }
 
     const queryTerms = this.tokenize(query);
     if (queryTerms.length === 0) return [];
@@ -174,13 +186,17 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
     await this.delete(toDelete);
   }
 
+  private static readonly STOP_WORDS = new Set([
+    'and', 'the', 'of', 'to', 'a', 'in', 'is', 'it', 'you', 'that', 'he', 'was', 'for', 'on', 'are', 'as', 'with', 'his', 'they', 'i', 'at', 'be', 'this', 'have', 'from', 'or', 'one', 'had', 'by', 'word', 'but', 'not', 'what', 'all', 'were', 'we', 'when', 'your', 'can', 'said', 'there', 'use', 'an', 'each', 'which', 'she', 'do', 'how', 'their', 'if', 'will', 'up', 'other', 'about', 'out', 'many', 'then', 'them', 'these', 'so', 'some', 'her', 'would', 'make', 'like', 'him', 'into', 'time', 'has', 'look', 'two', 'more', 'write', 'go', 'see', 'number', 'no', 'way', 'could', 'people', 'my', 'than', 'first', 'been', 'call', 'who', 'its', 'now', 'find'
+  ]);
+
   private tokenize(text: string): string[] {
     if (!text || typeof text !== 'string') return [];
     return text
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
-      .filter((t) => t.length > 1);
+      .filter((t) => t.length > 1 && !InMemoryKeywordIndex.STOP_WORDS.has(t));
   }
 
   private computeTermFrequency(terms: string[]): Map<string, number> {
@@ -197,4 +213,12 @@ export class InMemoryKeywordIndex implements IKeywordIndex {
     for (const len of this.docLengths.values()) total += len;
     return total / this.docLengths.size;
   }
+
+  public async clear(): Promise<void> {
+    this.invertedIndex.clear();
+    this.docLengths.clear();
+    this.chunkDocs.clear();
+    this.chunkCollections.clear();
+  }
 }
+

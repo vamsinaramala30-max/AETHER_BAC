@@ -10,6 +10,15 @@ export type AutomationStatus =
   | 'CANCELLED'
   | 'NEEDS_APPROVAL';
 
+export type AutomationTriggerType =
+  | 'ONE_TIME'
+  | 'RECURRING'
+  | 'WEEKLY'
+  | 'INTERVAL'
+  | 'CRON'
+  | 'MANUAL'
+  | 'EVENT';
+
 export type TriggerType =
   | 'SCHEDULE'
   | 'CRON_SCHEDULE'
@@ -28,7 +37,67 @@ export type TriggerType =
   | 'AGENT_EVENT'
   | 'NOTIFICATION_EVENT'
   | 'MANUAL'
-  | 'MANUAL_TRIGGER';
+  | 'MANUAL_TRIGGER'
+  | AutomationTriggerType;
+
+export type ConcurrencyPolicy = 'ALLOW' | 'SKIP_IF_RUNNING' | 'QUEUE' | 'REPLACE';
+
+export type MissedExecutionPolicy =
+  | 'RUN_ONCE_IMMEDIATELY'
+  | 'CATCH_UP'
+  | 'SKIP'
+  | 'MARK_MISSED';
+
+export interface AutomationSafetyPolicy {
+  allowedTools?: string[];
+  maxToolCalls?: number;
+  executionTimeoutMs?: number;
+  approvalRequirements?: string[];
+}
+
+export interface AutomationRetryPolicy {
+  maxRetries?: number;
+  initialDelayMs?: number;
+  maxDelayMs?: number;
+  backoffFactor?: number;
+  nonRetryableErrors?: string[];
+}
+
+export interface CircuitBreakerState {
+  consecutiveFailures: number;
+  failureThreshold: number;
+  isBroken: boolean;
+  autoPaused?: boolean;
+  lastFailureAt?: string;
+  autoPausedAt?: string;
+}
+
+export interface ExecutionSnapshot {
+  automationId: string;
+  version: number;
+  name: string;
+  actions: ActionConfig[];
+  safetyPolicy?: AutomationSafetyPolicy;
+  workspaceId: string;
+  userId?: string;
+  scheduledOccurrence?: string;
+  capturedAt: string;
+}
+
+export interface SchedulerHealthStatus {
+  isRunning: boolean;
+  workerId: string;
+  pollIntervalMs?: number;
+  lastPollAt: string;
+  activeExecutionsCount: number;
+  activeExecutions?: number;
+  totalExecutedCount: number;
+  totalExecuted?: number;
+  totalFailedCount: number;
+  totalFailed?: number;
+  queueDepth: number;
+  uptimeSeconds: number;
+}
 
 export type ConditionOperator =
   | 'equals'
@@ -55,7 +124,9 @@ export interface CompoundCondition {
 }
 
 export type ConditionConfig =
-  SingleCondition | CompoundCondition | Array<SingleCondition | CompoundCondition>;
+  | SingleCondition
+  | CompoundCondition
+  | Array<SingleCondition | CompoundCondition>;
 
 export type ActionType =
   | 'AI_ASK'
@@ -85,13 +156,20 @@ export type ActionType =
   | 'FILE_RENAME'
   | 'NOTIFICATION_CREATE'
   | 'NOTIFICATION_REMINDER'
-  | 'AGENT_RUN';
+  | 'AGENT_RUN'
+  | 'CREATE_TASK'
+  | 'UPDATE_TASK'
+  | 'COMPLETE_TASK'
+  | 'ANALYZE_PROJECT'
+  | 'SUMMARIZE_DOCUMENT'
+  | 'SEARCH_MEMORY'
+  | string;
 
 export type ActionExecutionMode = 'AUTOMATIC' | 'APPROVAL_REQUIRED' | 'MANUAL';
 
 export interface ActionConfig {
   id?: string;
-  type: ActionType | string;
+  type: ActionType;
   params?: Record<string, unknown>;
   mode?: ActionExecutionMode;
   timeoutMs?: number;
@@ -99,10 +177,29 @@ export interface ActionConfig {
 }
 
 export interface TriggerConfig {
-  type: TriggerType | string;
+  type: TriggerType;
   params?: Record<string, unknown>;
-  schedule?: string; // Cron syntax or ISO timestamp
+  schedule?: string; // Cron syntax, ISO timestamp, or interval
+  timezone?: string; // Explicit timezone e.g. 'UTC', 'Asia/Kolkata', 'America/New_York'
+  triggerType?: AutomationTriggerType;
+  interval?: string; // e.g. '6h', '30m'
+  dayOfWeek?: number[]; // e.g. [1] for Monday
+  time?: string; // e.g. '08:00'
+}
+
+export interface AutomationMetadata {
   timezone?: string;
+  triggerType?: AutomationTriggerType;
+  concurrencyPolicy?: ConcurrencyPolicy;
+  missedExecutionPolicy?: MissedExecutionPolicy;
+  safetyPolicy?: AutomationSafetyPolicy;
+  retryPolicy?: AutomationRetryPolicy;
+  circuitBreaker?: CircuitBreakerState;
+  version?: number;
+  nextRunAt?: string | null;
+  lockedUntil?: string | null;
+  lockedBy?: string | null;
+  [key: string]: unknown;
 }
 
 export interface AutomationDTO {
@@ -116,8 +213,16 @@ export interface AutomationDTO {
   conditions?: ConditionConfig | null;
   actions?: ActionConfig[] | Record<string, unknown> | null;
   schedule?: string | null;
+  timezone?: string;
+  nextRunAt?: Date | string | null;
   isEnabled: boolean;
   status: PrismaAutomationStatus | AutomationStatus;
+  version?: number;
+  concurrencyPolicy?: ConcurrencyPolicy;
+  missedExecutionPolicy?: MissedExecutionPolicy;
+  safetyPolicy?: AutomationSafetyPolicy;
+  retryPolicy?: AutomationRetryPolicy;
+  circuitBreaker?: CircuitBreakerState;
   lastRunAt?: Date | null;
   runCount: number;
   createdAt: Date;
@@ -132,10 +237,17 @@ export interface CreateAutomationInput {
   description?: string;
   trigger: string;
   triggerConfig?: TriggerConfig;
-  conditions?: ConditionConfig;
-  actions: ActionConfig[] | Record<string, unknown>;
+  conditions?: ConditionConfig | Record<string, unknown>;
+  actions: ActionConfig[] | Record<string, unknown> | Array<Record<string, unknown>>;
   schedule?: string;
+  timezone?: string;
+  triggerType?: AutomationTriggerType;
+  concurrencyPolicy?: ConcurrencyPolicy;
+  missedExecutionPolicy?: MissedExecutionPolicy;
+  safetyPolicy?: AutomationSafetyPolicy;
+  retryPolicy?: AutomationRetryPolicy;
   isEnabled?: boolean;
+  status?: PrismaAutomationStatus;
 }
 
 export interface UpdateAutomationInput {
@@ -146,6 +258,12 @@ export interface UpdateAutomationInput {
   conditions?: ConditionConfig | null;
   actions?: ActionConfig[] | Record<string, unknown> | null;
   schedule?: string | null;
+  timezone?: string;
+  triggerType?: AutomationTriggerType;
+  concurrencyPolicy?: ConcurrencyPolicy;
+  missedExecutionPolicy?: MissedExecutionPolicy;
+  safetyPolicy?: AutomationSafetyPolicy;
+  retryPolicy?: AutomationRetryPolicy;
   isEnabled?: boolean;
   status?: PrismaAutomationStatus | AutomationStatus;
 }
