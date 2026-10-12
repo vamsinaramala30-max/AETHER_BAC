@@ -41,9 +41,10 @@ export class FocusController {
 
   async handleComplete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const userId = (req as any).user?.id || '';
       const targetId = req.params.sessionId || req.params.id;
       const durationSeconds = req.body.durationSeconds || req.body.actualDurationSeconds || 0;
-      const session = await this.focusService.completeSession(targetId, durationSeconds);
+      const session = await this.focusService.completeSession(targetId, durationSeconds, userId);
       res.status(200).json({ success: true, data: session });
     } catch (err) {
       next(err);

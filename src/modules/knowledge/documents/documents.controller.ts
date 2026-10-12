@@ -32,4 +32,9 @@ export class DocumentsController {
   async extractInfo(req: { params: { id: string }; user: { id: string } }) {
     return this.documentsService.extractInformation(req.params.id, req.user.id);
   }
+
+  async reindex(req: { params: { id: string }; user: { id: string } }) {
+    return this.documentsService.reindexDocument(req.params.id, req.user.id);
+  }
 }
+

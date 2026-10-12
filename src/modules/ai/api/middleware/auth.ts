@@ -64,7 +64,7 @@ export class DefaultAuthProvider implements IAuthProvider {
 
     // 2. In test mode only, allow explicit test identity if provided
     if (process.env.NODE_ENV === 'test') {
-      const userId = headers['x-user-id'] || this.extractUserFromToken(headers.authorization);
+      const userId = headers['x-user-id'];
       if (userId) {
         const sessionId = headers['x-session-id'] || `sess_${userId}_default`;
         const roles = headers['x-user-roles']
@@ -86,17 +86,6 @@ export class DefaultAuthProvider implements IAuthProvider {
     }
 
     throw new Error('UNAUTHORIZED: Valid authentication credentials required.');
-  }
-
-  private extractUserFromToken(token?: string): string | undefined {
-    if (!token) return undefined;
-    if (token.startsWith('Bearer ')) {
-      const payload = token.substring(7).trim();
-      if (payload.length > 0 && !payload.includes('fake')) {
-        return `user_${payload.substring(0, 12)}`;
-      }
-    }
-    return undefined;
   }
 }
 

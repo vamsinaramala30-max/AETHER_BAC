@@ -133,35 +133,14 @@ export class GoalsRepository {
       workspaceId?: string;
     },
   ): Promise<GoalEntity> {
-    let userId = goal.userId;
-    if (userId && IS_UUID_REGEX.test(userId)) {
-      const userExists = await db.user.findUnique({ where: { id: userId } });
-      if (!userExists) {
-        try {
-          await db.user.create({
-            data: {
-              id: userId,
-              email: `user-${userId.substring(0, 8)}@aether.local`,
-              fullName: 'Goal User',
-            },
-          });
-        } catch {
-          // ignore
-        }
-      }
-    } else {
-      const firstUser = await db.user.findFirst();
-      userId = firstUser?.id;
+    const userId = goal.userId;
+    if (!userId || !IS_UUID_REGEX.test(userId)) {
+      throw new Error('Valid userId UUID is required to persist goal');
     }
 
-    if (!userId) {
-      const newUser = await db.user.create({
-        data: {
-          email: `user-${Date.now()}@aether.local`,
-          fullName: 'AETHER User',
-        },
-      });
-      userId = newUser.id;
+    const userExists = await db.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      throw new Error(`User ${userId} not found`);
     }
 
     let workspaceId = goal.workspaceId;
@@ -169,25 +148,12 @@ export class GoalsRepository {
       const membership = await db.workspaceMember.findFirst({ where: { userId } });
       workspaceId = membership?.workspaceId;
     }
-    if (!workspaceId) {
-      const firstWorkspace = await db.workspace.findFirst();
-      workspaceId = firstWorkspace?.id;
+    if (!workspaceId || !IS_UUID_REGEX.test(workspaceId)) {
+      throw new Error('User has no workspace to associate goal with');
     }
-    if (!workspaceId) {
-      const newWs = await db.workspace.create({
-        data: {
-          name: 'Personal Workspace',
-          slug: `workspace-${Date.now()}`,
-        },
-      });
-      workspaceId = newWs.id;
-      await db.workspaceMember.create({
-        data: {
-          workspaceId,
-          userId,
-          role: 'OWNER',
-        },
-      });
+    const wsExists = await db.workspace.findUnique({ where: { id: workspaceId } });
+    if (!wsExists) {
+      throw new Error(`Workspace ${workspaceId} not found`);
     }
 
     const targetProjectId =

@@ -133,27 +133,17 @@ export class ActionAuditLogger implements IActionAuditLogger {
 
     // 4. Persist to PostgreSQL database asynchronously
     try {
-      const validUserId = UUID_REGEX.test(entry.userId) ? entry.userId : null;
-      if (validUserId) {
-        const userExists = await db.user.findUnique({ where: { id: validUserId } });
-        if (!userExists) {
-          try {
-            await db.user.create({
-              data: {
-                id: validUserId,
-                email: `user-${validUserId.substring(0, 8)}@aether.local`,
-                fullName: 'Aether User',
-              },
-            });
-          } catch {
-            // Ignore concurrent creation
-          }
+      let auditUserId: string | null = null;
+      if (UUID_REGEX.test(entry.userId)) {
+        const userExists = await db.user.findUnique({ where: { id: entry.userId } });
+        if (userExists) {
+          auditUserId = userExists.id;
         }
       }
 
       await db.auditLog.create({
         data: {
-          userId: validUserId,
+          userId: auditUserId,
           action: 'TOOL_EXECUTION',
           resource: entry.toolName,
           payload: {

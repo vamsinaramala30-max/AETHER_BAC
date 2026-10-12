@@ -54,6 +54,11 @@ export class PromptBuilder implements IPromptBuilder {
 
       let systemContent = systemText;
 
+      // ─── Live Active Productivity State (P1C) ────────────────────────
+      if (context.productivityContext && context.productivityContext.summaryText) {
+        systemContent += `\n\n[AUTHORITATIVE CURRENT AETHER STATE]\n${context.productivityContext.summaryText}\n(Instructions: Base your response on this authoritative application state. If no matching items exist in this state, say "No matching data found." Do not fabricate data.)`;
+      }
+
       // ─── Long-Term Memory Context ────────────────────────────────────
 
       if (includeMemory && context.longTermMemory && context.longTermMemory.length > 0) {

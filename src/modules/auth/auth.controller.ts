@@ -99,10 +99,9 @@ export class AuthController {
   public async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const refreshToken = req.body?.refreshToken;
+      const userId = (req.user as any)?.id;
 
-      if (refreshToken) {
-        await authService.logout(refreshToken);
-      }
+      await authService.logout(refreshToken, userId);
 
       res.status(200).json({
         success: true,

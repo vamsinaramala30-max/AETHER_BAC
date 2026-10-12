@@ -1,23 +1,22 @@
 import { Request, Response, NextFunction } from 'express';
-import { SyncService } from './sync.service';
+import { SyncService, SyncProvider } from './sync.service';
+import { AppError } from '../../../../middleware/error.middleware';
 
-export enum SyncProvider {
-  GOOGLE = 'GOOGLE',
-  OUTLOOK = 'OUTLOOK',
-  APPLE = 'APPLE',
-}
+export { SyncProvider };
 
 export class SyncController {
   constructor(private syncService: SyncService) {}
 
   async syncGoogle(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = (req as any).user.id;
+      const userId = (req as any).user?.id;
+      if (!userId) throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
       const { calendarId } = req.body;
       const result = await this.syncService.triggerSync(
         userId,
         calendarId,
-        SyncProvider.GOOGLE as any,
+        SyncProvider.GOOGLE,
+        (req as any).user?.workspaceId,
       );
       res.status(200).json({ data: result });
     } catch (err) {
@@ -27,12 +26,14 @@ export class SyncController {
 
   async syncOutlook(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = (req as any).user.id;
+      const userId = (req as any).user?.id;
+      if (!userId) throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
       const { calendarId } = req.body;
       const result = await this.syncService.triggerSync(
         userId,
         calendarId,
-        SyncProvider.OUTLOOK as any,
+        SyncProvider.OUTLOOK,
+        (req as any).user?.workspaceId,
       );
       res.status(200).json({ data: result });
     } catch (err) {
@@ -42,12 +43,14 @@ export class SyncController {
 
   async syncApple(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const userId = (req as any).user.id;
+      const userId = (req as any).user?.id;
+      if (!userId) throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
       const { calendarId } = req.body;
       const result = await this.syncService.triggerSync(
         userId,
         calendarId,
-        SyncProvider.APPLE as any,
+        SyncProvider.APPLE,
+        (req as any).user?.workspaceId,
       );
       res.status(200).json({ data: result });
     } catch (err) {
@@ -55,3 +58,4 @@ export class SyncController {
     }
   }
 }
+

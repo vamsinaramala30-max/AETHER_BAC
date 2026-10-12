@@ -6,7 +6,8 @@ import { logger, env } from '../../config';
 import { db } from '../../database/client';
 import { AppError } from '../../middleware/error.middleware';
 import { StorageService } from '../../storage/StorageService';
-import { documentParser } from '../ai/rag/ingestion/document-parser';
+import { documentParser, parseZipEntries } from '../ai/rag/ingestion/document-parser';
+import { detectFileType, isBlockedExecutable } from '../../utils/fileTypeDetector';
 
 const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
 const VERSIONS_DIR = path.join(UPLOAD_DIR, 'versions');
@@ -59,6 +60,41 @@ const isValidUuid = (id: string): boolean => {
   return uuidRegex.test(id);
 };
 
+function toSafeIsoString(val: any): string {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') return val;
+  if (typeof val.toISOString === 'function') return val.toISOString();
+  try {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  } catch {
+    return new Date().toISOString();
+  }
+}
+
+function parseTrashMarker(desc: string | null | undefined): { trashedAt: string | null; originalFolderId: string | null } {
+  if (!desc || !desc.startsWith('__TRASH__')) {
+    return { trashedAt: null, originalFolderId: null };
+  }
+  if (desc.includes('::')) {
+    const parts = desc.split('::');
+    return {
+      trashedAt: parts[1] || null,
+      originalFolderId: parts[2] && parts[2] !== 'root' ? parts[2] : null,
+    };
+  }
+  const parts = desc.split(':');
+  if (parts.length >= 3) {
+    const folder = parts[parts.length - 1];
+    const timestamp = parts.slice(1, parts.length - 1).join(':');
+    return {
+      trashedAt: timestamp,
+      originalFolderId: folder !== 'root' ? folder : null,
+    };
+  }
+  return { trashedAt: parts[1] || null, originalFolderId: null };
+}
+
 export class UploadService {
   private storageService: StorageService;
 
@@ -66,11 +102,119 @@ export class UploadService {
     this.storageService = new StorageService();
   }
 
+  public async getUserStorageUsage(userId: string) {
+    if (!userId || !isValidUuid(userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+
+    const quotaEnv = process.env.STORAGE_QUOTA_BYTES;
+    const quotaBytes =
+      quotaEnv && !isNaN(parseInt(quotaEnv, 10))
+        ? parseInt(quotaEnv, 10)
+        : 128 * 1024 * 1024 * 1024; // 128 GB default target
+
+    let userFiles: Array<{ id: string; size: number; description: string | null; isTrash?: boolean }> = [];
+    try {
+      if (db && db.file && typeof db.file.findMany === 'function') {
+        userFiles = await db.file.findMany({
+          where: {
+            userId,
+          },
+          select: {
+            id: true,
+            size: true,
+            description: true,
+            isTrash: true,
+          },
+        });
+      }
+    } catch (err) {
+      logger.warn('Failed querying user files for storage calculation:', err);
+      userFiles = [];
+    }
+
+    let activeBytes = 0;
+    let trashBytes = 0;
+
+    for (const f of userFiles) {
+      if (f.isTrash || (f.description && f.description.startsWith('__TRASH__'))) {
+        trashBytes += f.size;
+      } else {
+        activeBytes += f.size;
+      }
+    }
+
+    const usedBytes = activeBytes + trashBytes;
+    const availableBytes = Math.max(0, quotaBytes - usedBytes);
+    const usagePercentage =
+      quotaBytes > 0 ? parseFloat(((usedBytes / quotaBytes) * 100).toFixed(2)) : 0;
+
+    return {
+      quotaBytes,
+      quotaBytesStr: formatBytes(quotaBytes),
+      usedBytes,
+      usedBytesStr: formatBytes(usedBytes),
+      activeBytes,
+      activeBytesStr: formatBytes(activeBytes),
+      trashBytes,
+      trashBytesStr: formatBytes(trashBytes),
+      availableBytes,
+      availableBytesStr: formatBytes(availableBytes),
+      usagePercentage,
+    };
+  }
+
+  public async resolveUniqueFilename(
+    userId: string,
+    folderId: string | null,
+    originalName: string,
+  ): Promise<string> {
+    const ext = path.extname(originalName);
+    const stem = path.basename(originalName, ext);
+
+    let existingFiles: Array<{ filename: string }> = [];
+    try {
+      if (db && db.file && typeof db.file.findMany === 'function') {
+        existingFiles = await db.file.findMany({
+          where: {
+            userId,
+            folderId: folderId || null,
+            isTrash: false,
+            OR: [
+              { description: null },
+              { NOT: { description: { startsWith: '__TRASH__' } } },
+            ],
+            filename: {
+              startsWith: stem,
+            },
+          },
+          select: { filename: true },
+        });
+      }
+    } catch {
+      existingFiles = [];
+    }
+
+    const existingNames = new Set(existingFiles.map((f) => f.filename.toLowerCase()));
+    if (!existingNames.has(originalName.toLowerCase())) {
+      return originalName;
+    }
+
+    let counter = 1;
+    let candidate = `${stem} (${counter})${ext}`;
+    while (existingNames.has(candidate.toLowerCase())) {
+      counter++;
+      candidate = `${stem} (${counter})${ext}`;
+    }
+    return candidate;
+  }
+
   public async handleSingleUpload(
     file: Express.Multer.File,
     userId?: string,
     workspaceId?: string | null,
     projectId?: string | null,
+    folderId?: string | null,
   ): Promise<any> {
     logger.info(`Processing file upload: ${file.originalname}`);
 
@@ -129,15 +273,43 @@ export class UploadService {
       }
     }
 
+    const cleanFolderId =
+      folderId && typeof folderId === 'string' && folderId.trim() !== '' && folderId.trim() !== 'root'
+        ? folderId.trim()
+        : null;
+    if (cleanFolderId && !isValidUuid(cleanFolderId)) {
+      throw new AppError('Invalid folder ID format', 400, 'INVALID_FOLDER_ID');
+    }
+
     // Sanitize filename and prevent directory traversal
     const rawName = file.originalname || 'upload';
-    const sanitizedOriginal = path.basename(rawName).replace(/[\0\r\n\t]/g, '').trim();
-    if (!sanitizedOriginal || sanitizedOriginal === '.' || sanitizedOriginal === '..' || sanitizedOriginal.includes('/') || sanitizedOriginal.includes('\\')) {
+    const sanitizedOriginal = path.basename(rawName).replace(/[\0\r\n\t]/g, '').trim() || 'upload';
+    if (sanitizedOriginal === '.' || sanitizedOriginal === '..' || sanitizedOriginal.includes('/') || sanitizedOriginal.includes('\\')) {
       throw new AppError('Invalid filename or path traversal detected', 400, 'INVALID_FILENAME');
     }
 
-    const rawExt = path.extname(sanitizedOriginal).toLowerCase();
-    const safeExt = rawExt.replace(/[^a-z0-9.]/gi, '');
+    // Security: Block dangerous executable binaries
+    if (isBlockedExecutable(sanitizedOriginal)) {
+      throw new AppError(`File extension '${path.extname(sanitizedOriginal)}' is prohibited for security reasons.`, 400, 'SECURITY_VIOLATION');
+    }
+
+    // Storage Quota Enforcement (128 GB default target, configurable via STORAGE_QUOTA_BYTES)
+    const storageUsage = await this.getUserStorageUsage(userId);
+    if (storageUsage.usedBytes + file.size > storageUsage.quotaBytes) {
+      throw new AppError(
+        `Not enough storage. You have ${formatBytes(storageUsage.availableBytes)} available, but file requires ${formatBytes(file.size)}.`,
+        400,
+        'STORAGE_QUOTA_EXCEEDED',
+      );
+    }
+
+    const uniqueFilename = await this.resolveUniqueFilename(userId, cleanFolderId, sanitizedOriginal);
+
+    // Server-side type detection: Never blindly trust client mimeType/extension
+    const fileBuf = file.buffer || (file.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null);
+    const detected = detectFileType(fileBuf, sanitizedOriginal, file.mimetype);
+
+    const safeExt = detected.extension || (path.extname(sanitizedOriginal) ? path.extname(sanitizedOriginal).replace(/[^a-z0-9.]/gi, '').toLowerCase() : '');
     const fileNameOnDisk = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${safeExt}`;
     const storagePath = path.resolve(UPLOAD_DIR, fileNameOnDisk);
 
@@ -163,10 +335,11 @@ export class UploadService {
           file.buffer ||
           (file.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null);
         if (buffer) {
+          const cloudKey = `${userId}/${cleanWorkspaceId || 'global'}/${fileNameOnDisk}`;
           await this.storageService.upload(
             buffer,
-            fileNameOnDisk,
-            file.mimetype || 'application/octet-stream',
+            cloudKey,
+            detected.mimeType,
           );
         }
       }
@@ -177,17 +350,30 @@ export class UploadService {
     try {
       const savedFile = await db.file.create({
         data: {
-          filename: sanitizedOriginal,
-          mimeType: file.mimetype || 'application/octet-stream',
+          filename: uniqueFilename,
+          mimeType: detected.mimeType,
           size: file.size,
           storagePath: fileNameOnDisk,
           status: FileStatus.READY,
           userId,
           workspaceId: cleanWorkspaceId,
           projectId: cleanProjectId,
+          folderId: cleanFolderId,
         },
       });
-      return savedFile;
+      return {
+        ...savedFile,
+        originalName: sanitizedOriginal,
+        detectedMimeType: detected.detectedMimeType,
+        extension: detected.extension,
+        category: detected.category,
+        previewType: detected.previewType,
+        previewAvailable: detected.previewAvailable,
+        sizeStr: formatBytes(savedFile.size),
+        createdAt: toSafeIsoString(savedFile.createdAt),
+        uploadedAt: toSafeIsoString(savedFile.createdAt),
+        updatedAt: toSafeIsoString(savedFile.updatedAt),
+      };
     } catch (dbErr) {
       logger.error('Failed to create file record in DB:', dbErr);
       if (fs.existsSync(storagePath)) {
@@ -204,6 +390,7 @@ export class UploadService {
     userId?: string,
     workspaceId?: string | null,
     projectId?: string | null,
+    folderId?: string | null,
   ) {
     const cleanWorkspaceId =
       workspaceId && typeof workspaceId === 'string' && workspaceId.trim() !== ''
@@ -214,7 +401,7 @@ export class UploadService {
         ? projectId.trim()
         : null;
     return Promise.all(
-      files.map((file) => this.handleSingleUpload(file, userId, cleanWorkspaceId, cleanProjectId)),
+      files.map((file) => this.handleSingleUpload(file, userId, cleanWorkspaceId, cleanProjectId, folderId)),
     );
   }
 
@@ -225,6 +412,11 @@ export class UploadService {
     userId?: string;
     workspaceId?: string;
     projectId?: string;
+    hasProject?: boolean;
+    folderId?: string | null;
+    category?: string;
+    favoriteOnly?: boolean;
+    includeTrash?: boolean;
   }) {
     const page = Math.max(1, query.page || 1);
     const limit = Math.max(1, query.limit || 20);
@@ -242,28 +434,164 @@ export class UploadService {
       where.filename = { contains: query.search, mode: 'insensitive' };
     }
 
+    // Trash handling
+    if (query.includeTrash) {
+      where.OR = [
+        { isTrash: true },
+        { description: { startsWith: '__TRASH__' } },
+      ];
+    } else {
+      where.AND = [
+        { isTrash: false },
+        {
+          OR: [
+            { description: null },
+            { NOT: { description: { startsWith: '__TRASH__' } } },
+          ],
+        },
+      ];
+    }
+
+    // Folder filtering
+    if (query.folderId !== undefined) {
+      if (query.folderId === 'root' || query.folderId === null) {
+        where.folderId = null;
+      } else if (query.folderId && isValidUuid(query.folderId)) {
+        where.folderId = query.folderId;
+      }
+    }
+
+    // Category filtering
+    if (query.category && query.category !== 'All Files' && query.category !== 'All') {
+      const cat = query.category.toLowerCase();
+      if (cat === 'images' || cat === 'image') {
+        where.OR = [
+          { mimeType: { startsWith: 'image/' } },
+          { filename: { endsWith: '.png', mode: 'insensitive' } },
+          { filename: { endsWith: '.jpg', mode: 'insensitive' } },
+          { filename: { endsWith: '.jpeg', mode: 'insensitive' } },
+          { filename: { endsWith: '.webp', mode: 'insensitive' } },
+          { filename: { endsWith: '.svg', mode: 'insensitive' } },
+          { filename: { endsWith: '.gif', mode: 'insensitive' } },
+          { filename: { endsWith: '.bmp', mode: 'insensitive' } },
+          { filename: { endsWith: '.ico', mode: 'insensitive' } },
+          { filename: { endsWith: '.tiff', mode: 'insensitive' } },
+          { filename: { endsWith: '.avif', mode: 'insensitive' } },
+        ];
+      } else if (cat === 'pdfs' || cat === 'pdf') {
+        where.OR = [
+          { mimeType: 'application/pdf' },
+          { filename: { endsWith: '.pdf', mode: 'insensitive' } },
+        ];
+      } else if (cat === 'spreadsheets' || cat === 'spreadsheet' || cat === 'data') {
+        where.OR = [
+          { mimeType: { in: ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv', 'text/tab-separated-values'] } },
+          { filename: { endsWith: '.xlsx', mode: 'insensitive' } },
+          { filename: { endsWith: '.xls', mode: 'insensitive' } },
+          { filename: { endsWith: '.csv', mode: 'insensitive' } },
+          { filename: { endsWith: '.tsv', mode: 'insensitive' } },
+          { filename: { endsWith: '.ods', mode: 'insensitive' } },
+        ];
+      } else if (cat === 'presentations' || cat === 'presentation') {
+        where.OR = [
+          { mimeType: { in: ['application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.oasis.opendocument.presentation'] } },
+          { filename: { endsWith: '.pptx', mode: 'insensitive' } },
+          { filename: { endsWith: '.ppt', mode: 'insensitive' } },
+          { filename: { endsWith: '.odp', mode: 'insensitive' } },
+        ];
+      } else if (cat === 'documents' || cat === 'document') {
+        where.OR = [
+          { mimeType: { in: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/markdown', 'application/rtf', 'application/vnd.oasis.opendocument.text'] } },
+          { filename: { endsWith: '.docx', mode: 'insensitive' } },
+          { filename: { endsWith: '.doc', mode: 'insensitive' } },
+          { filename: { endsWith: '.txt', mode: 'insensitive' } },
+          { filename: { endsWith: '.md', mode: 'insensitive' } },
+          { filename: { endsWith: '.rtf', mode: 'insensitive' } },
+          { filename: { endsWith: '.odt', mode: 'insensitive' } },
+        ];
+      } else if (cat === 'code') {
+        where.OR = [
+          { mimeType: { in: ['application/json', 'application/javascript', 'application/typescript', 'text/javascript', 'text/typescript', 'text/x-python', 'text/x-golang', 'text/rust', 'text/html', 'text/css', 'application/sql', 'application/x-yaml', 'application/xml', 'text/xml'] } },
+          { filename: { endsWith: '.js', mode: 'insensitive' } },
+          { filename: { endsWith: '.ts', mode: 'insensitive' } },
+          { filename: { endsWith: '.tsx', mode: 'insensitive' } },
+          { filename: { endsWith: '.jsx', mode: 'insensitive' } },
+          { filename: { endsWith: '.py', mode: 'insensitive' } },
+          { filename: { endsWith: '.java', mode: 'insensitive' } },
+          { filename: { endsWith: '.c', mode: 'insensitive' } },
+          { filename: { endsWith: '.cpp', mode: 'insensitive' } },
+          { filename: { endsWith: '.cs', mode: 'insensitive' } },
+          { filename: { endsWith: '.go', mode: 'insensitive' } },
+          { filename: { endsWith: '.rs', mode: 'insensitive' } },
+          { filename: { endsWith: '.php', mode: 'insensitive' } },
+          { filename: { endsWith: '.html', mode: 'insensitive' } },
+          { filename: { endsWith: '.css', mode: 'insensitive' } },
+          { filename: { endsWith: '.json', mode: 'insensitive' } },
+          { filename: { endsWith: '.sql', mode: 'insensitive' } },
+          { filename: { endsWith: '.yaml', mode: 'insensitive' } },
+          { filename: { endsWith: '.yml', mode: 'insensitive' } },
+          { filename: { endsWith: '.sh', mode: 'insensitive' } },
+        ];
+      } else if (cat === 'videos' || cat === 'video') {
+        where.OR = [
+          { mimeType: { startsWith: 'video/' } },
+          { filename: { endsWith: '.mp4', mode: 'insensitive' } },
+          { filename: { endsWith: '.webm', mode: 'insensitive' } },
+          { filename: { endsWith: '.mov', mode: 'insensitive' } },
+          { filename: { endsWith: '.avi', mode: 'insensitive' } },
+          { filename: { endsWith: '.mkv', mode: 'insensitive' } },
+        ];
+      } else if (cat === 'audio' || cat === 'music') {
+        where.OR = [
+          { mimeType: { startsWith: 'audio/' } },
+          { filename: { endsWith: '.mp3', mode: 'insensitive' } },
+          { filename: { endsWith: '.wav', mode: 'insensitive' } },
+          { filename: { endsWith: '.ogg', mode: 'insensitive' } },
+          { filename: { endsWith: '.m4a', mode: 'insensitive' } },
+          { filename: { endsWith: '.flac', mode: 'insensitive' } },
+          { filename: { endsWith: '.aac', mode: 'insensitive' } },
+        ];
+      } else if (cat === 'zips' || cat === 'archives' || cat === 'archive') {
+        where.OR = [
+          { mimeType: { in: ['application/zip', 'application/x-zip-compressed', 'application/x-tar', 'application/gzip', 'application/x-7z-compressed', 'application/vnd.rar'] } },
+          { filename: { endsWith: '.zip', mode: 'insensitive' } },
+          { filename: { endsWith: '.tar', mode: 'insensitive' } },
+          { filename: { endsWith: '.gz', mode: 'insensitive' } },
+          { filename: { endsWith: '.7z', mode: 'insensitive' } },
+          { filename: { endsWith: '.rar', mode: 'insensitive' } },
+        ];
+      }
+    }
+
     if (query.projectId) {
-      if (!isValidUuid(query.projectId)) {
-        throw new AppError('Invalid project ID format', 400, 'INVALID_PROJECT_ID');
+      if (query.projectId === 'all') {
+        // Defensive support: 'all' filters files associated with any project
+        where.projectId = { not: null };
+      } else {
+        if (!isValidUuid(query.projectId)) {
+          throw new AppError('Invalid project ID format', 400, 'INVALID_PROJECT_ID');
+        }
+        const project = await db.project.findUnique({
+          where: { id: query.projectId },
+        });
+        if (!project) {
+          throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+        }
+        const isProjectOwner = project.ownerId === query.userId;
+        const isProjectWsMember = await db.workspaceMember.findFirst({
+          where: { workspaceId: project.workspaceId, userId: query.userId },
+        });
+        if (!isProjectOwner && !isProjectWsMember) {
+          throw new AppError('Forbidden: you do not have access to this project', 403, 'FORBIDDEN');
+        }
+        if (query.workspaceId && project.workspaceId !== query.workspaceId) {
+          throw new AppError('Project does not belong to specified workspace', 400, 'PROJECT_WORKSPACE_MISMATCH');
+        }
+        where.projectId = query.projectId;
+        where.workspaceId = project.workspaceId;
       }
-      const project = await db.project.findUnique({
-        where: { id: query.projectId },
-      });
-      if (!project) {
-        throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
-      }
-      const isProjectOwner = project.ownerId === query.userId;
-      const isProjectWsMember = await db.workspaceMember.findFirst({
-        where: { workspaceId: project.workspaceId, userId: query.userId },
-      });
-      if (!isProjectOwner && !isProjectWsMember) {
-        throw new AppError('Forbidden: you do not have access to this project', 403, 'FORBIDDEN');
-      }
-      if (query.workspaceId && project.workspaceId !== query.workspaceId) {
-        throw new AppError('Project does not belong to specified workspace', 400, 'PROJECT_WORKSPACE_MISMATCH');
-      }
-      where.projectId = query.projectId;
-      where.workspaceId = project.workspaceId;
+    } else if (query.hasProject) {
+      where.projectId = { not: null };
     } else if (query.workspaceId && isValidUuid(query.workspaceId)) {
       const isMember = await db.workspaceMember.findFirst({
         where: { workspaceId: query.workspaceId, userId: query.userId },
@@ -280,10 +608,29 @@ export class UploadService {
       where.userId = query.userId;
     }
 
+    // Favorites lookup
+    let favoriteFileIds = new Set<string>();
+    try {
+      const favs = await db.userFavorite.findMany({
+        where: { userId: query.userId, resourceType: 'file' },
+        select: { resourceId: true },
+      });
+      favoriteFileIds = new Set(favs.map((f) => f.resourceId));
+      if (query.favoriteOnly) {
+        where.id = { in: Array.from(favoriteFileIds) };
+      }
+    } catch {
+      // ignore favorite lookup errors
+    }
+
     try {
       const [files, total] = await Promise.all([
         db.file.findMany({
           where,
+          include: {
+            folder: { select: { id: true, name: true } },
+            _count: { select: { versions: true } },
+          },
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
@@ -291,8 +638,51 @@ export class UploadService {
         db.file.count({ where }),
       ]);
 
+      const formatted = files.map((f: any) => {
+        let isTrashed = Boolean(f.isTrash);
+        let trashedAt = f.deletedAt ? toSafeIsoString(f.deletedAt) : null;
+        let originalFolderId: string | null = null;
+        if (f.description && f.description.startsWith('__TRASH__')) {
+          const parsed = parseTrashMarker(f.description);
+          isTrashed = true;
+          trashedAt = trashedAt || parsed.trashedAt;
+          originalFolderId = parsed.originalFolderId;
+        }
+        const detected = detectFileType(null, f.filename, f.mimeType);
+        const folderName = f.folder?.name?.toLowerCase() === 'vk' ? 'Storage' : (f.folder?.name || null);
+        return {
+          id: f.id,
+          filename: f.filename,
+          originalName: f.filename,
+          mimeType: f.mimeType,
+          detectedMimeType: detected.detectedMimeType,
+          extension: detected.extension,
+          category: detected.category,
+          previewType: detected.previewType,
+          previewAvailable: detected.previewAvailable,
+          size: f.size,
+          sizeStr: formatBytes(f.size),
+          storagePath: f.storagePath,
+          status: f.status,
+          userId: f.userId,
+          workspaceId: f.workspaceId,
+          projectId: f.projectId,
+          folderId: f.folderId,
+          folder: f.folder ? { id: f.folder.id, name: folderName } : null,
+          folderName,
+          isFavorite: favoriteFileIds.has(f.id),
+          isTrash: isTrashed,
+          trashedAt,
+          versionCount: (f._count?.versions || 0) + 1,
+          createdAt: toSafeIsoString(f.createdAt),
+          uploadedAt: toSafeIsoString(f.createdAt),
+          updatedAt: toSafeIsoString(f.updatedAt),
+          type: inferFileType(f.mimeType, f.filename),
+        };
+      });
+
       return {
-        files,
+        files: formatted,
         pagination: {
           total,
           page,
@@ -346,6 +736,38 @@ export class UploadService {
             fs.unlinkSync(fullPath);
           } catch {}
         }
+
+        // Clean up any version physical files on disk
+        try {
+          const versions = await db.fileVersion.findMany({ where: { fileId: id } });
+          for (const v of versions) {
+            if (v.storagePath) {
+              const vDiskPath = path.resolve(UPLOAD_DIR, v.storagePath);
+              if (fs.existsSync(vDiskPath)) {
+                try {
+                  fs.unlinkSync(vDiskPath);
+                } catch {}
+              }
+            }
+          }
+        } catch {}
+
+        // Clean up userFavorite records referencing this file
+        try {
+          await db.userFavorite.deleteMany({
+            where: { resourceId: id, resourceType: 'file' },
+          });
+        } catch {}
+
+        // Clean up knowledge document references
+        try {
+          await db.document.deleteMany({
+            where: {
+              fileUrl: { contains: id },
+            },
+          });
+        } catch {}
+
         await db.file.delete({ where: { id } });
       }
       return { success: true };
@@ -475,7 +897,61 @@ export class UploadService {
       throw new AppError('Unauthorized path access', 403, 'FORBIDDEN');
     }
     this.recordAccess(id);
-    return { ...file, fullPath };
+    const detected = detectFileType(null, file.filename, file.mimeType);
+    return {
+      ...file,
+      originalName: file.filename,
+      detectedMimeType: detected.detectedMimeType,
+      extension: detected.extension,
+      category: detected.category,
+      previewType: detected.previewType,
+      previewAvailable: detected.previewAvailable,
+      sizeStr: formatBytes(file.size),
+      fullPath,
+    };
+  }
+
+  public async inspectArchive(fileRecord: any): Promise<{
+    isArchive: boolean;
+    filename: string;
+    totalFiles: number;
+    totalUncompressedSize: number;
+    entries: Array<{ path: string; size: number; isDir: boolean }>;
+  }> {
+    const fileData = await this.getFileStreamOrBuffer(fileRecord);
+    let buffer = fileData.buffer;
+    if (!buffer && fileData.fullPath && fs.existsSync(fileData.fullPath)) {
+      buffer = fs.readFileSync(fileData.fullPath);
+    }
+    if (!buffer) {
+      throw new AppError('The requested file is not available in storage', 404, 'FILE_NOT_FOUND');
+    }
+
+    try {
+      const rawEntries = parseZipEntries(buffer);
+      const entries = rawEntries.map((e) => ({
+        path: e.filename,
+        size: e.uncompressedSize,
+        isDir: e.filename.endsWith('/') || e.uncompressedSize === 0,
+      }));
+      const totalUncompressedSize = rawEntries.reduce((acc, e) => acc + (e.uncompressedSize || 0), 0);
+
+      return {
+        isArchive: true,
+        filename: fileRecord.filename,
+        totalFiles: entries.filter((e) => !e.isDir).length,
+        totalUncompressedSize,
+        entries,
+      };
+    } catch {
+      return {
+        isArchive: true,
+        filename: fileRecord.filename,
+        totalFiles: 0,
+        totalUncompressedSize: fileRecord.size,
+        entries: [],
+      };
+    }
   }
 
   public async getFileStreamOrBuffer(fileRecord: {
@@ -600,6 +1076,24 @@ export class UploadService {
       if (!isAuthorized) {
         throw new AppError('Forbidden: you do not have permission to edit this file', 403, 'FORBIDDEN');
       }
+    }
+
+    // Prevent overwriting binary Office and media files with plain text
+    const isBinaryOffice =
+      /\.(docx|xlsx|pptx|doc|xls|ppt)$/i.test(existing.filename) ||
+      existing.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      existing.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+      existing.mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+      existing.mimeType === 'application/msword' ||
+      existing.mimeType === 'application/vnd.ms-excel' ||
+      existing.mimeType === 'application/vnd.ms-powerpoint';
+
+    if (isBinaryOffice) {
+      throw new AppError(
+        'Direct text editing is not supported for binary Office documents. The original binary file cannot be overwritten with plain text.',
+        400,
+        'BINARY_OFFICE_EDIT_UNSUPPORTED',
+      );
     }
 
     const rawPath = existing.storagePath || (existing as any).path || existing.filename;
@@ -784,14 +1278,28 @@ export class UploadService {
     if (!query.userId || !isValidUuid(query.userId)) {
       return [];
     }
-    const limit = Math.min(50, Math.max(1, query.limit || 10));
+    const limit = Math.min(50, Math.max(1, query.limit || 20));
 
-    const where: any = {};
+    // 24-hour Recent rule: files become eligible for Recent view after 24 hours from upload
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    const where: any = {
+      isTrash: false,
+      OR: [
+        { description: null },
+        { NOT: { description: { startsWith: '__TRASH__' } } },
+      ],
+      createdAt: { lte: twentyFourHoursAgo },
+    };
     if (query.projectId) {
-      if (!isValidUuid(query.projectId)) {
-        throw new AppError('Invalid project ID format', 400, 'INVALID_PROJECT_ID');
+      if (query.projectId === 'all') {
+        where.projectId = { not: null };
+      } else {
+        if (!isValidUuid(query.projectId)) {
+          throw new AppError('Invalid project ID format', 400, 'INVALID_PROJECT_ID');
+        }
+        where.projectId = query.projectId;
       }
-      where.projectId = query.projectId;
     } else if (query.workspaceId && isValidUuid(query.workspaceId)) {
       const isMember = await db.workspaceMember.findFirst({
         where: { workspaceId: query.workspaceId, userId: query.userId },
@@ -806,27 +1314,50 @@ export class UploadService {
 
     const files = await db.file.findMany({
       where,
+      include: {
+        folder: { select: { id: true, name: true } },
+        _count: { select: { versions: true } },
+      },
       orderBy: [
         { lastAccessedAt: 'desc' },
         { updatedAt: 'desc' },
+        { createdAt: 'desc' },
       ],
       take: limit,
     });
 
-    return files.map((f) => ({
-      id: f.id,
-      name: f.filename,
-      filename: f.filename,
-      type: inferFileType(f.mimeType, f.filename),
-      lastAccessed: (f.lastAccessedAt || f.updatedAt || f.createdAt).toISOString(),
-      sizeStr: formatBytes(f.size),
-      size: f.size,
-      location: f.projectId ? 'Project Files' : 'Workspace Files',
-      mimeType: f.mimeType,
-      projectId: f.projectId,
-      workspaceId: f.workspaceId,
-      createdAt: f.createdAt.toISOString(),
-    }));
+    return files.map((f: any) => {
+      const detected = detectFileType(null, f.filename, f.mimeType);
+      const folderName = f.folder?.name?.toLowerCase() === 'vk' ? 'Storage' : (f.folder?.name || null);
+      return {
+        id: f.id,
+        name: f.filename,
+        filename: f.filename,
+        originalName: f.filename,
+        mimeType: f.mimeType,
+        detectedMimeType: detected.detectedMimeType,
+        extension: detected.extension,
+        category: detected.category,
+        previewType: detected.previewType,
+        previewAvailable: detected.previewAvailable,
+        type: inferFileType(f.mimeType, f.filename),
+        lastAccessed: toSafeIsoString(f.lastAccessedAt || f.updatedAt || f.createdAt),
+        lastAccessedAt: f.lastAccessedAt ? toSafeIsoString(f.lastAccessedAt) : null,
+        sizeStr: formatBytes(f.size),
+        size: f.size,
+        folderId: f.folderId,
+        folder: f.folder ? { id: f.folder.id, name: folderName } : null,
+        folderName,
+        location: folderName
+          ? `Workspace Files / ${folderName}`
+          : (f.projectId ? 'Project Files' : 'Workspace Files'),
+        projectId: f.projectId,
+        workspaceId: f.workspaceId,
+        createdAt: toSafeIsoString(f.createdAt),
+        uploadedAt: toSafeIsoString(f.createdAt),
+        updatedAt: toSafeIsoString(f.updatedAt),
+      };
+    });
   }
 
   public async getFileVersions(
@@ -869,7 +1400,7 @@ export class UploadService {
       size: v.size,
       sizeStr: formatBytes(v.size),
       comment: v.comment,
-      createdAt: v.createdAt.toISOString(),
+      createdAt: toSafeIsoString(v.createdAt),
       createdBy: v.user?.fullName || v.user?.email || 'Unknown',
     }));
   }
@@ -942,4 +1473,681 @@ export class UploadService {
       `Restored from Version ${targetVersion.version}`,
     );
   }
+
+  // ==========================================================================
+  // FOLDER MANAGEMENT
+  // ==========================================================================
+
+  public async listFolders(query: {
+    userId: string;
+    workspaceId?: string | null;
+    parentId?: string | null;
+    projectId?: string | null;
+  }) {
+    if (!query.userId || !isValidUuid(query.userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+    const where: any = {
+      userId: query.userId,
+      type: 'FILES',
+    };
+    if (query.workspaceId && isValidUuid(query.workspaceId)) {
+      where.workspaceId = query.workspaceId;
+    }
+    if (query.parentId !== undefined) {
+      if (query.parentId === 'root' || query.parentId === null) {
+        where.parentId = null;
+      } else if (isValidUuid(query.parentId)) {
+        where.parentId = query.parentId;
+      }
+    }
+    const folders = await db.folder.findMany({
+      where,
+      include: {
+        _count: { select: { files: true, children: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    return folders.map((f: any) => ({
+      id: f.id,
+      name: f.name.toLowerCase() === 'vk' ? 'Storage' : f.name,
+      parentId: f.parentId,
+      workspaceId: f.workspaceId,
+      userId: f.userId,
+      fileCount: f._count?.files || 0,
+      subfolderCount: f._count?.children || 0,
+      createdAt: toSafeIsoString(f.createdAt),
+      updatedAt: toSafeIsoString(f.updatedAt),
+    }));
+  }
+
+  public async createFolder(query: {
+    userId: string;
+    name: string;
+    parentId?: string | null;
+    workspaceId?: string | null;
+  }) {
+    if (!query.userId || !isValidUuid(query.userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+    let trimmed = (query.name || '').trim();
+    if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed === '.' || trimmed === '..') {
+      throw new AppError('Valid folder name required without path separators', 400, 'FOLDER_NAME_INVALID');
+    }
+    if (trimmed.toLowerCase() === 'vk') {
+      trimmed = 'Storage';
+    }
+    let parentId: string | null = null;
+    if (query.parentId && query.parentId !== 'root' && isValidUuid(query.parentId)) {
+      const parent = await db.folder.findUnique({ where: { id: query.parentId } });
+      if (!parent || parent.userId !== query.userId) {
+        throw new AppError('Parent folder not found or forbidden', 404, 'PARENT_FOLDER_NOT_FOUND');
+      }
+      parentId = query.parentId;
+    }
+    let workspaceId = query.workspaceId && isValidUuid(query.workspaceId) ? query.workspaceId : null;
+    if (!workspaceId) {
+      const member = await db.workspaceMember.findFirst({ where: { userId: query.userId } });
+      if (member) workspaceId = member.workspaceId;
+    }
+    if (!workspaceId) {
+      const ws = await db.workspace.findFirst();
+      if (ws) workspaceId = ws.id;
+    }
+    if (!workspaceId) {
+      throw new AppError('Valid workspace required to create folder', 400, 'WORKSPACE_REQUIRED');
+    }
+
+    const folder = await db.folder.create({
+      data: {
+        name: trimmed,
+        parentId,
+        userId: query.userId,
+        workspaceId,
+        type: 'FILES',
+      },
+    });
+    return folder;
+  }
+
+  public async renameFolder(folderId: string, name: string, userId: string) {
+    if (!isValidUuid(folderId)) throw new AppError('Invalid folder ID', 400, 'INVALID_FOLDER_ID');
+    const trimmed = (name || '').trim();
+    if (!trimmed || trimmed.includes('/') || trimmed.includes('\\') || trimmed === '.' || trimmed === '..') {
+      throw new AppError('Valid folder name required without path separators', 400, 'FOLDER_NAME_INVALID');
+    }
+    const folder = await db.folder.findUnique({ where: { id: folderId } });
+    if (!folder) throw new AppError('Folder not found', 404, 'FOLDER_NOT_FOUND');
+    if (folder.userId !== userId) throw new AppError('Forbidden: you do not own this folder', 403, 'FORBIDDEN');
+
+    return db.folder.update({
+      where: { id: folderId },
+      data: { name: trimmed },
+    });
+  }
+
+  public async deleteFolder(folderId: string, userId: string) {
+    if (!isValidUuid(folderId)) throw new AppError('Invalid folder ID', 400, 'INVALID_FOLDER_ID');
+    const folder = await db.folder.findUnique({ where: { id: folderId }, include: { children: true, files: true } });
+    if (!folder) throw new AppError('Folder not found', 404, 'FOLDER_NOT_FOUND');
+    if (folder.userId !== userId) throw new AppError('Forbidden: you do not own this folder', 403, 'FORBIDDEN');
+
+    // Move child files and subfolders to parent
+    await db.file.updateMany({
+      where: { folderId },
+      data: { folderId: folder.parentId || null },
+    });
+    await db.folder.updateMany({
+      where: { parentId: folderId },
+      data: { parentId: folder.parentId || null },
+    });
+
+    await db.folder.delete({ where: { id: folderId } });
+    return { success: true, message: 'Folder deleted successfully' };
+  }
+
+  public async getFolderBreadcrumbs(folderId: string, userId: string) {
+    if (!isValidUuid(folderId)) return [];
+    const breadcrumbs: Array<{ id: string; name: string }> = [];
+    let currentId: string | null = folderId;
+
+    while (currentId) {
+      const folder: any = await db.folder.findUnique({
+        where: { id: currentId },
+        select: { id: true, name: true, parentId: true, userId: true },
+      });
+      if (!folder || folder.userId !== userId) break;
+      breadcrumbs.unshift({
+        id: folder.id,
+        name: folder.name.toLowerCase() === 'vk' ? 'Storage' : folder.name,
+      });
+      currentId = folder.parentId;
+    }
+    return breadcrumbs;
+  }
+
+  // ==========================================================================
+  // FILE OPERATIONS: MOVE, COPY, EMPTY FILE
+  // ==========================================================================
+
+  public async moveFile(
+    fileId: string,
+    userId: string,
+    targetFolderId?: string | null,
+    targetProjectId?: string | null,
+  ) {
+    if (!isValidUuid(fileId)) throw new AppError('Invalid file ID', 400, 'INVALID_FILE_ID');
+    const file = await this.getFileById(fileId, userId);
+    if (!file) throw new AppError('File not found', 404, 'FILE_NOT_FOUND');
+
+    let cleanFolderId: string | null = null;
+    if (targetFolderId && targetFolderId !== 'root') {
+      if (!isValidUuid(targetFolderId)) throw new AppError('Invalid folder ID format', 400, 'INVALID_FOLDER_ID');
+      const folder = await db.folder.findUnique({ where: { id: targetFolderId } });
+      if (!folder || folder.userId !== userId) throw new AppError('Target folder not found or forbidden', 404, 'FOLDER_NOT_FOUND');
+      cleanFolderId = targetFolderId;
+    }
+
+    let cleanProjectId: string | null = null;
+    if (targetProjectId) {
+      if (!isValidUuid(targetProjectId)) throw new AppError('Invalid project ID format', 400, 'INVALID_PROJECT_ID');
+      const project = await db.project.findUnique({ where: { id: targetProjectId } });
+      if (!project) throw new AppError('Target project not found', 404, 'PROJECT_NOT_FOUND');
+      cleanProjectId = targetProjectId;
+    }
+
+    const updateData: any = {};
+    if (targetFolderId !== undefined) updateData.folderId = cleanFolderId;
+    if (targetProjectId !== undefined) updateData.projectId = cleanProjectId;
+
+    return db.file.update({
+      where: { id: fileId },
+      data: updateData,
+    });
+  }
+
+  public async copyFile(fileId: string, userId: string, targetFolderId?: string | null) {
+    if (!isValidUuid(fileId)) throw new AppError('Invalid file ID', 400, 'INVALID_FILE_ID');
+    const file = await this.getFileById(fileId, userId);
+    if (!file) throw new AppError('File not found', 404, 'FILE_NOT_FOUND');
+
+    const ext = path.extname(file.filename);
+    const base = path.basename(file.filename, ext);
+    const newFilename = `${base} (Copy)${ext}`;
+
+    // Read original file buffer
+    const fileData = await this.getFileStreamOrBuffer(file);
+    let buffer: Buffer | null = fileData.buffer || null;
+    if (!buffer && fileData.fullPath && fs.existsSync(fileData.fullPath)) {
+      buffer = fs.readFileSync(fileData.fullPath);
+    }
+    if (!buffer) {
+      throw new AppError('Original file could not be read from storage', 404, 'FILE_NOT_FOUND');
+    }
+
+    const newStorageName = `${Date.now()}_${crypto.randomBytes(6).toString('hex')}_${path.basename(newFilename)}`;
+    const newDiskPath = path.resolve(UPLOAD_DIR, newStorageName);
+    fs.writeFileSync(newDiskPath, buffer);
+
+    try {
+      await this.storageService.upload(buffer, newStorageName, file.mimeType);
+    } catch {
+      // cloud upload fallback
+    }
+
+    return db.file.create({
+      data: {
+        filename: newFilename,
+        mimeType: file.mimeType,
+        size: buffer.length,
+        storagePath: newStorageName,
+        status: FileStatus.READY,
+        userId,
+        workspaceId: file.workspaceId,
+        projectId: file.projectId,
+        folderId: targetFolderId !== undefined ? targetFolderId : file.folderId,
+      },
+    });
+  }
+
+  public async createEmptyFile(query: {
+    userId: string;
+    filename: string;
+    content?: string;
+    folderId?: string | null;
+    workspaceId?: string | null;
+    projectId?: string | null;
+  }) {
+    if (!query.userId || !isValidUuid(query.userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+    const filename = (query.filename || '').trim();
+    if (!filename || filename.includes('/') || filename.includes('\\') || filename === '.' || filename === '..') {
+      throw new AppError('Valid filename required', 400, 'FILENAME_REQUIRED');
+    }
+    const content = query.content || '';
+    const buffer = Buffer.from(content, 'utf-8');
+
+    let mimeType = 'text/plain';
+    const ext = path.extname(filename).toLowerCase();
+    if (ext === '.md' || ext === '.markdown') mimeType = 'text/markdown';
+    else if (ext === '.json') mimeType = 'application/json';
+    else if (ext === '.csv') mimeType = 'text/csv';
+    else if (ext === '.html') mimeType = 'text/html';
+    else if (ext === '.css') mimeType = 'text/css';
+    else if (ext === '.js') mimeType = 'application/javascript';
+    else if (ext === '.ts') mimeType = 'application/typescript';
+    else if (ext === '.py') mimeType = 'text/x-python';
+    else if (ext === '.sql') mimeType = 'application/sql';
+    else if (ext === '.yaml' || ext === '.yml') mimeType = 'application/x-yaml';
+
+    const storageName = `${Date.now()}_${crypto.randomBytes(6).toString('hex')}_${path.basename(filename)}`;
+    const diskPath = path.resolve(UPLOAD_DIR, storageName);
+    fs.writeFileSync(diskPath, buffer);
+
+    let cleanFolderId = query.folderId && isValidUuid(query.folderId) ? query.folderId : null;
+    let cleanWorkspaceId = query.workspaceId && isValidUuid(query.workspaceId) ? query.workspaceId : null;
+    if (!cleanWorkspaceId) {
+      const member = await db.workspaceMember.findFirst({ where: { userId: query.userId } });
+      if (member) cleanWorkspaceId = member.workspaceId;
+    }
+
+    return db.file.create({
+      data: {
+        filename,
+        mimeType,
+        size: buffer.length,
+        storagePath: storageName,
+        status: FileStatus.READY,
+        userId: query.userId,
+        workspaceId: cleanWorkspaceId,
+        projectId: query.projectId && isValidUuid(query.projectId) ? query.projectId : null,
+        folderId: cleanFolderId,
+      },
+    });
+  }
+
+  // ==========================================================================
+  // TRASH LIFECYCLE (SOFT DELETE, RESTORE, EMPTY)
+  // ==========================================================================
+
+  public async moveToTrash(fileId: string, userId: string) {
+    if (!isValidUuid(fileId)) throw new AppError('Invalid file ID', 400, 'INVALID_FILE_ID');
+    const file = await this.getFileById(fileId, userId);
+    if (!file) throw new AppError('File not found', 404, 'FILE_NOT_FOUND');
+
+    const trashMarker = file.folderId ? `__TRASH__::${new Date().toISOString()}::${file.folderId}` : null;
+    return db.file.update({
+      where: { id: fileId },
+      data: {
+        isTrash: true,
+        deletedAt: new Date(),
+        description: trashMarker,
+        folderId: null,
+      },
+    });
+  }
+
+  public async restoreFromTrash(fileId: string, userId: string) {
+    if (!isValidUuid(fileId)) throw new AppError('Invalid file ID', 400, 'INVALID_FILE_ID');
+    const file = await db.file.findUnique({ where: { id: fileId } });
+    if (!file) throw new AppError('File not found', 404, 'FILE_NOT_FOUND');
+    if (file.userId !== userId) {
+      if (file.workspaceId) {
+        const mem = await db.workspaceMember.findFirst({
+          where: { workspaceId: file.workspaceId, userId, role: { in: ['OWNER', 'ADMIN'] } },
+        });
+        if (!mem) throw new AppError('Forbidden: you do not have permission to restore this file', 403, 'FORBIDDEN');
+      } else {
+        throw new AppError('Forbidden: you do not have permission to restore this file', 403, 'FORBIDDEN');
+      }
+    }
+
+    let targetFolderId: string | null = null;
+    if (file.description && file.description.startsWith('__TRASH__')) {
+      const { originalFolderId } = parseTrashMarker(file.description);
+      if (originalFolderId && isValidUuid(originalFolderId)) {
+        const folderExists = await db.folder.findUnique({ where: { id: originalFolderId } });
+        if (folderExists) targetFolderId = originalFolderId;
+      }
+    }
+
+    return db.file.update({
+      where: { id: fileId },
+      data: {
+        isTrash: false,
+        deletedAt: null,
+        description: null,
+        folderId: targetFolderId,
+      },
+    });
+  }
+
+  public async getTrashFiles(query: { userId: string; workspaceId?: string | null }) {
+    if (!query.userId || !isValidUuid(query.userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+    const where: any = {
+      OR: [
+        { isTrash: true },
+        { description: { startsWith: '__TRASH__' } },
+      ],
+    };
+    if (query.workspaceId && isValidUuid(query.workspaceId)) {
+      where.workspaceId = query.workspaceId;
+    } else {
+      where.userId = query.userId;
+    }
+
+    const trashed = await db.file.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return trashed.map((f: any) => {
+      let trashedAt = f.deletedAt ? toSafeIsoString(f.deletedAt) : null;
+      let originalFolderId: string | null = null;
+      if (f.description && f.description.startsWith('__TRASH__')) {
+        const parsed = parseTrashMarker(f.description);
+        trashedAt = trashedAt || parsed.trashedAt;
+        originalFolderId = parsed.originalFolderId;
+      }
+      return {
+        id: f.id,
+        filename: f.filename,
+        mimeType: f.mimeType,
+        size: f.size,
+        sizeStr: formatBytes(f.size),
+        isTrash: true,
+        trashedAt: trashedAt || toSafeIsoString(f.updatedAt),
+        originalFolderId,
+        type: inferFileType(f.mimeType, f.filename),
+        createdAt: toSafeIsoString(f.createdAt),
+        updatedAt: toSafeIsoString(f.updatedAt),
+      };
+    });
+  }
+
+  public async emptyTrash(query: { userId: string; workspaceId?: string | null }) {
+    if (!query.userId || !isValidUuid(query.userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+    const where: any = {
+      OR: [
+        { isTrash: true },
+        { description: { startsWith: '__TRASH__' } },
+      ],
+    };
+    if (query.workspaceId && isValidUuid(query.workspaceId)) {
+      where.workspaceId = query.workspaceId;
+    } else {
+      where.userId = query.userId;
+    }
+
+    const trashed = await db.file.findMany({ where });
+    let count = 0;
+    for (const f of trashed) {
+      try {
+        await this.deleteFile(f.id, query.userId);
+        count++;
+      } catch {}
+    }
+    return { success: true, count, message: `${count} file(s) permanently removed from trash` };
+  }
+
+  // ==========================================================================
+  // STORAGE INSIGHTS & DUPLICATES
+  // ==========================================================================
+
+  public async getStorageInsights(query: { userId: string; workspaceId?: string | null; projectId?: string | null }) {
+    if (!query.userId || !isValidUuid(query.userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+    const where: any = {
+      isTrash: false,
+      OR: [
+        { description: null },
+        { NOT: { description: { startsWith: '__TRASH__' } } },
+      ],
+    };
+    if (query.projectId && isValidUuid(query.projectId)) {
+      where.projectId = query.projectId;
+    } else if (query.workspaceId && isValidUuid(query.workspaceId)) {
+      where.workspaceId = query.workspaceId;
+    } else {
+      where.userId = query.userId;
+    }
+
+    const files = await db.file.findMany({
+      where,
+      select: { id: true, filename: true, mimeType: true, size: true },
+    });
+
+    let totalBytes = 0;
+    const categories: Record<string, { bytes: number; count: number }> = {
+      documents: { bytes: 0, count: 0 },
+      spreadsheets: { bytes: 0, count: 0 },
+      presentations: { bytes: 0, count: 0 },
+      images: { bytes: 0, count: 0 },
+      video: { bytes: 0, count: 0 },
+      audio: { bytes: 0, count: 0 },
+      code: { bytes: 0, count: 0 },
+      archives: { bytes: 0, count: 0 },
+      other: { bytes: 0, count: 0 },
+    };
+
+    for (const f of files) {
+      totalBytes += f.size;
+      const m = (f.mimeType || '').toLowerCase();
+      const ext = path.extname(f.filename).toLowerCase();
+
+      if (m.startsWith('image/') || ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) {
+        categories.images.bytes += f.size;
+        categories.images.count += 1;
+      } else if (m.startsWith('video/') || ['.mp4', '.webm', '.mov', '.mkv'].includes(ext)) {
+        categories.video.bytes += f.size;
+        categories.video.count += 1;
+      } else if (m.startsWith('audio/') || ['.mp3', '.wav', '.ogg', '.m4a', '.flac'].includes(ext)) {
+        categories.audio.bytes += f.size;
+        categories.audio.count += 1;
+      } else if (m.includes('spreadsheet') || ['.xlsx', '.xls', '.csv'].includes(ext)) {
+        categories.spreadsheets.bytes += f.size;
+        categories.spreadsheets.count += 1;
+      } else if (m.includes('presentation') || ['.pptx', '.ppt'].includes(ext)) {
+        categories.presentations.bytes += f.size;
+        categories.presentations.count += 1;
+      } else if (m === 'application/pdf' || ['.pdf', '.docx', '.doc', '.txt', '.md'].includes(ext)) {
+        categories.documents.bytes += f.size;
+        categories.documents.count += 1;
+      } else if (
+        ['.js', '.ts', '.tsx', '.jsx', '.py', '.json', '.html', '.css', '.sql', '.yaml', '.yml', '.sh', '.env'].includes(ext)
+      ) {
+        categories.code.bytes += f.size;
+        categories.code.count += 1;
+      } else if (m.includes('zip') || ['.zip', '.tar', '.gz', '.7z', '.rar'].includes(ext)) {
+        categories.archives.bytes += f.size;
+        categories.archives.count += 1;
+      } else {
+        categories.other.bytes += f.size;
+        categories.other.count += 1;
+      }
+    }
+
+    const categoryBreakdown = Object.entries(categories).map(([name, stat]) => ({
+      name,
+      bytes: stat.bytes,
+      bytesStr: formatBytes(stat.bytes),
+      count: stat.count,
+      percentage: totalBytes > 0 ? parseFloat(((stat.bytes / totalBytes) * 100).toFixed(1)) : 0,
+    }));
+
+    const usage = await this.getUserStorageUsage(query.userId);
+
+    return {
+      totalBytes,
+      totalBytesStr: formatBytes(totalBytes),
+      totalFiles: files.length,
+      categories: categoryBreakdown,
+      quotaBytes: usage.quotaBytes,
+      quotaBytesStr: usage.quotaBytesStr,
+      usedBytes: usage.usedBytes,
+      usedBytesStr: usage.usedBytesStr,
+      activeBytes: usage.activeBytes,
+      activeBytesStr: usage.activeBytesStr,
+      trashBytes: usage.trashBytes,
+      trashBytesStr: usage.trashBytesStr,
+      availableBytes: usage.availableBytes,
+      availableBytesStr: usage.availableBytesStr,
+      usagePercentage: usage.usagePercentage,
+    };
+  }
+
+  public async getDuplicateFiles(query: { userId: string; workspaceId?: string | null; projectId?: string | null }) {
+    if (!query.userId || !isValidUuid(query.userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+    const where: any = {
+      isTrash: false,
+      OR: [
+        { description: null },
+        { NOT: { description: { startsWith: '__TRASH__' } } },
+      ],
+    };
+    if (query.projectId && isValidUuid(query.projectId)) {
+      where.projectId = query.projectId;
+    } else if (query.workspaceId && isValidUuid(query.workspaceId)) {
+      where.workspaceId = query.workspaceId;
+    } else {
+      where.userId = query.userId;
+    }
+
+    const files = await db.file.findMany({
+      where,
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const grouped = new Map<string, any[]>();
+    for (const f of files) {
+      const normName = f.filename.replace(/\s\((?:Copy|\d+)\)/gi, '').toLowerCase();
+      const key = `${f.size}_${normName}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, []);
+      }
+      grouped.get(key)!.push(f);
+    }
+
+    const duplicates: Array<{ key: string; size: number; sizeStr: string; files: any[] }> = [];
+    for (const [key, group] of grouped.entries()) {
+      if (group.length > 1) {
+        duplicates.push({
+          key,
+          size: group[0].size,
+          sizeStr: formatBytes(group[0].size),
+          files: group.map((f: any) => ({
+            id: f.id,
+            filename: f.filename,
+            size: f.size,
+            sizeStr: formatBytes(f.size),
+            createdAt: toSafeIsoString(f.createdAt),
+            folderId: f.folderId,
+          })),
+        });
+      }
+    }
+
+    return duplicates;
+  }
+
+  // ==========================================================================
+  // ASK AI ABOUT FILE (INTELLIGENCE & ANALYSIS)
+  // ==========================================================================
+
+  public async askAIAboutFile(
+    fileId: string,
+    userId: string,
+    question: string,
+    projectId?: string,
+    workspaceId?: string,
+  ) {
+    if (!isValidUuid(fileId)) throw new AppError('Invalid file ID', 400, 'INVALID_FILE_ID');
+    const file = await this.getFileById(fileId, userId, projectId, workspaceId);
+    if (!file) throw new AppError('File not found or access denied', 404, 'FILE_NOT_FOUND');
+
+    let textContent = '';
+    try {
+      const extracted = await this.extractText(fileId, userId, projectId, workspaceId);
+      textContent = extracted?.text || '';
+    } catch {
+      try {
+        const fileData = await this.getFileStreamOrBuffer(file);
+        if (fileData.buffer) {
+          textContent = fileData.buffer.toString('utf-8');
+        } else if (fileData.fullPath && fs.existsSync(fileData.fullPath)) {
+          textContent = fs.readFileSync(fileData.fullPath, 'utf-8');
+        }
+      } catch {}
+    }
+
+    const wordCount = textContent ? textContent.trim().split(/\s+/).length : 0;
+    const lineCount = textContent ? textContent.split(/\r?\n/).length : 0;
+    const charCount = textContent.length;
+
+    let answer = '';
+    const qLower = (question || '').toLowerCase();
+
+    if (qLower.includes('summar') || qLower === 'summary') {
+      const paragraphs = textContent.split(/\n\s*\n/).filter((p) => p.trim().length > 20);
+      const summaryPoints = paragraphs.slice(0, 4).map((p) => p.trim().replace(/\n+/g, ' '));
+      answer = `**Summary of "${file.filename}"**:\n\n` +
+        (summaryPoints.length > 0
+          ? summaryPoints.map((p, idx) => `${idx + 1}. ${p.slice(0, 280)}${p.length > 280 ? '...' : ''}`).join('\n\n')
+          : `This document contains ${wordCount} words across ${lineCount} lines.`) +
+        `\n\n**File Metrics**: ${formatBytes(file.size)} | ${wordCount.toLocaleString()} words | ${lineCount} lines.`;
+    } else if (qLower.includes('key point') || qLower.includes('takeaway')) {
+      const lines = textContent.split('\n').filter((l) => l.trim().length > 15);
+      const points = lines.slice(0, 5);
+      answer = `**Key Points in "${file.filename}"**:\n\n` +
+        points.map((pt, i) => `• **Point ${i + 1}**: ${pt.trim()}`).join('\n') +
+        `\n\n*Extracted from verified file content (${wordCount} words).*`;
+    } else if (qLower.includes('explain')) {
+      answer = `**Document Explanation for "${file.filename}"**:\n\n` +
+        `This file is a ${inferFileType(file.mimeType, file.filename)} containing ${wordCount} words and ${lineCount} lines.\n\n` +
+        `**Overview**:\n${textContent.slice(0, 400)}...\n\n` +
+        `**Structure**: Composed of ${lineCount} lines with detailed structural content.`;
+    } else {
+      const sentences = textContent.split(/(?<=[.?!])\s+/);
+      const relevant = sentences.filter((s) => {
+        const words = qLower.split(' ').filter((w) => w.length > 3);
+        return words.some((w) => s.toLowerCase().includes(w));
+      });
+      if (relevant.length > 0) {
+        answer = `**Answer from "${file.filename}"**:\n\n` +
+          relevant.slice(0, 3).join(' ') +
+          `\n\n*(Matched relevant sections in document based on your question)*`;
+      } else {
+        answer = `**Analysis of "${file.filename}"** for query: *"${question}"*:\n\n` +
+          `The document (${file.filename}, ${formatBytes(file.size)}, ${wordCount} words) covers the following initial content:\n\n` +
+          `> ${textContent.slice(0, 300)}...\n\n` +
+          `You can also use the Editor or Preview modal to inspect the entire text.`;
+      }
+    }
+
+    return {
+      fileId,
+      filename: file.filename,
+      question,
+      answer,
+      metrics: {
+        words: wordCount,
+        lines: lineCount,
+        characters: charCount,
+        size: file.size,
+        sizeStr: formatBytes(file.size),
+        type: inferFileType(file.mimeType, file.filename),
+      },
+    };
+  }
 }
+
+export const uploadService = new UploadService();
+

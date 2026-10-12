@@ -5,6 +5,29 @@ import { UploadService } from '../../modules/upload/upload.service.js';
 import { AppError } from '../../middleware/error.middleware.js';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
+
+function buildMinimalDocxZip(xml: string): Buffer {
+  const nameBytes = Buffer.from('word/document.xml', 'utf-8');
+  const raw = Buffer.from(xml, 'utf-8');
+  const compressed = zlib.deflateRawSync(raw);
+  const header = Buffer.alloc(30);
+  header.writeUInt32LE(0x04034b50, 0);
+  header.writeUInt16LE(20, 4);
+  header.writeUInt16LE(0, 6);
+  header.writeUInt16LE(8, 8);
+  header.writeUInt16LE(0, 10);
+  header.writeUInt16LE(0, 12);
+  header.writeUInt32LE(0, 14);
+  header.writeUInt32LE(compressed.length, 18);
+  header.writeUInt32LE(raw.length, 22);
+  header.writeUInt16LE(nameBytes.length, 26);
+  header.writeUInt16LE(0, 28);
+  const entry = Buffer.concat([header, nameBytes, compressed]);
+  const eocd = Buffer.alloc(22, 0);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  return Buffer.concat([entry, eocd]);
+}
 
 describe('Unified File Architecture — Phases 1-4 Verification Suite', () => {
   const userId = '11111111-1111-4111-8111-111111111111';
@@ -178,7 +201,7 @@ describe('Unified File Architecture — Phases 1-4 Verification Suite', () => {
       } as any);
 
       vi.spyOn(UploadService.prototype, 'getFileStreamOrBuffer').mockResolvedValue({
-        buffer: Buffer.from(docxXmlContent, 'binary'),
+        buffer: buildMinimalDocxZip(docxXmlContent),
       });
 
       const req: any = {
@@ -216,7 +239,7 @@ describe('Unified File Architecture — Phases 1-4 Verification Suite', () => {
       } as any);
 
       vi.spyOn(UploadService.prototype, 'getFileStreamOrBuffer').mockResolvedValue({
-        buffer: Buffer.from(docxXmlContent, 'binary'),
+        buffer: buildMinimalDocxZip(docxXmlContent),
       });
 
       const req: any = {

@@ -85,9 +85,11 @@ app.use(
 // CORS configuration
 import { corsMiddleware } from './src/middleware/cors.middleware';
 app.use(corsMiddleware);
+app.options('*', corsMiddleware);
 
-app.use(express.json({ limit: `${env.UPLOAD_MAX_SIZE_MB || 25}mb` }));
-app.use(express.urlencoded({ extended: true, limit: `${env.UPLOAD_MAX_SIZE_MB || 25}mb` }));
+const jsonLimit = process.env.JSON_BODY_MAX_SIZE_MB ? `${process.env.JSON_BODY_MAX_SIZE_MB}mb` : '5mb';
+app.use(express.json({ limit: jsonLimit }));
+app.use(express.urlencoded({ extended: true, limit: jsonLimit }));
 
 // ============================================================================
 // Session Configuration (required by Passport)
@@ -182,8 +184,13 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // ============================================================================
 // Server Initialization & Graceful Lifecycle
 // ============================================================================
+import { initWebSocketServer } from './src/websocket/socket';
+
 const server = http.createServer(app);
 let isShuttingDown = false;
+
+// Initialize Socket.IO instance on HTTP server
+initWebSocketServer(server);
 
 export const startServer = async (): Promise<http.Server> => {
   try {
@@ -199,14 +206,18 @@ export const startServer = async (): Promise<http.Server> => {
         logger.info(
           `AETHER Backend Server successfully initialized and running at http://${HOST}:${PORT}`,
         );
+        logger.info(`Realtime WebSocket available at ws://${HOST}:${PORT}/socket.io`);
         logger.info(`API available at http://${HOST}:${PORT}/api/v1`);
         logger.info(`OAuth routes available at http://${HOST}:${PORT}/api/auth`);
         logger.info(`Health checks available at http://${HOST}:${PORT}/health, /health/live, /health/ready`);
         resolve(server);
       });
     });
+
   } catch (error) {
-    logger.error('FATAL: Database connection failed during server startup. Aborting initialization.', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    const sanitizedMsg = errorMsg.replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)/gi, '$1***$3');
+    logger.error(`FATAL: Database connection failed during server startup. Aborting initialization: ${sanitizedMsg}`);
     process.exit(1);
   }
 };
@@ -220,6 +231,18 @@ export const gracefulShutdown = async (signal: string): Promise<void> => {
     logger.error('Forced shutdown invoked due to timeout');
     process.exit(1);
   }, 10000);
+  forceTimeout.unref();
+
+  try {
+    const { getIO } = await import('./src/websocket/socket');
+    const io = getIO();
+    if (io) {
+      logger.info('Closing WebSocket connections...');
+      io.close();
+    }
+  } catch {
+    // Socket.IO may not be initialized in all environments
+  }
 
   server.close(async () => {
     logger.info('HTTP server closed. Cleaning up background resources...');

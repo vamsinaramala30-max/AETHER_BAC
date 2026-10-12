@@ -546,4 +546,151 @@ describe('Unified File Preview & Project File Isolation Test Suite', () => {
       expect(sentBody.toString()).toBe('GZIP_BINARY_DATA');
     });
   });
+
+  // ==========================================================================
+  // 5. OFFICE DOCUMENT PREVIEW, ERROR DISCRIMINATION & BINARY PRESERVATION
+  // ==========================================================================
+  describe('5. Office Document Preview, Error Discrimination & Binary Preservation', () => {
+    it('returns 200 text/plain for successful PPTX preview', async () => {
+      vi.spyOn(UploadService.prototype, 'getFileById').mockResolvedValue({
+        id: fileId1,
+        filename: 'presentation.pptx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        storagePath: 'presentation.pptx',
+        userId: userA,
+        workspaceId: workspaceA,
+        projectId: null,
+      } as any);
+
+      vi.spyOn(UploadService.prototype, 'extractText').mockResolvedValue({
+        text: '--- Slide 1 ---\nWelcome to AETHER Deck',
+        format: 'PPTX',
+        characterCount: 38,
+        lineCount: 2,
+        mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        filename: 'presentation.pptx',
+      });
+
+      const req = {
+        params: { id: fileId1 },
+        user: { id: userA },
+        query: {},
+        headers: {},
+      } as any;
+
+      const headers: Record<string, string> = {};
+      let statusCode = 200;
+      let sentBody: any;
+      const res = {
+        setHeader: (k: string, v: string) => { headers[k] = v; },
+        status: (c: number) => { statusCode = c; return res; },
+        send: (b: any) => { sentBody = b; return res; },
+      } as any;
+
+      const next = vi.fn();
+      await uploadController.previewFile(req, res, next);
+
+      expect(statusCode).toBe(200);
+      expect(headers['Content-Type']).toBe('text/plain; charset=utf-8');
+      expect(headers['X-Content-Type-Options']).toBe('nosniff');
+      expect(sentBody).toBe('--- Slide 1 ---\nWelcome to AETHER Deck');
+    });
+
+    it('returns 422 DOCUMENT_CORRUPT when Office file is corrupt (not 415)', async () => {
+      vi.spyOn(UploadService.prototype, 'getFileById').mockResolvedValue({
+        id: fileId1,
+        filename: 'corrupted.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        storagePath: 'corrupted.docx',
+        userId: userA,
+        workspaceId: workspaceA,
+        projectId: null,
+      } as any);
+
+      vi.spyOn(UploadService.prototype, 'extractText').mockRejectedValue(
+        new Error('Text extraction failed: DOCX document is not a valid OOXML/ZIP archive (missing PK signature)')
+      );
+
+      const req = {
+        params: { id: fileId1 },
+        user: { id: userA },
+        query: {},
+        headers: {},
+      } as any;
+
+      let statusCode = 200;
+      let jsonBody: any;
+      const res = {
+        status: (c: number) => { statusCode = c; return res; },
+        json: (b: any) => { jsonBody = b; return res; },
+      } as any;
+
+      const next = vi.fn();
+      await uploadController.previewFile(req, res, next);
+
+      expect(statusCode).toBe(422);
+      expect(jsonBody.error.code).toBe('DOCUMENT_CORRUPT');
+      expect(jsonBody.error.message).toContain('corrupt');
+    });
+
+    it('returns 422 EXTRACTION_FAILED when Office document has no extractable text (not 415)', async () => {
+      vi.spyOn(UploadService.prototype, 'getFileById').mockResolvedValue({
+        id: fileId1,
+        filename: 'empty.xlsx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        storagePath: 'empty.xlsx',
+        userId: userA,
+        workspaceId: workspaceA,
+        projectId: null,
+      } as any);
+
+      vi.spyOn(UploadService.prototype, 'extractText').mockRejectedValue(
+        new Error('Text extraction failed: XLSX document contains no extractable cell data')
+      );
+
+      const req = {
+        params: { id: fileId1 },
+        user: { id: userA },
+        query: {},
+        headers: {},
+      } as any;
+
+      let statusCode = 200;
+      let jsonBody: any;
+      const res = {
+        status: (c: number) => { statusCode = c; return res; },
+        json: (b: any) => { jsonBody = b; return res; },
+      } as any;
+
+      const next = vi.fn();
+      await uploadController.previewFile(req, res, next);
+
+      expect(statusCode).toBe(422);
+      expect(jsonBody.error.code).toBe('EXTRACTION_FAILED');
+    });
+
+    it('rejects updateFileContent for binary Office file to preserve original binary data', async () => {
+      vi.spyOn(db.file, 'findUnique').mockResolvedValue({
+        id: fileId1,
+        filename: 'ReactJSPrograms.docx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        storagePath: '1790996011564_46985cf2bdd9962b.docx',
+        userId: userA,
+        workspaceId: workspaceA,
+        projectId: null,
+        versions: [],
+      } as any);
+
+      await expect(
+        uploadService.updateFileContent(
+          fileId1,
+          'overwriting with plain text',
+          userA,
+          'test comment',
+          undefined,
+          workspaceA
+        )
+      ).rejects.toThrow('Direct text editing is not supported for binary Office documents');
+    });
+  });
 });

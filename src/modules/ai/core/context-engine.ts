@@ -22,6 +22,7 @@ import type {
   ContextSourceMetadata,
   ProjectContextSummary,
   WorkspaceContextSummary,
+  LiveProductivityContext,
   Result,
 } from '../ai-types.js';
 import { ok, fail, makeError } from '../ai-types.js';
@@ -31,6 +32,9 @@ import type { Intent } from '../ai-types.js';
 import { defaultTokenizer } from '../llm/tokenizer.js';
 import type { AIConfig } from '../ai-config.js';
 import { projectIntelligenceService } from '../context/project-intelligence.js';
+import { liveContextService } from '../context/live-context-service.js';
+import { db } from '../../../database/client.js';
+import { toUuid } from '../storage/repositories/memory-repository.js';
 
 // ─── IContextEngine Interface ─────────────────────────────────────────────────
 
@@ -69,7 +73,32 @@ export class ContextEngine implements IContextEngine {
         description: 'Current user prompt',
       });
 
-      // ─── 2. Conversation History / Session Context (Priority 2) ───────────
+      // ─── 2. Live Active Productivity State (Priority 2) ───────────────────
+      let productivityContext: LiveProductivityContext | undefined;
+      try {
+        productivityContext = await liveContextService.getLiveContext(request.userId, {
+          queryMessage: request.message,
+          projectId: request.projectId,
+          workspaceId: request.workspaceId || request.auth?.workspaceId,
+        });
+
+        if (productivityContext && productivityContext.summaryText.length > 0) {
+          const prodTokens = defaultTokenizer.count(productivityContext.summaryText).tokenCount;
+          sourcesMetadata.push({
+            source: 'active_productivity_state',
+            relevanceScore: 0.95,
+            priority: 2,
+            tokenCount: prodTokens,
+            scope: `user:${request.userId}`,
+            timestamp: Date.now(),
+            description: 'Live AETHER state: tasks, calendar, planner, focus',
+          });
+        }
+      } catch (prodErr) {
+        console.warn('[ContextEngine] Live productivity context warning:', prodErr);
+      }
+
+      // ─── 3. Conversation History / Session Context (Priority 3) ───────────
       let conversationHistory = this.memoryEngine
         ? this.memoryEngine.getConversationHistory(
             request.userId,
@@ -102,7 +131,7 @@ export class ContextEngine implements IContextEngine {
         });
       }
 
-      // ─── 3. Session / Working Memory Context (Priority 3) ──────────────────
+      // ─── 4. Session / Working Memory Context (Priority 3) ──────────────────
       const workingMemory: WorkingMemoryContext = this.memoryEngine
         ? this.memoryEngine.getWorkingMemoryContext(request.userId, request.sessionId)
         : { items: [], sessionId: request.sessionId };
@@ -120,7 +149,7 @@ export class ContextEngine implements IContextEngine {
         });
       }
 
-      // ─── 4. Knowledge Context / RAG (Priority 4) ──────────────────────────
+      // ─── 5. Knowledge Context / RAG (Priority 4) ──────────────────────────
       let ragContext: RAGContext | undefined;
       const lowerMessage = request.message.toLowerCase();
       const shouldFetchRAG =
@@ -173,11 +202,12 @@ export class ContextEngine implements IContextEngine {
         }
       }
 
-      // ─── 5. User Context / Long-Term Memory (Priority 5) ──────────────────
+      // ─── 6. User Context / Long-Term Memory (Priority 6) ──────────────────
       let longTermMemory: readonly MemoryItem[] | undefined;
       const targetUserId = request.userId || request.auth?.userId || '';
       const shouldFetchMemory =
         Boolean(
+          targetUserId &&
           this.memoryEngine &&
             (intent.requiresMemory ||
               intent.requiredContext?.memory ||
@@ -201,7 +231,7 @@ export class ContextEngine implements IContextEngine {
           });
 
           if (memResult.ok && memResult.value.length > 0) {
-            const userMemories = memResult.value.filter((m) => !targetUserId || m.userId === targetUserId);
+            const userMemories = memResult.value.filter((m) => m.userId === targetUserId);
             const seenContent = new Set<string>();
             const uniqueMemories: MemoryItem[] = [];
 
@@ -236,7 +266,7 @@ export class ContextEngine implements IContextEngine {
         }
       }
 
-      // ─── 6. Task / Project Workspace Intelligence ─────────────────────────
+      // ─── 7. Task / Project Workspace Intelligence ─────────────────────────
       let projectContext: ProjectContextSummary | undefined;
       let workspaceContext: WorkspaceContextSummary | undefined;
       let projectSystemInstructions: string | undefined;
@@ -276,23 +306,53 @@ export class ContextEngine implements IContextEngine {
       }
 
       if (intent.requiredContext?.workspace || intent.type === 'PROJECT_WORKSPACE_TASK') {
-        workspaceContext = {
-          workspaceId: `ws_${request.userId}`,
-          name: 'Personal Workspace',
-          summaryText: 'Default workspace context',
-        };
-        sourcesMetadata.push({
-          source: 'workspace',
-          relevanceScore: 0.8,
-          priority: 4,
-          tokenCount: defaultTokenizer.count(workspaceContext.summaryText || '').tokenCount,
-          scope: `workspace:${workspaceContext.workspaceId}`,
-          timestamp: Date.now(),
-          description: `Workspace: ${workspaceContext.name}`,
-        });
+        try {
+          const targetWsId = request.workspaceId || request.auth?.workspaceId;
+          let wsRecord = null;
+          if (targetWsId) {
+            const validWsId = toUuid(targetWsId);
+            wsRecord = await db.workspace.findFirst({
+              where: { id: validWsId, deletedAt: null },
+            });
+          }
+          if (!wsRecord && request.userId) {
+            const validUserId = toUuid(request.userId);
+            const member = await db.workspaceMember.findFirst({
+              where: { userId: validUserId },
+              include: { workspace: true },
+            });
+            if (member?.workspace) {
+              wsRecord = member.workspace;
+            }
+          }
+          if (wsRecord) {
+            workspaceContext = {
+              workspaceId: wsRecord.id,
+              name: wsRecord.name,
+              summaryText: `Active workspace: ${wsRecord.name}`,
+            };
+          } else {
+            workspaceContext = {
+              workspaceId: targetWsId || `ws_${request.userId}`,
+              name: 'Personal Workspace',
+              summaryText: 'Default workspace context',
+            };
+          }
+          sourcesMetadata.push({
+            source: 'workspace',
+            relevanceScore: 0.85,
+            priority: 4,
+            tokenCount: defaultTokenizer.count(workspaceContext.summaryText || '').tokenCount,
+            scope: `workspace:${workspaceContext.workspaceId}`,
+            timestamp: Date.now(),
+            description: `Workspace: ${workspaceContext.name}`,
+          });
+        } catch (wsErr) {
+          console.warn('[ContextEngine] Workspace lookup warning:', wsErr);
+        }
       }
 
-      // ─── 7. Reference Resolution (Pronouns & Anaphora) ─────────────────────
+      // ─── 8. Reference Resolution (Pronouns & Anaphora) ─────────────────────
       if (conversationHistory.length > 0) {
         const lastUserTurn = [...conversationHistory].reverse().find((m) => m.role === 'user');
         if (lastUserTurn) {
@@ -303,7 +363,7 @@ export class ContextEngine implements IContextEngine {
               sourcesMetadata.push({
                 source: 'conversation_history',
                 relevanceScore: 0.8,
-                priority: 2,
+                priority: 3,
                 tokenCount: 0,
                 scope: `conv:${request.conversationId}`,
                 timestamp: Date.now(),
@@ -315,7 +375,7 @@ export class ContextEngine implements IContextEngine {
         }
       }
 
-      // ─── 8. Token Budget Enforcement & Context Assembly ───────────────────
+      // ─── 9. Token Budget Enforcement & Context Assembly ───────────────────
       const totalAllocated = sourcesMetadata.reduce((sum, s) => sum + s.tokenCount, 0);
       const remainingTokens = Math.max(0, maxContextTokens - totalAllocated);
 
@@ -342,6 +402,7 @@ export class ContextEngine implements IContextEngine {
         activeEntities: intent.entities,
         sourcesMetadata,
         tokenBudget: adjustedBudget,
+        productivityContext,
       };
 
       return ok(context);

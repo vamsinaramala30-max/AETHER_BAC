@@ -10,6 +10,10 @@ export class CreateDocumentDto {
   mimeType!: string;
   originalName!: string;
   workspaceId?: string;
+  projectId?: string;
+  userId?: string;
+  async?: boolean;
+  metadata?: Record<string, any>;
 }
 
 export class UpdateDocumentDto {
@@ -19,6 +23,7 @@ export class UpdateDocumentDto {
   tags?: string[];
   status?: DocumentStatus;
   fileKey?: string;
+  projectId?: string;
 }
 
 export class QueryDocumentsDto {
@@ -29,5 +34,6 @@ export class QueryDocumentsDto {
   tags?: string[];
   search?: string;
   workspaceId?: string;
+  projectId?: string;
 }
 

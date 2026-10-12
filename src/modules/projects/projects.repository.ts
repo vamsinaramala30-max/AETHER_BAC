@@ -23,6 +23,17 @@ export interface PaginatedResult<T> {
 
 export class ProjectsRepository {
   private mapToEntity(p: any): ProjectEntity {
+    let progress = p.progress ?? 0;
+    if (p.tasks && Array.isArray(p.tasks)) {
+      const activeTasks = p.tasks.filter((t: any) => !t.deletedAt && t.status !== 'CANCELLED');
+      if (activeTasks.length > 0) {
+        const done = activeTasks.filter((t: any) => t.status === 'DONE' || !!t.completedAt).length;
+        progress = Math.min(100, Math.max(0, Math.round((done / activeTasks.length) * 100)));
+      } else {
+        progress = 0;
+      }
+    }
+
     return {
       id: p.id,
       ownerId: p.ownerId,
@@ -34,7 +45,7 @@ export class ProjectsRepository {
       category: p.category || 'General',
       status: (p.status || 'ACTIVE') as any,
       priority: (p.priority || 'MEDIUM') as any,
-      progressPercentage: p.progress ?? 0,
+      progressPercentage: progress,
       startDate: p.startDate ? new Date(p.startDate) : null,
       endDate: p.endDate ? new Date(p.endDate) : null,
       dueDate: p.endDate ? new Date(p.endDate) : null,
@@ -66,6 +77,10 @@ export class ProjectsRepository {
             members: true,
           },
         },
+        tasks: {
+          where: { deletedAt: null },
+          select: { id: true, status: true, completedAt: true, deletedAt: true },
+        },
       },
     });
     return project ? this.mapToEntity(project) : null;
@@ -88,6 +103,9 @@ export class ProjectsRepository {
         return { data: [], total: 0, page, limit, totalPages: 0 };
       }
       where.workspaceId = filter.workspaceId;
+    } else if ((filter as any).workspaceIds && Array.isArray((filter as any).workspaceIds)) {
+      const validWsIds = (filter as any).workspaceIds.filter((id: string) => IS_UUID_REGEX.test(id));
+      where.workspaceId = { in: validWsIds };
     }
     if (filter.memberId) {
       if (!IS_UUID_REGEX.test(filter.memberId)) {
@@ -141,6 +159,10 @@ export class ProjectsRepository {
               include: {
                 members: true,
               },
+            },
+            tasks: {
+              where: { deletedAt: null },
+              select: { id: true, status: true, completedAt: true, deletedAt: true },
             },
           },
         }),

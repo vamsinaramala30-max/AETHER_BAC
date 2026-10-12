@@ -8,6 +8,7 @@ import type { ToolDefinition, ToolExecutionContext, ToolVerificationResult } fro
 import { toolRegistry } from './tool-registry.js';
 import { TasksRepository } from '../../projects/tasks/tasks.repository.js';
 import { TaskStatus, PriorityLevel } from '../../projects/projects.constants.js';
+import { db } from '../../../database/client.js';
 
 const tasksRepo = new TasksRepository();
 
@@ -76,10 +77,63 @@ export const createTaskTool: ToolDefinition<CreateTaskInput, CreateTaskOutput> =
   ): Promise<CreateTaskOutput> => {
     const userId = context.auth.userId;
     const prio = (input.priority?.toUpperCase() || 'MEDIUM') as PriorityLevel;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let projectId = input.projectId;
+    if (!projectId || !isUuid.test(projectId)) {
+      const validWsId =
+        context.auth?.workspaceId && isUuid.test(context.auth.workspaceId)
+          ? context.auth.workspaceId
+          : undefined;
+
+      const existingProject = await db.project.findFirst({
+        where: {
+          deletedAt: null,
+          OR: [
+            { ownerId: userId },
+            ...(validWsId ? [{ workspaceId: validWsId }] : []),
+          ],
+        },
+      });
+      if (existingProject) {
+        projectId = existingProject.id;
+      } else {
+        let workspaceId = validWsId;
+        if (!workspaceId) {
+          const wsMember = await db.workspaceMember.findFirst({ where: { userId } });
+          if (wsMember && isUuid.test(wsMember.workspaceId)) {
+            workspaceId = wsMember.workspaceId;
+          } else {
+            const defaultWs = await db.workspace.findFirst({ where: { deletedAt: null } });
+            if (defaultWs) {
+              workspaceId = defaultWs.id;
+            } else {
+              const newWs = await db.workspace.create({
+                data: {
+                  name: 'Default Workspace',
+                  slug: `ws-${Date.now().toString(36)}`,
+                  members: { create: { userId, role: 'OWNER' } },
+                },
+              });
+              workspaceId = newWs.id;
+            }
+          }
+        }
+        const newProj = await db.project.create({
+          data: {
+            name: 'General Tasks',
+            ownerId: userId,
+            workspaceId,
+          },
+        });
+        projectId = newProj.id;
+      }
+    }
+
     const task = await tasksRepo.save({
       title: input.title,
       description: input.description ?? null,
-      projectId: input.projectId ?? undefined,
+      projectId,
       creatorId: userId,
       priority: prio,
       status: TaskStatus.TODO,

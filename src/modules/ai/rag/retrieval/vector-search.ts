@@ -54,6 +54,27 @@ export class InMemoryVectorStore implements IVectorStore {
       collectionIds?: readonly string[];
     },
   ): Promise<readonly VectorSearchResult[]> {
+    // 1. Try native PostgreSQL pgvector search first (accelerated by HNSW index)
+    if (queryEmbedding.length === 768) {
+      try {
+        const nativeHits = await (knowledgeChunkRepository as any).searchNativeVector(
+          queryEmbedding,
+          topK,
+          scoreThreshold,
+          scope,
+        );
+        if (nativeHits && nativeHits.length > 0) {
+          return nativeHits.map((r: any) => ({
+            chunkId: r.chunkId,
+            documentId: r.documentId,
+            score: r.score,
+          }));
+        }
+      } catch {
+        // Graceful fallback to in-memory cosine similarity
+      }
+    }
+
     if (this.vectors.size === 0 && scope) {
       try {
         const persisted = await knowledgeChunkRepository.findByScope(scope);

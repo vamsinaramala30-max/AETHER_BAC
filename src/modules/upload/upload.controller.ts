@@ -114,11 +114,20 @@ export class UploadController {
         rawProjectId && typeof rawProjectId === 'string' && rawProjectId.trim() !== ''
           ? rawProjectId.trim()
           : null;
+      const rawFolderId =
+        (req.body?.folderId as string) ||
+        (req.query?.folderId as string) ||
+        (req.headers?.['x-folder-id'] as string);
+      const cleanFolderId =
+        rawFolderId && typeof rawFolderId === 'string' && rawFolderId.trim() !== ''
+          ? rawFolderId.trim()
+          : null;
       const result = await uploadService.handleSingleUpload(
         req.file,
         userId,
         cleanWorkspaceId,
         cleanProjectId,
+        cleanFolderId,
       );
       res.status(201).json({ success: true, data: result });
     } catch (err) {
@@ -149,11 +158,20 @@ export class UploadController {
         rawProjectId && typeof rawProjectId === 'string' && rawProjectId.trim() !== ''
           ? rawProjectId.trim()
           : null;
+      const rawFolderId =
+        (req.body?.folderId as string) ||
+        (req.query?.folderId as string) ||
+        (req.headers?.['x-folder-id'] as string);
+      const cleanFolderId =
+        rawFolderId && typeof rawFolderId === 'string' && rawFolderId.trim() !== ''
+          ? rawFolderId.trim()
+          : null;
       const result = await uploadService.handleMultipleUploads(
         files,
         userId,
         cleanWorkspaceId,
         cleanProjectId,
+        cleanFolderId,
       );
       res.status(201).json({ success: true, data: result });
     } catch (err) {
@@ -168,15 +186,32 @@ export class UploadController {
       const limit = req.query?.limit ? parseInt(req.query.limit as string, 10) : 20;
       const userId = (req as any).user?.id || (req as any).user?.userId;
       const workspaceId =
-        (req.query?.workspaceId as string) ||
-        (req as any).user?.workspaceId ||
-        (req.headers?.['x-workspace-id'] as string);
+        typeof req.query?.workspaceId === 'string' && req.query.workspaceId.trim() !== ''
+          ? req.query.workspaceId.trim()
+          : undefined;
       const projectId =
         (req.query?.projectId as string) ||
         (req.headers?.['x-project-id'] as string) ||
         undefined;
+      const hasProject = req.query?.hasProject === 'true';
+      const folderId = req.query?.folderId !== undefined ? (req.query.folderId as string) : undefined;
+      const category = req.query?.category as string | undefined;
+      const favoriteOnly = req.query?.favoriteOnly === 'true';
+      const includeTrash = req.query?.includeTrash === 'true' || req.query?.trash === 'true';
 
-      const data = await uploadService.listFiles({ search, page, limit, userId, workspaceId, projectId });
+      const data = await uploadService.listFiles({
+        search,
+        page,
+        limit,
+        userId,
+        workspaceId,
+        projectId,
+        hasProject,
+        folderId,
+        category,
+        favoriteOnly,
+        includeTrash,
+      });
       res.status(200).json({ success: true, ...data });
     } catch (err) {
       next(err);
@@ -235,36 +270,84 @@ export class UploadController {
       }
 
       const mimeType = fileRecord.mimeType || 'application/octet-stream';
+      const isRawRequested = req.query?.raw === 'true';
+      const isInspectRequested = req.query?.inspect === 'true';
 
-      // Office Document Text Extraction Fallback for preview
-      if (
+      // Archive inspection request: Return structured archive hierarchy
+      const isArchiveMime =
+        mimeType.includes('zip') ||
+        mimeType.includes('compressed') ||
+        mimeType.includes('tar') ||
+        mimeType.includes('gzip') ||
+        /\.(zip|tar|gz|7z|rar)$/i.test(fileRecord.filename);
+
+      if (isInspectRequested || (isArchiveMime && req.query?.format === 'json')) {
+        const archiveData = await uploadService.inspectArchive(fileRecord);
+        res.status(200).json({ success: true, data: archiveData });
+        return;
+      }
+
+      // Office Document Text Extraction — DOCX, XLSX, PPTX, DOC, XLS, PPT
+      const isOfficeMime =
         mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
         mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
         mimeType === 'application/msword' ||
         mimeType === 'application/vnd.ms-excel' ||
-        /\.(docx|xlsx|doc|xls)$/i.test(fileRecord.filename)
-      ) {
+        mimeType === 'application/vnd.ms-powerpoint';
+      const isOfficeExtension = /\.(docx|xlsx|pptx|doc|xls|ppt)$/i.test(fileRecord.filename);
+
+      if ((isOfficeMime || isOfficeExtension) && !isRawRequested) {
         try {
           const extracted = await uploadService.extractText(id, userId, projectId, workspaceId);
-          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-          res.setHeader('X-Content-Type-Options', 'nosniff');
-          res.setHeader(
-            'Content-Disposition',
-            `inline; filename="${encodeURIComponent(fileRecord.filename)}.txt"`,
-          );
-          res.status(200).send(extracted.text);
+          if (extracted && extracted.text && extracted.text.trim().length > 0) {
+            // Successful extraction — return as plain text preview
+            res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            res.setHeader(
+              'Content-Disposition',
+              `inline; filename="${encodeURIComponent(fileRecord.filename)}.txt"`,
+            );
+            res.status(200).send(extracted.text);
+            return;
+          }
+          res.status(422).json({
+            success: false,
+            error: {
+              code: 'EXTRACTION_FAILED',
+              message: 'Office document contains no extractable text',
+            },
+          });
           return;
-        } catch (extractErr) {
-          logger.warn(`Office doc text preview failed for ${id}:`, extractErr);
+        } catch (err: any) {
+          const errMsg = err?.message || '';
+          if (errMsg.includes('not a valid OOXML/ZIP') || errMsg.toLowerCase().includes('corrupt')) {
+            res.status(422).json({
+              success: false,
+              error: {
+                code: 'DOCUMENT_CORRUPT',
+                message: `Office document is corrupt or invalid: ${errMsg}`,
+              },
+            });
+            return;
+          }
+          res.status(422).json({
+            success: false,
+            error: {
+              code: 'EXTRACTION_FAILED',
+              message: errMsg || 'Office document extraction failed',
+            },
+          });
+          return;
         }
       }
 
-      if (!isSupportedPreview(mimeType, fileRecord.filename)) {
+      if (!isSupportedPreview(mimeType, fileRecord.filename) && !isRawRequested) {
         res.status(415).json({
           success: false,
           error: {
             code: 'PREVIEW_UNSUPPORTED',
-            message: `Preview is not supported for file type "${mimeType}". Please download the file to view it.`,
+            message: `Preview is not supported for ${fileRecord.filename}. Please download the file to view it.`,
           },
         });
         return;
@@ -496,9 +579,9 @@ export class UploadController {
     try {
       const userId = (req as any).user?.id || (req as any).user?.userId;
       const workspaceId =
-        (req.query?.workspaceId as string) ||
-        (req.headers?.['x-workspace-id'] as string) ||
-        undefined;
+        typeof req.query?.workspaceId === 'string' && req.query.workspaceId.trim() !== ''
+          ? req.query.workspaceId.trim()
+          : undefined;
       const projectId =
         (req.query?.projectId as string) ||
         (req.headers?.['x-project-id'] as string) ||
@@ -579,6 +662,258 @@ export class UploadController {
         data: result.file,
         version: result.version,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // ==========================================================================
+  // FOLDERS
+  // ==========================================================================
+
+  public async listFolders(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const workspaceId =
+        (req.query?.workspaceId as string) ||
+        (req as any).user?.workspaceId ||
+        (req.headers?.['x-workspace-id'] as string);
+      const parentId = req.query?.parentId !== undefined ? (req.query.parentId as string) : undefined;
+      const projectId = (req.query?.projectId as string) || undefined;
+
+      const folders = await uploadService.listFolders({ userId, workspaceId, parentId, projectId });
+      res.status(200).json({ success: true, data: folders });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async createFolder(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const { name, parentId, workspaceId: bodyWs } = req.body || {};
+      const workspaceId =
+        bodyWs ||
+        (req as any).user?.workspaceId ||
+        (req.headers?.['x-workspace-id'] as string);
+
+      const folder = await uploadService.createFolder({ userId, name, parentId, workspaceId });
+      res.status(201).json({ success: true, data: folder });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async renameFolder(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const folderId = req.params.folderId || req.params.id;
+      const { name } = req.body || {};
+
+      const folder = await uploadService.renameFolder(folderId, name, userId);
+      res.status(200).json({ success: true, data: folder });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async deleteFolder(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const folderId = req.params.folderId || req.params.id;
+
+      const result = await uploadService.deleteFolder(folderId, userId);
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getFolderBreadcrumbs(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const folderId = req.params.folderId || req.params.id;
+
+      const breadcrumbs = await uploadService.getFolderBreadcrumbs(folderId, userId);
+      res.status(200).json({ success: true, data: breadcrumbs });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // ==========================================================================
+  // FILE ACTIONS: MOVE, COPY, CREATE EMPTY
+  // ==========================================================================
+
+  public async moveFile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const id = req.params.id || req.params.uploadId;
+      const { folderId, projectId } = req.body || {};
+
+      const updated = await uploadService.moveFile(id, userId, folderId, projectId);
+      res.status(200).json({ success: true, data: updated, message: 'File moved successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async copyFile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const id = req.params.id || req.params.uploadId;
+      const { targetFolderId } = req.body || {};
+
+      const copy = await uploadService.copyFile(id, userId, targetFolderId);
+      res.status(201).json({ success: true, data: copy, message: 'File duplicated successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async createEmptyFile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const { filename, content, folderId, workspaceId, projectId } = req.body || {};
+
+      const newFile = await uploadService.createEmptyFile({
+        userId,
+        filename,
+        content,
+        folderId,
+        workspaceId,
+        projectId,
+      });
+      res.status(201).json({ success: true, data: newFile, message: 'File created successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // ==========================================================================
+  // TRASH LIFECYCLE
+  // ==========================================================================
+
+  public async moveToTrash(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const id = req.params.id || req.params.uploadId;
+
+      const file = await uploadService.moveToTrash(id, userId);
+      res.status(200).json({ success: true, data: file, message: 'File moved to Trash' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async restoreFromTrash(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const id = req.params.id || req.params.uploadId;
+
+      const file = await uploadService.restoreFromTrash(id, userId);
+      res.status(200).json({ success: true, data: file, message: 'File restored from Trash' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getTrashFiles(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const workspaceId =
+        typeof req.query?.workspaceId === 'string' && req.query.workspaceId.trim() !== ''
+          ? req.query.workspaceId.trim()
+          : undefined;
+
+      const files = await uploadService.getTrashFiles({ userId, workspaceId });
+      res.status(200).json({ success: true, data: files });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async emptyTrash(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const workspaceId =
+        typeof req.query?.workspaceId === 'string' && req.query.workspaceId.trim() !== ''
+          ? req.query.workspaceId.trim()
+          : undefined;
+
+      const result = await uploadService.emptyTrash({ userId, workspaceId });
+      res.status(200).json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async permanentDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const id = req.params.id || req.params.uploadId;
+
+      await uploadService.deleteFile(id, userId);
+      res.status(200).json({ success: true, message: 'File permanently deleted' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // ==========================================================================
+  // STORAGE INSIGHTS & DUPLICATES
+  // ==========================================================================
+
+  public async getStorageInsights(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const workspaceId =
+        typeof req.query?.workspaceId === 'string' && req.query.workspaceId.trim() !== ''
+          ? req.query.workspaceId.trim()
+          : undefined;
+      const projectId = (req.query?.projectId as string) || undefined;
+
+      const insights = await uploadService.getStorageInsights({ userId, workspaceId, projectId });
+      res.status(200).json({ success: true, data: insights });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async getDuplicateFiles(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const workspaceId =
+        (req.query?.workspaceId as string) ||
+        (req as any).user?.workspaceId ||
+        (req.headers?.['x-workspace-id'] as string);
+      const projectId = (req.query?.projectId as string) || undefined;
+
+      const duplicates = await uploadService.getDuplicateFiles({ userId, workspaceId, projectId });
+      res.status(200).json({ success: true, data: duplicates });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // ==========================================================================
+  // ASK AI ABOUT FILE
+  // ==========================================================================
+
+  public async askAIAboutFile(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id || (req as any).user?.userId;
+      const id = req.params.id || req.params.uploadId;
+      const { question } = req.body || {};
+      const projectId = (req.query?.projectId as string) || (req.body?.projectId as string) || undefined;
+      const workspaceId = (req.query?.workspaceId as string) || (req.body?.workspaceId as string) || undefined;
+
+      if (!question || typeof question !== 'string' || !question.trim()) {
+        throw new AppError('Question string is required', 400, 'QUESTION_REQUIRED');
+      }
+
+      const analysis = await uploadService.askAIAboutFile(id, userId, question.trim(), projectId, workspaceId);
+      res.status(200).json({ success: true, data: analysis });
     } catch (err) {
       next(err);
     }

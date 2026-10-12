@@ -2,6 +2,7 @@ import { db } from '../../../database/client';
 import { DocumentEntity, DocumentVersion } from './documents.entity';
 import { QueryDocumentsDto } from './documents.dto';
 import { DocumentStatus } from '../knowledge.constants';
+import { AppError } from '../../../middleware/error.middleware';
 
 const isValidUuid = (id: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -17,6 +18,21 @@ async function getOrCreateKnowledgeBaseId(workspaceId?: string, userId?: string)
     });
     if (member) {
       targetWorkspaceId = member.workspaceId;
+    } else {
+      const ws = await db.workspace.create({
+        data: {
+          name: 'Personal Workspace',
+          slug: `personal-${userId.slice(0, 8)}-${Date.now()}`,
+        },
+      });
+      await db.workspaceMember.create({
+        data: {
+          workspaceId: ws.id,
+          userId,
+          role: 'OWNER',
+        },
+      });
+      targetWorkspaceId = ws.id;
     }
   }
 
@@ -42,7 +58,7 @@ async function getOrCreateKnowledgeBaseId(workspaceId?: string, userId?: string)
       ws = await db.workspace.create({
         data: {
           name: 'Default Workspace',
-          slug: 'default-workspace',
+          slug: `default-${Date.now()}`,
         },
       });
     }
@@ -82,9 +98,13 @@ export class DocumentsRepository {
       },
     });
 
+    const docProjectId = (doc.metadata as any)?.projectId;
     const created = await db.document.create({
       data: {
         knowledgeBaseId: kbId,
+        workspaceId: docWorkspaceId && isValidUuid(docWorkspaceId) ? docWorkspaceId : null,
+        projectId: docProjectId && isValidUuid(docProjectId) ? docProjectId : null,
+        userId: doc.ownerId && isValidUuid(doc.ownerId) ? doc.ownerId : null,
         fileName: doc.title,
         fileUrl: doc.fileKey || '',
         content: payload,
@@ -205,12 +225,17 @@ export class DocumentsRepository {
   }
 
   async delete(id: string): Promise<boolean> {
-    if (!isValidUuid(id)) return true;
+    if (!isValidUuid(id)) {
+      throw new AppError(`Invalid document ID format: ${id}`, 400, 'INVALID_ID_FORMAT');
+    }
     try {
       await db.document.delete({ where: { id } });
       return true;
-    } catch {
-      return false;
+    } catch (err: any) {
+      if (err?.code === 'P2025') {
+        return false;
+      }
+      throw new AppError(`Database error: unable to delete document ${id}`, 503, 'DATABASE_DELETE_ERROR');
     }
   }
 
@@ -240,25 +265,32 @@ export class DocumentsRepository {
       const page = Math.max(1, query.page || 1);
       const limit = Math.max(1, query.limit || 50);
 
-      // Build safe scoped query: documents belonging to user's knowledge base or owned by user
-      const whereCondition: any = {
-        OR: [
-          ...(targetWorkspaceIds.length > 0
-            ? [
-                {
-                  knowledgeBase: {
-                    workspaceId: { in: targetWorkspaceIds },
+      // Build safe scoped query: strictly scope by workspaceId if requested
+      let whereCondition: any;
+      if (query.workspaceId) {
+        whereCondition = {
+          knowledgeBase: { workspaceId: query.workspaceId },
+        };
+      } else {
+        whereCondition = {
+          OR: [
+            ...(targetWorkspaceIds.length > 0
+              ? [
+                  {
+                    knowledgeBase: {
+                      workspaceId: { in: targetWorkspaceIds },
+                    },
                   },
-                },
-              ]
-            : []),
-          {
-            content: {
-              contains: `"ownerId":"${userId}"`,
+                ]
+              : []),
+            {
+              content: {
+                contains: `"ownerId":"${userId}"`,
+              },
             },
-          },
-        ],
-      };
+          ],
+        };
+      }
 
       const [docs, total] = await Promise.all([
         db.document.findMany({

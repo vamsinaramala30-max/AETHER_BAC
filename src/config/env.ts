@@ -96,6 +96,7 @@ const envSchema = z.object({
   PROMPTS_LOGGED: z.string().transform((v) => v === 'true').default('false'),
   OUTPUTS_LOGGED: z.string().transform((v) => v === 'true').default('false'),
   TRACE_SAMPLE_RATE: z.string().transform((v) => parseFloat(v)).default('1.0'),
+  ALLOW_LOCAL_MODEL_IN_PROD: z.string().transform((v) => v === 'true' || v === '1').default('false'),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;
@@ -123,8 +124,13 @@ const parseEnv = (): EnvConfig => {
       'aether-session-secret-change-in-production',
       'your-jwt-secret-key-at-least-32-chars',
       'your-jwt-refresh-secret-key',
+      'your-session-secret-key',
       'super_secret_aether_jwt_key_change_me_in_production_32bytes',
       'super_secret_aether_refresh_jwt_key_change_me_in_production_32bytes',
+      'super_secret_aether_session_key_change_me_32bytes',
+      'replace_with_cryptographically_secure_jwt_secret_32bytes_min',
+      'replace_with_distinct_refresh_jwt_secret_32bytes_min',
+      'replace_with_distinct_session_cookie_secret_32bytes_min',
     ];
 
     if (insecureSecrets.includes(result.data.JWT_SECRET)) {
@@ -143,6 +149,10 @@ const parseEnv = (): EnvConfig => {
       console.error('❌ FATAL: JWT_SECRET and JWT_REFRESH_SECRET must be distinct keys in production.');
       throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be distinct in production. Deployment halted.');
     }
+    if (result.data.SESSION_SECRET === result.data.JWT_SECRET || result.data.SESSION_SECRET === result.data.JWT_REFRESH_SECRET) {
+      console.error('❌ FATAL: SESSION_SECRET must be distinct from JWT_SECRET and JWT_REFRESH_SECRET in production.');
+      throw new Error('SESSION_SECRET must be distinct from JWT_SECRET and JWT_REFRESH_SECRET. Deployment halted.');
+    }
     if (result.data.CORS_ORIGIN === '*' || result.data.CORS_ORIGIN.includes('*')) {
       console.error('❌ FATAL: Wildcard CORS_ORIGIN is not permitted in production with credentials.');
       throw new Error('Wildcard CORS_ORIGIN is forbidden in production. Provide explicit allowed origins.');
@@ -152,12 +162,12 @@ const parseEnv = (): EnvConfig => {
       modelUrl.includes('localhost') ||
       modelUrl.includes('127.0.0.1') ||
       modelUrl.includes(':5002');
-    if (isLocalhostModel && !process.env['ALLOW_LOCAL_MODEL_IN_PROD']) {
+    if (isLocalhostModel && !result.data.ALLOW_LOCAL_MODEL_IN_PROD && !process.env['ALLOW_LOCAL_MODEL_IN_PROD']) {
       console.error(
         '❌ FATAL: Production AETHER_BAC cannot silently fall back to localhost / 127.0.0.1 / :5002 for AETHER_MODEL_URL.',
       );
       throw new Error(
-        'AETHER_MODEL_URL must point to an authorized production cloud model endpoint in production. Silent fallback to localhost/5002 is forbidden.',
+        'AETHER_MODEL_URL must point to an authorized production cloud model endpoint in production, or set ALLOW_LOCAL_MODEL_IN_PROD=true for on-premise container deployment.',
       );
     }
   }

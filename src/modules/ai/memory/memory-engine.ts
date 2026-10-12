@@ -81,6 +81,10 @@ export interface IMemoryEngine {
   getAllMemory(userId: UserId): Promise<Result<readonly MemoryItem[]>>;
   getMemoryById(id: MemoryId, userId: UserId): Promise<Result<MemoryItem>>;
   forgetMemoryByContent(userId: UserId, contentQuery: string): Promise<Result<number>>;
+  consolidateMemories(
+    userId: UserId,
+    scope?: MemoryScope,
+  ): Promise<Result<{ consolidatedCount: number; newItemsCount: number }>>;
 
   // User Cleanup
   clearUserData(userId: UserId): Promise<void>;
@@ -200,6 +204,58 @@ export class MemoryEngine implements IMemoryEngine {
 
       const id = `mem_${now}_${Math.random().toString(36).slice(2, 8)}`;
 
+      // Contradiction detection & resolution (audit trail via superseded status)
+      let supersededId: string | undefined;
+      if (request.metadata?.replacesMemoryId) {
+        supersededId = request.metadata.replacesMemoryId as string;
+      } else if (request.metadata?.topic || request.metadata?.subject) {
+        const topic = (request.metadata?.topic || request.metadata?.subject) as string;
+        const prefix = trimmedContent.includes(':')
+          ? trimmedContent.split(':')[0]?.trim().toLowerCase()
+          : undefined;
+
+        const conflicting = existingMemories.find((m) => {
+          if (m.metadata?.status === 'superseded' || m.metadata?.status === 'deleted') {
+            return false;
+          }
+          const sameTopic =
+            (m.metadata?.topic && m.metadata?.topic === topic) ||
+            (m.metadata?.subject && m.metadata?.subject === topic);
+          if (!sameTopic) return false;
+          if (m.content.trim().toLowerCase() === trimmedContent.toLowerCase()) return false;
+
+          // For preferences, any new preference on the same topic updates/supersedes the existing one
+          if ((request.type === 'preference' || !request.type) && m.type === 'preference') {
+            return true;
+          }
+
+          // If both have the same property key before colon (e.g. "Work hours: 9-5" vs "Work hours: 11-7")
+          if (prefix && m.content.includes(':')) {
+            const mPrefix = m.content.split(':')[0]?.trim().toLowerCase();
+            if (mPrefix === prefix) {
+              return true;
+            }
+          }
+
+          return false;
+        });
+
+        if (conflicting) {
+          supersededId = conflicting.id;
+        }
+      }
+
+      if (supersededId) {
+        await this.longTermStore.update(supersededId, request.userId, {
+          metadata: {
+            status: 'superseded',
+            supersededBy: id,
+            supersededAt: now,
+            supersedeReason: `Superseded by new evidence from source '${request.metadata?.source ?? 'user_explicit'}'`,
+          },
+        });
+      }
+
       const startNow = performance.now();
       const span = tracer.startSpan('memory.write', {
         component: 'MemoryEngine',
@@ -225,6 +281,7 @@ export class MemoryEngine implements IMemoryEngine {
           ...request.metadata,
           status: 'active',
           source: request.metadata?.source ?? 'user_explicit',
+          ...(supersededId ? { supersedes: supersededId } : {}),
         },
       };
 
@@ -470,6 +527,105 @@ export class MemoryEngine implements IMemoryEngine {
       return fail(
         new MemoryFailedError(
           'forget',
+          error instanceof Error ? error.message : String(error),
+        ),
+      );
+    }
+  }
+
+  // ─── Memory Consolidation (P1C) ──────────────────────────────────────────
+
+  public async consolidateMemories(
+    userId: UserId,
+    scope?: MemoryScope,
+  ): Promise<Result<{ consolidatedCount: number; newItemsCount: number }>> {
+    if (!userId || userId.trim().length === 0) {
+      return fail(new MemoryFailedError('consolidate', 'userId is required'));
+    }
+
+    try {
+      const allMemories = await this.longTermStore.getByUser(userId);
+      const active = allMemories.filter(
+        (m) =>
+          m.metadata?.status !== 'superseded' &&
+          m.metadata?.status !== 'deleted' &&
+          m.metadata?.isConsolidated !== true &&
+          (!scope || m.scope === scope),
+      );
+
+      if (active.length < 2) {
+        return ok({ consolidatedCount: 0, newItemsCount: 0 });
+      }
+
+      // Group by topic, category, or low-importance facts
+      const groups = new Map<string, MemoryItem[]>();
+      for (const mem of active) {
+        const groupKey =
+          (mem.metadata?.topic as string) ||
+          (mem.metadata?.category as string) ||
+          (mem.importance < 0.6 ? 'low_importance' : 'general');
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, []);
+        }
+        groups.get(groupKey)!.push(mem);
+      }
+
+      let consolidatedCount = 0;
+      let newItemsCount = 0;
+
+      for (const [key, cluster] of groups.entries()) {
+        if (cluster.length >= 2) {
+          const now = Date.now();
+          const consolidatedId = `mem_cons_${now}_${Math.random().toString(36).slice(2, 8)}`;
+          const summaryContent = cluster.map((m) => m.content).join('; ');
+          const maxImportance = Math.max(...cluster.map((m) => m.importance));
+
+          const consolidatedItem: MemoryItem = {
+            id: consolidatedId,
+            userId,
+            workspaceId: cluster[0]?.workspaceId,
+            projectId: cluster[0]?.projectId,
+            type: 'fact',
+            scope: cluster[0]?.scope ?? 'GLOBAL_USER',
+            content: summaryContent,
+            importance: maxImportance,
+            confidence: 'user_provided',
+            version: 1,
+            accessCount: 0,
+            createdAt: now,
+            updatedAt: now,
+            metadata: {
+              status: 'active',
+              isConsolidated: true,
+              consolidatedGroup: key,
+              consolidatedFromIds: cluster.map((c) => c.id),
+              source: 'memory_consolidation',
+            },
+          };
+
+          await this.longTermStore.create(consolidatedItem);
+          newItemsCount++;
+
+          for (const item of cluster) {
+            await this.longTermStore.update(item.id, userId, {
+              metadata: {
+                ...item.metadata,
+                status: 'superseded',
+                supersededBy: consolidatedId,
+                supersededAt: now,
+                supersedeReason: 'Consolidated into summary memory item',
+              },
+            });
+            consolidatedCount++;
+          }
+        }
+      }
+
+      return ok({ consolidatedCount, newItemsCount });
+    } catch (error) {
+      return fail(
+        new MemoryFailedError(
+          'consolidate',
           error instanceof Error ? error.message : String(error),
         ),
       );

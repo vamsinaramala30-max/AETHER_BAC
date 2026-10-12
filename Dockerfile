@@ -50,8 +50,8 @@ RUN npm ci --omit=dev && npx prisma generate
 # Copy compiled artifacts from builder stage
 COPY --from=builder /app/dist ./dist
 
-# Ensure logs and uploads directories exist with proper permissions
-RUN mkdir -p logs uploads && chown -R node:node /app
+# Ensure logs, uploads, and tenant storage directories exist with proper permissions
+RUN mkdir -p logs uploads storage && chown -R node:node /app
 
 USER node
 

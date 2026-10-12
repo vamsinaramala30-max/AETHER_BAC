@@ -434,6 +434,37 @@ router.patch('/documents/:id', async (req, res, next) => {
   }
 });
 
+router.post('/search', searchRateLimiter, async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const workspaceId = getWorkspaceId(req);
+    const dto = {
+      query: req.body?.query || req.body?.q || '',
+      searchType: req.body?.searchType,
+      limit: req.body?.limit ? parseInt(req.body.limit, 10) : undefined,
+      filters: req.body?.filters,
+    };
+    const result = await _knowledgeService.searchService.search(dto, userId, workspaceId);
+    res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/search', searchRateLimiter, async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const workspaceId = getWorkspaceId(req);
+    const queryStr = (req.query.q as string) || (req.query.query as string) || '';
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+    const dto = { query: queryStr, limit };
+    const result = await _knowledgeService.searchService.search(dto, userId, workspaceId);
+    res.status(200).json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/documents/search', searchRateLimiter, async (req, res, next) => {
   try {
     const userId = (req as any).user?.id || '';

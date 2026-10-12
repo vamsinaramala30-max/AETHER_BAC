@@ -81,4 +81,5 @@ export class DocumentWorker {
   }
 }
 
-export const documentWorker = new DocumentWorker();
+import { defaultRAGEngine } from '../rag/rag-engine.js';
+export const documentWorker = new DocumentWorker(defaultRAGEngine);

@@ -6,6 +6,7 @@ import {
   createWorkspaceSchema,
   updateWorkspaceSchema,
   addWorkspaceMemberSchema,
+  updateWorkspaceMemberSchema,
 } from '../validators/workspace.validator';
 
 const _workspaceModule = new WorkspaceModule();
@@ -40,12 +41,24 @@ router.delete('/:workspaceId/focus/:id', (req, res, next) =>
   focusController.handleDelete(req, res, next),
 );
 
-// Workspace routes
+// Workspace CRUD routes
 router.get('/', workspaceController.getUserWorkspaces);
 router.post('/', validate(createWorkspaceSchema), workspaceController.createWorkspace);
+router.get('/:id/overview', workspaceController.getOverviewHttp);
 router.get('/:id', workspaceController.getWorkspaceById);
 router.put('/:id', validate(updateWorkspaceSchema), workspaceController.updateWorkspace);
 router.delete('/:id', workspaceController.deleteWorkspace);
+
+// Workspace Member Management routes
+router.get('/:id/members', workspaceController.listMembers);
 router.post('/:id/members', validate(addWorkspaceMemberSchema), workspaceController.addMember);
+router.put(
+  '/:id/members/:memberId',
+  validate(updateWorkspaceMemberSchema),
+  workspaceController.updateMemberRole,
+);
+router.delete('/:id/members/:memberId', workspaceController.removeMember);
+router.post('/:id/leave', workspaceController.leaveWorkspace);
 
 export const workspaceRoutes: Router = router;
+

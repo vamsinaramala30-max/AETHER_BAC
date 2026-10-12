@@ -16,7 +16,8 @@ const router = Router();
 
 router.use(authenticate);
 
-router.get('/', (req, res, next) => projectController.getDashboard(req, res, next));
+router.get('/dashboard', (req, res, next) => projectController.getDashboard(req, res, next));
+router.get('/', (req, res, next) => projectController.list(req, res, next));
 router.post('/', validate(createProjectSchema), (req, res, next) =>
   projectController.create(req, res, next),
 );

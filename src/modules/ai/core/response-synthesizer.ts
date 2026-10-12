@@ -84,6 +84,17 @@ export class ResponseSynthesizer {
     const message = request.message.trim();
     const lower = message.toLowerCase();
 
+    // ─── Live AETHER Productivity State Queries (P1C) ─────────────────────
+    const liveProdAnswer = this.trySynthesizeLiveProductivityState(message, lower, context);
+    if (liveProdAnswer !== null) {
+      return {
+        content: liveProdAnswer,
+        confidence: 'HIGH_CONFIDENCE',
+        synthesized: true,
+        strategy: 'live_productivity_state',
+      };
+    }
+
     let content: string;
     let strategy: string;
 
@@ -514,6 +525,214 @@ Let me know if you would like to make any adjustments!`;
     }
 
     return `I can help you with that. To give you the most accurate response, please let me know if you would like to plan tasks, search knowledge, or organize projects.`;
+  }
+
+  private trySynthesizeLiveProductivityState(
+    _message: string,
+    lower: string,
+    context: AIContext,
+  ): string | null {
+    const prod = context.productivityContext;
+
+    // 1. "Which tasks are overdue?" / "overdue"
+    if (lower.includes('overdue') || lower.includes('late tasks') || lower.includes('past due')) {
+      if (!prod || !prod.overdueTasks || prod.overdueTasks.length === 0) {
+        return 'No matching data found.';
+      }
+      return `Here are your overdue tasks:\n\n${prod.overdueTasks
+        .map(
+          (t, idx) =>
+            `${idx + 1}. **${t.title}** [${t.priority}] — Due: ${
+              t.dueDate ? new Date(t.dueDate).toISOString().split('T')[0] : 'Past due'
+            }${t.projectName ? ` (Project: ${t.projectName})` : ''}`,
+        )
+        .join('\n')}`;
+    }
+
+    // 2. "What do I have scheduled today?" / "What is scheduled today?"
+    if (
+      lower.includes('scheduled today') ||
+      lower.includes('schedule today') ||
+      lower.includes('what do i have scheduled') ||
+      lower.includes('agenda today')
+    ) {
+      if (!prod) return 'No matching data found.';
+      const items: string[] = [];
+      if (prod.todayPlannerBlocks && prod.todayPlannerBlocks.length > 0) {
+        items.push('**Planner Blocks:**');
+        for (const b of prod.todayPlannerBlocks) {
+          items.push(
+            `• [${b.completed ? 'Completed' : 'Pending'}] **${b.title}** (${b.duration} mins, category: ${b.bucket})`,
+          );
+        }
+      }
+      if (prod.todayTasks && prod.todayTasks.length > 0) {
+        items.push('\n**Tasks Due Today:**');
+        for (const t of prod.todayTasks) {
+          items.push(`• **${t.title}** [${t.priority}] — Status: ${t.status}`);
+        }
+      }
+      if (prod.upcomingCalendarEvents && prod.upcomingCalendarEvents.length > 0) {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const todayEvents = prod.upcomingCalendarEvents.filter((e) =>
+          new Date(e.startDate).toISOString().startsWith(todayStr),
+        );
+        if (todayEvents.length > 0) {
+          items.push('\n**Calendar Events:**');
+          for (const ev of todayEvents) {
+            items.push(
+              `• **${ev.title}** — ${new Date(ev.startDate).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })} to ${new Date(ev.endDate).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}${ev.location ? ` (${ev.location})` : ''}`,
+            );
+          }
+        }
+      }
+      if (items.length === 0) {
+        return 'No matching data found.';
+      }
+      return `Here is your schedule for today:\n\n${items.join('\n')}`;
+    }
+
+    // 3. "What meetings do I have tomorrow?" / "meetings tomorrow"
+    if (lower.includes('meeting') && lower.includes('tomorrow')) {
+      if (!prod || !prod.upcomingCalendarEvents || prod.upcomingCalendarEvents.length === 0) {
+        return 'No matching data found.';
+      }
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      const tomorrowEvents = prod.upcomingCalendarEvents.filter((e) =>
+        new Date(e.startDate).toISOString().startsWith(tomorrowStr),
+      );
+      if (tomorrowEvents.length === 0) {
+        return 'No matching data found.';
+      }
+      return `Here are your meetings scheduled for tomorrow:\n\n${tomorrowEvents
+        .map(
+          (ev, idx) =>
+            `${idx + 1}. **${ev.title}** — ${new Date(ev.startDate).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })} to ${new Date(ev.endDate).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}${ev.location ? ` (${ev.location})` : ''}`,
+        )
+        .join('\n')}`;
+    }
+
+    // 4. "What am I focusing on right now?" / "focus right now"
+    if (
+      lower.includes('focusing on right now') ||
+      lower.includes('focus right now') ||
+      lower.includes('what am i focusing on')
+    ) {
+      if (!prod || !prod.activeFocusSession) {
+        return 'No matching data found.';
+      }
+      const s = prod.activeFocusSession;
+      return `You are currently focusing in **${s.type}** mode (${s.durationMinutes} minutes)${
+        s.taskTitle ? ` on task **${s.taskTitle}**` : ''
+      }${s.projectName ? ` (Project: ${s.projectName})` : ''} with status **${s.status}**.`;
+    }
+
+    // 5. "Which project has the most unfinished work?"
+    if (lower.includes('most unfinished work') || lower.includes('most unfinished')) {
+      if (
+        !prod ||
+        !prod.projectsWithUnfinishedWork ||
+        prod.projectsWithUnfinishedWork.length === 0
+      ) {
+        return 'No matching data found.';
+      }
+      const top = prod.projectsWithUnfinishedWork[0];
+      if (top.unfinishedTasksCount === 0) {
+        return 'No matching data found.';
+      }
+      return `**${top.name}** has the most unfinished work with **${top.unfinishedTasksCount}** open task(s) (Status: ${top.status}).\n\n${
+        prod.projectsWithUnfinishedWork.length > 1
+          ? `Other projects:\n${prod.projectsWithUnfinishedWork
+              .slice(1)
+              .map((p) => `• **${p.name}**: ${p.unfinishedTasksCount} unfinished task(s)`)
+              .join('\n')}`
+          : ''
+      }`;
+    }
+
+    // 6. "What did I upload for this project?" / "uploaded for this project"
+    if (
+      lower.includes('what did i upload') ||
+      lower.includes('uploaded for this project') ||
+      lower.includes('uploaded files')
+    ) {
+      if (!prod || !prod.projectUploadedFiles || prod.projectUploadedFiles.length === 0) {
+        return 'No matching data found.';
+      }
+      return `Here are the files uploaded for this project:\n\n${prod.projectUploadedFiles
+        .map(
+          (f, idx) =>
+            `${idx + 1}. **${f.name}** (${(f.sizeBytes / 1024).toFixed(1)} KB, ${f.mimeType})`,
+        )
+        .join('\n')}`;
+    }
+
+    // 7. "Show me the notes related to this task" / "notes related to this task"
+    if (
+      lower.includes('notes related to this task') ||
+      lower.includes('task notes') ||
+      lower.includes('notes for this task')
+    ) {
+      if (!prod || !prod.taskNotes || prod.taskNotes.length === 0) {
+        return 'No matching data found.';
+      }
+      return `Here are the notes related to this task:\n\n${prod.taskNotes
+        .map((n, idx) => `${idx + 1}. **${n.title}**\n${n.content ? `> ${n.content}` : '_Empty note_'}`)
+        .join('\n\n')}`;
+    }
+
+    // 8. "What should I work on next?"
+    if (
+      lower.includes('what should i work on next') ||
+      lower.includes('what should i do next') ||
+      lower.includes('what to work on next')
+    ) {
+      if (prod) {
+        if (prod.overdueTasks && prod.overdueTasks.length > 0) {
+          const topOverdue = prod.overdueTasks[0];
+          return `Based on your current application state, you should prioritize your overdue task first:\n\n• **${topOverdue.title}** [${topOverdue.priority}] — Past due (${
+            topOverdue.dueDate ? new Date(topOverdue.dueDate).toISOString().split('T')[0] : 'overdue'
+          })${topOverdue.projectName ? ` in **${topOverdue.projectName}**` : ''}.\n\nWould you like to start a focus session for this?`;
+        }
+        if (prod.todayPlannerBlocks && prod.todayPlannerBlocks.length > 0) {
+          const pendingBlock = prod.todayPlannerBlocks.find((b) => !b.completed);
+          if (pendingBlock) {
+            return `Based on your today's planner, your next scheduled focus block is:\n\n• **${pendingBlock.title}** (${pendingBlock.duration} mins, category: ${pendingBlock.bucket}).`;
+          }
+        }
+        if (prod.todayTasks && prod.todayTasks.length > 0) {
+          const topToday = prod.todayTasks.find(
+            (t) => t.status !== 'DONE' && t.status !== 'COMPLETED',
+          );
+          if (topToday) {
+            return `Based on your tasks due today, you should work on:\n\n• **${topToday.title}** [${topToday.priority}] — Status: ${topToday.status}.`;
+          }
+        }
+        if (prod.projectsWithUnfinishedWork && prod.projectsWithUnfinishedWork.length > 0) {
+          const topProj = prod.projectsWithUnfinishedWork[0];
+          if (topProj.unfinishedTasksCount > 0) {
+            return `You have no overdue tasks or planner blocks today. The project with the most pending work is **${topProj.name}** with **${topProj.unfinishedTasksCount}** unfinished task(s).`;
+          }
+        }
+      }
+      return null;
+    }
+
+    return null;
   }
 
   private formatToolResults(results: unknown[]): string {

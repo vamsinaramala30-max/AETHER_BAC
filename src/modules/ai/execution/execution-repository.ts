@@ -7,6 +7,8 @@
 
 import { randomUUID } from 'crypto';
 import { db } from '../../../database/client.js';
+import { AppError } from '../../../middleware/error.middleware.js';
+import { logger } from '../../../config/index.js';
 import type {
   AgentExecution,
   AgentExecutionStep,
@@ -27,8 +29,11 @@ const dbAvailable = (): boolean =>
 // IExecutionRepository Interface
 // ============================================================================
 
+export type CreateExecutionInput = Partial<AgentExecution> &
+  Pick<AgentExecution, 'planId' | 'planVersion' | 'planHash' | 'correlationId' | 'userId' | 'status' | 'totalSteps'>;
+
 export interface IExecutionRepository {
-  createExecution(data: Omit<AgentExecution, 'steps' | 'attempts'>): Promise<AgentExecution>;
+  createExecution(data: CreateExecutionInput): Promise<AgentExecution>;
   findById(id: string, userId: string): Promise<AgentExecution | null>;
   findByIdempotencyKey(key: string, userId: string): Promise<AgentExecution | null>;
   findByPlanId(planId: string, userId: string): Promise<AgentExecution | null>;
@@ -53,13 +58,15 @@ export class ExecutionRepository implements IExecutionRepository {
   private readonly execStore = new Map<string, AgentExecution>();
   private readonly stepStore = new Map<string, AgentExecutionStep>(); // key: executionId:stepId
   private readonly attemptStore = new Map<string, AgentExecutionAttempt[]>(); // key: stepId
+  private readonly persistedExecutionIds = new Set<string>();
+  private readonly persistedStepIds = new Set<string>();
 
   // --------------------------------------------------------------------------
   // Create Execution
   // --------------------------------------------------------------------------
 
   public async createExecution(
-    data: Omit<AgentExecution, 'steps' | 'attempts'>,
+    data: CreateExecutionInput,
   ): Promise<AgentExecution> {
     const now = new Date().toISOString();
     const execution: AgentExecution = {
@@ -76,8 +83,8 @@ export class ExecutionRepository implements IExecutionRepository {
     };
 
     // Try PostgreSQL first
-    try {
-      if (dbAvailable() && isUuid(execution.userId) && isUuid(execution.id)) {
+    if (dbAvailable() && isUuid(execution.userId) && isUuid(execution.id)) {
+      try {
         const created = await (db as any).agentExecution.create({
           data: {
             id: execution.id,
@@ -98,12 +105,19 @@ export class ExecutionRepository implements IExecutionRepository {
         });
         const mapped = this.mapFromPrisma(created);
         this.execStore.set(mapped.id, mapped);
+        this.persistedExecutionIds.add(mapped.id);
         return mapped;
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database write error creating execution ${execution.id}: ${(err as Error)?.message}`);
+        throw new AppError(
+          `Execution persistence failure: unable to create execution record ${execution.id} in database`,
+          503,
+          'DATABASE_PERSISTENCE_ERROR',
+        );
       }
-    } catch {
-      // Fall through to memory store
     }
 
+    // Ephemeral in-memory fallback only when database is unavailable/not configured
     this.execStore.set(execution.id, execution);
     return execution;
   }
@@ -113,8 +127,8 @@ export class ExecutionRepository implements IExecutionRepository {
   // --------------------------------------------------------------------------
 
   public async findById(id: string, userId: string): Promise<AgentExecution | null> {
-    try {
-      if (dbAvailable() && isUuid(id) && isUuid(userId)) {
+    if (dbAvailable() && isUuid(id) && isUuid(userId)) {
+      try {
         const found = await (db as any).agentExecution.findUnique({
           where: { id },
           include: { steps: { include: { attempts: true } } },
@@ -123,10 +137,12 @@ export class ExecutionRepository implements IExecutionRepository {
         if (found.userId !== userId) return null; // Tenant isolation
         const mapped = this.mapFromPrisma(found);
         this.execStore.set(mapped.id, mapped);
+        this.persistedExecutionIds.add(mapped.id);
         return mapped;
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database read error for execution ${id}: ${(err as Error)?.message}`);
+        throw new AppError('Database error: unable to retrieve execution record', 503, 'DATABASE_READ_ERROR');
       }
-    } catch {
-      // Fall through
     }
 
     const mem = this.execStore.get(id);
@@ -135,22 +151,22 @@ export class ExecutionRepository implements IExecutionRepository {
     return mem;
   }
 
-  // --------------------------------------------------------------------------
-  // Find By Idempotency Key
-  // --------------------------------------------------------------------------
-
   public async findByIdempotencyKey(key: string, userId: string): Promise<AgentExecution | null> {
-    try {
-      if (dbAvailable() && isUuid(userId)) {
+    if (dbAvailable() && isUuid(userId)) {
+      try {
         const found = await (db as any).agentExecution.findUnique({
           where: { idempotencyKey: key },
         });
         if (!found) return null;
         if (found.userId !== userId) return null;
-        return this.mapFromPrisma(found);
+        const mapped = this.mapFromPrisma(found);
+        this.execStore.set(mapped.id, mapped);
+        this.persistedExecutionIds.add(mapped.id);
+        return mapped;
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database read error for idempotency key ${key}: ${(err as Error)?.message}`);
+        throw new AppError('Database error: unable to retrieve execution by idempotency key', 503, 'DATABASE_READ_ERROR');
       }
-    } catch {
-      // Fall through
     }
 
     for (const exec of this.execStore.values()) {
@@ -164,17 +180,21 @@ export class ExecutionRepository implements IExecutionRepository {
   // --------------------------------------------------------------------------
 
   public async findByPlanId(planId: string, userId: string): Promise<AgentExecution | null> {
-    try {
-      if (dbAvailable() && isUuid(planId) && isUuid(userId)) {
+    if (dbAvailable() && isUuid(planId) && isUuid(userId)) {
+      try {
         const found = await (db as any).agentExecution.findFirst({
           where: { planId, userId },
           orderBy: { startedAt: 'desc' },
         });
         if (!found) return null;
-        return this.mapFromPrisma(found);
+        const mapped = this.mapFromPrisma(found);
+        this.execStore.set(mapped.id, mapped);
+        this.persistedExecutionIds.add(mapped.id);
+        return mapped;
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database read error for plan ${planId}: ${(err as Error)?.message}`);
+        throw new AppError('Database error: unable to retrieve execution by plan ID', 503, 'DATABASE_READ_ERROR');
       }
-    } catch {
-      // Fall through
     }
 
     let latest: AgentExecution | null = null;
@@ -214,8 +234,8 @@ export class ExecutionRepository implements IExecutionRepository {
       completedAt: executionStateMachine.isTerminal(newStatus) ? (meta?.completedAt ?? now) : existing.completedAt,
     };
 
-    try {
-      if (dbAvailable() && isUuid(id)) {
+    if (dbAvailable() && isUuid(id) && this.persistedExecutionIds.has(id)) {
+      try {
         const prismaUpdated = await (db as any).agentExecution.update({
           where: { id },
           data: {
@@ -236,9 +256,10 @@ export class ExecutionRepository implements IExecutionRepository {
         const mapped = this.mapFromPrisma(prismaUpdated);
         this.execStore.set(mapped.id, mapped);
         return mapped;
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database update error for execution ${id}: ${(err as Error)?.message}`);
+        throw new AppError('Database error: unable to update execution status', 503, 'DATABASE_PERSISTENCE_ERROR');
       }
-    } catch {
-      // Fall through
     }
 
     this.execStore.set(id, updated);
@@ -255,8 +276,8 @@ export class ExecutionRepository implements IExecutionRepository {
   ): Promise<AgentExecutionStep> {
     const key = executionId + ':' + step.stepId;
 
-    try {
-      if (dbAvailable() && isUuid(executionId) && isUuid(step.id)) {
+    if (dbAvailable() && isUuid(executionId) && isUuid(step.id) && this.persistedExecutionIds.has(executionId)) {
+      try {
         const upserted = await (db as any).agentExecutionStep.upsert({
           where: { executionId_stepId: { executionId, stepId: step.stepId } },
           create: {
@@ -298,10 +319,12 @@ export class ExecutionRepository implements IExecutionRepository {
         });
         const mapped = this.mapStepFromPrisma(upserted);
         this.stepStore.set(key, mapped);
+        this.persistedStepIds.add(step.id);
         return mapped;
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database upsert error for step ${step.stepId}: ${(err as Error)?.message}`);
+        throw new AppError('Database error: unable to persist execution step', 503, 'DATABASE_PERSISTENCE_ERROR');
       }
-    } catch {
-      // Fall through
     }
 
     this.stepStore.set(key, step);
@@ -317,8 +340,8 @@ export class ExecutionRepository implements IExecutionRepository {
     const mem = this.stepStore.get(key);
     if (mem) return mem;
 
-    try {
-      if (dbAvailable() && isUuid(executionId)) {
+    if (dbAvailable() && isUuid(executionId)) {
+      try {
         const found = await (db as any).agentExecutionStep.findUnique({
           where: { executionId_stepId: { executionId, stepId } },
           include: { attempts: true },
@@ -327,9 +350,10 @@ export class ExecutionRepository implements IExecutionRepository {
         const mapped = this.mapStepFromPrisma(found);
         this.stepStore.set(key, mapped);
         return mapped;
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database read error for step ${stepId}: ${(err as Error)?.message}`);
+        throw new AppError('Database error: unable to retrieve execution step', 503, 'DATABASE_READ_ERROR');
       }
-    } catch {
-      // Fall through
     }
 
     return null;
@@ -344,8 +368,8 @@ export class ExecutionRepository implements IExecutionRepository {
   ): Promise<AgentExecutionAttempt> {
     const attempt: AgentExecutionAttempt = { ...data, id: randomUUID() };
 
-    try {
-      if (dbAvailable() && isUuid(data.stepId)) {
+    if (dbAvailable() && isUuid(data.stepId) && this.persistedStepIds.has(data.stepId)) {
+      try {
         await (db as any).agentExecutionAttempt.upsert({
           where: { stepId_attempt: { stepId: data.stepId, attempt: data.attempt } },
           create: {
@@ -367,9 +391,10 @@ export class ExecutionRepository implements IExecutionRepository {
             durationMs: data.durationMs ?? null,
           },
         });
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database upsert error for attempt ${data.attempt}: ${(err as Error)?.message}`);
+        throw new AppError('Database error: unable to record execution attempt', 503, 'DATABASE_PERSISTENCE_ERROR');
       }
-    } catch {
-      // Fall through
     }
 
     const existing = this.attemptStore.get(data.stepId) ?? [];
@@ -390,8 +415,8 @@ export class ExecutionRepository implements IExecutionRepository {
     workspaceId?: string,
     limit = 50,
   ): Promise<readonly AgentExecution[]> {
-    try {
-      if (dbAvailable() && isUuid(userId)) {
+    if (dbAvailable() && isUuid(userId)) {
+      try {
         const where: Record<string, unknown> = { userId };
         if (workspaceId) where.workspaceId = workspaceId;
         const list = await (db as any).agentExecution.findMany({
@@ -400,9 +425,10 @@ export class ExecutionRepository implements IExecutionRepository {
           take: limit,
         });
         return list.map((item: unknown) => this.mapFromPrisma(item));
+      } catch (err) {
+        logger.error(`[ExecutionRepository] Database query error in listByUser: ${(err as Error)?.message}`);
+        throw new AppError('Database error: unable to list executions', 503, 'DATABASE_READ_ERROR');
       }
-    } catch {
-      // Fall through
     }
 
     const results: AgentExecution[] = [];

@@ -140,7 +140,7 @@ export class MemoryRepository implements IMemoryRepository {
         (m) => m.id === id || toUuid(m.id) === toUuid(id),
       );
     if (cached && (cached.userId === userId || toUuid(cached.userId) === toUuid(userId))) {
-      if (cached.metadata?.status === 'deleted' || cached.metadata?.status === 'superseded') {
+      if (cached.metadata?.status === 'deleted') {
         return undefined;
       }
       return cached;
@@ -151,7 +151,7 @@ export class MemoryRepository implements IMemoryRepository {
       const validId = toUuid(id);
       if (this.useDB) {
         const record = await (db as any).aIMemory.findFirst({
-          where: { id: validId, userId: validUserId, status: { notIn: ['deleted', 'superseded'] } },
+          where: { id: validId, userId: validUserId, status: { not: 'deleted' } },
         });
         if (record) {
           const item = recordToMemoryItem(record);
@@ -164,9 +164,8 @@ export class MemoryRepository implements IMemoryRepository {
     }
 
     return cached &&
-      cached.userId === userId &&
-      cached.metadata?.status !== 'deleted' &&
-      cached.metadata?.status !== 'superseded'
+      (cached.userId === userId || toUuid(cached.userId) === toUuid(userId)) &&
+      cached.metadata?.status !== 'deleted'
       ? cached
       : undefined;
   }

@@ -168,11 +168,29 @@ export class HealthChecker {
   }
 
   private async checkRedis(): Promise<Omit<ComponentHealth, 'name' | 'lastChecked' | 'latencyMs'>> {
-    if (!process.env['REDIS_URL'] && !process.env['REDIS_HOST']) {
+    const host = process.env['REDIS_HOST'];
+    const url = process.env['REDIS_URL'];
+    if (!url && (!host || host === 'localhost')) {
       return { status: 'UP', message: 'Redis not configured (in-memory mode active)' };
     }
-    // Return graceful UP if no redis configured or available
-    return { status: 'UP', message: 'Redis operational' };
+
+    try {
+      const Redis = (await import('ioredis')).default;
+      const client = new Redis({
+        host: host || 'localhost',
+        port: parseInt(process.env['REDIS_PORT'] || '6379', 10),
+        password: process.env['REDIS_PASSWORD'] || undefined,
+        connectTimeout: 1500,
+        lazyConnect: true,
+        maxRetriesPerRequest: 1,
+      });
+      await client.connect();
+      await client.ping();
+      await client.quit();
+      return { status: 'UP', message: 'Redis operational' };
+    } catch {
+      return { status: 'DEGRADED', message: 'Redis service unreachable or authentication failed' };
+    }
   }
 
   private async checkRAG(): Promise<Omit<ComponentHealth, 'name' | 'lastChecked' | 'latencyMs'>> {

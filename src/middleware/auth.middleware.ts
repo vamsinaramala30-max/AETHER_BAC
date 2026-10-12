@@ -10,6 +10,7 @@ export interface AuthenticatedUser {
   fullName?: string | null;
   avatarUrl?: string | null;
   workspaceId?: string;
+  tokenVersion?: number;
 }
 
 const isValidUuid = (val?: string | null): boolean =>
@@ -24,6 +25,7 @@ declare global {
       fullName?: string | null;
       avatarUrl?: string | null;
       workspaceId?: string;
+      tokenVersion?: number;
     }
     interface Request {
       user?: User;
@@ -38,13 +40,30 @@ declare global {
 export const authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
-    const queryToken = typeof req.query?.token === 'string' ? req.query.token.trim() : undefined;
-
     let token: string | undefined;
+
+    // Redact token from query parameters to prevent leakage in logs, proxy caches, and referrers
+    if (req.query && typeof req.query.token !== 'undefined') {
+      const rawQueryToken = typeof req.query.token === 'string' ? req.query.token.trim() : undefined;
+      delete (req.query as any).token;
+
+      // Scoped compatibility fallback: disabled by default
+      if (process.env.ALLOW_UNSAFE_QUERY_TOKEN === 'true' && rawQueryToken) {
+        token = rawQueryToken;
+      } else if (!authHeader) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'QUERY_TOKEN_DISALLOWED',
+            message: 'Authentication tokens in URL query parameters are rejected. Please use Authorization header.',
+          },
+        });
+        return;
+      }
+    }
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.split(' ')[1];
-    } else if (queryToken) {
-      token = queryToken;
     }
 
     if (!token) {
@@ -60,6 +79,36 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
 
     const decoded = jwt.verify(token, securityConfig.jwt.secret) as AuthenticatedUser;
     req.user = decoded;
+
+    // Server-side session / token invalidation check (SEC-P1A)
+    if (isValidUuid(decoded.id) && db && typeof (db as any).user?.findUnique === 'function') {
+      const userRecord = await (db as any).user.findUnique({
+        where: { id: decoded.id },
+        select: { tokenVersion: true },
+      });
+
+      if (!userRecord) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User associated with this token no longer exists.',
+          },
+        });
+        return;
+      }
+
+      if ((decoded.tokenVersion ?? 0) !== userRecord.tokenVersion) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'REVOKED_TOKEN',
+            message: 'Session has been invalidated. Please log in again.',
+          },
+        });
+        return;
+      }
+    }
 
     // Workspace membership validation (SEC-08)
     const workspaceHeader =
@@ -129,40 +178,36 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
  * If Bearer token is present and valid, attaches decoded user to req.user.
  * Otherwise, assigns a default anonymous user context.
  */
-export const optionalAuthenticate = (req: Request, _res: Response, next: NextFunction): void => {
+export const optionalAuthenticate = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      req.user = {
-        id: 'anonymous-user',
-        email: 'guest@aether.local',
-        role: 'user',
-        fullName: 'Anonymous User',
-      };
+      req.user = undefined;
       return next();
     }
 
     const token = authHeader.split(' ')[1];
     if (!token) {
-      req.user = {
-        id: 'anonymous-user',
-        email: 'guest@aether.local',
-        role: 'user',
-        fullName: 'Anonymous User',
-      };
+      req.user = undefined;
       return next();
     }
 
     const decoded = jwt.verify(token, securityConfig.jwt.secret) as AuthenticatedUser;
+    if (isValidUuid(decoded.id) && db && typeof (db as any).user?.findUnique === 'function') {
+      const userRecord = await (db as any).user.findUnique({
+        where: { id: decoded.id },
+        select: { tokenVersion: true },
+      });
+      if (!userRecord || (decoded.tokenVersion ?? 0) !== userRecord.tokenVersion) {
+        req.user = undefined;
+        return next();
+      }
+    }
+
     req.user = decoded;
     next();
   } catch {
-    req.user = {
-      id: 'anonymous-user',
-      email: 'guest@aether.local',
-      role: 'user',
-      fullName: 'Anonymous User',
-    };
+    req.user = undefined;
     next();
   }
 };

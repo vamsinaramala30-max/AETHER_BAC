@@ -75,32 +75,23 @@ export class AutomationRepository extends PrismaService {
       Boolean(id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
 
     if (!isUuid(wsId)) {
-      let ws = await this.prisma.workspace.findFirst();
-      if (!ws) {
-        ws = await this.prisma.workspace.create({
-          data: { name: 'Default Workspace', slug: 'default-workspace' },
-        });
-      }
-      wsId = ws.id;
+      throw new Error('Valid workspaceId UUID is required');
+    }
+    const ws = await this.prisma.workspace.findUnique({ where: { id: wsId } });
+    if (!ws) {
+      throw new Error(`Workspace ${wsId} not found`);
     }
 
     let validUserId: string | undefined = undefined;
-    if (isUuid(input.userId)) {
-      let user = await this.prisma.user.findUnique({ where: { id: input.userId } });
-      if (!user) {
-        try {
-          user = await this.prisma.user.create({
-            data: {
-              id: input.userId!,
-              email: `user-${input.userId!.substring(0, 8)}@aether.local`,
-              fullName: 'Automation User',
-            },
-          });
-        } catch {
-          // ignore
-        }
+    if (input.userId) {
+      if (!isUuid(input.userId)) {
+        throw new Error('Invalid userId UUID format');
       }
-      validUserId = user ? user.id : undefined;
+      const user = await this.prisma.user.findUnique({ where: { id: input.userId } });
+      if (!user) {
+        throw new Error(`User ${input.userId} not found`);
+      }
+      validUserId = user.id;
     }
 
     return this.prisma.automation.create({

@@ -98,7 +98,7 @@ export interface GetTodaysScheduleInput extends Record<string, unknown> {
 }
 
 export interface ScheduledItem {
-  readonly type: 'task' | 'milestone' | 'deadline';
+  readonly type: 'task' | 'milestone' | 'deadline' | 'calendar_event' | 'planner_block';
   readonly id: string;
   readonly title: string;
   readonly priority: string;
@@ -115,7 +115,7 @@ export interface TodaysScheduleReport {
 export const getTodaysScheduleTool: ToolDefinition<GetTodaysScheduleInput, TodaysScheduleReport> = {
   id: 'tool_get_todays_schedule',
   name: 'get_todays_schedule',
-  description: 'Retrieves tasks, deadlines, and milestones scheduled for today.',
+  description: 'Retrieves tasks, calendar events, planner blocks, and deadlines scheduled for today.',
   category: 'productivity',
   riskLevel: 'READ_ONLY',
   inputSchema: {
@@ -148,22 +148,58 @@ export const getTodaysScheduleTool: ToolDefinition<GetTodaysScheduleInput, Today
       59,
       999,
     );
+    const dayKey = targetDate.toISOString().split('T')[0] ?? '';
 
-    const tasksRes = await tasksRepo.findMany({ assigneeId: userId, limit: 100 });
+    const [tasksRes, calendarEvents, plannerBlocks] = await Promise.all([
+      tasksRepo.findMany({ assigneeId: userId, limit: 100 }),
+      db.calendarEvent.findMany({
+        where: {
+          userId,
+          deletedAt: null,
+          startDate: { gte: startOfDay, lte: endOfDay },
+        },
+        orderBy: { startDate: 'asc' },
+      }).catch(() => []),
+      db.plannerBlock.findMany({
+        where: {
+          userId,
+          dayKey,
+        },
+        orderBy: { start: 'asc' },
+      }).catch(() => []),
+    ]);
+
     const todaysTasks = tasksRes.data.filter((t) => {
       if (!t.dueDate) return false;
       const due = new Date(t.dueDate);
       return due >= startOfDay && due <= endOfDay;
     });
 
-    const items: ScheduledItem[] = todaysTasks.map((t) => ({
-      type: 'task',
-      id: t.id,
-      title: t.title,
-      priority: t.priority,
-      dueTime: t.dueDate ? new Date(t.dueDate).toISOString() : undefined,
-      status: t.status,
-    }));
+    const items: ScheduledItem[] = [
+      ...plannerBlocks.map((b) => ({
+        type: 'planner_block' as const,
+        id: b.id,
+        title: b.title,
+        priority: b.bucket || 'normal',
+        status: b.completed ? 'COMPLETED' : 'PENDING',
+      })),
+      ...calendarEvents.map((e) => ({
+        type: 'calendar_event' as const,
+        id: e.id,
+        title: e.title,
+        priority: 'high',
+        dueTime: e.startDate.toISOString(),
+        status: 'SCHEDULED',
+      })),
+      ...todaysTasks.map((t) => ({
+        type: 'task' as const,
+        id: t.id,
+        title: t.title,
+        priority: t.priority,
+        dueTime: t.dueDate ? new Date(t.dueDate).toISOString() : undefined,
+        status: t.status,
+      })),
+    ];
 
     return {
       targetDate: startOfDay.toISOString().split('T')[0] ?? new Date().toISOString().split('T')[0]!,
@@ -181,17 +217,31 @@ export interface GetFocusSessionsInput extends Record<string, unknown> {
 
 export interface FocusSessionReport {
   readonly totalLoggedHours: number;
+  readonly activeSession?: {
+    id: string;
+    type: string;
+    durationMinutes: number;
+    status: string;
+    taskTitle?: string;
+  } | null;
   readonly tasksWithLoggedTime: Array<{
     readonly taskId: string;
     readonly title: string;
     readonly loggedMinutes: number;
+  }>;
+  readonly recentSessions: Array<{
+    readonly id: string;
+    readonly type: string;
+    readonly status: string;
+    readonly durationMinutes: number;
+    readonly createdAt: string;
   }>;
 }
 
 export const getFocusSessionsTool: ToolDefinition<GetFocusSessionsInput, FocusSessionReport> = {
   id: 'tool_get_focus_sessions',
   name: 'get_focus_sessions',
-  description: 'Retrieves focus session time logs across user tasks.',
+  description: 'Retrieves focus session time logs and active focus session state.',
   category: 'productivity',
   riskLevel: 'READ_ONLY',
   inputSchema: {
@@ -199,7 +249,7 @@ export const getFocusSessionsTool: ToolDefinition<GetFocusSessionsInput, FocusSe
     properties: {
       limit: {
         type: 'integer',
-        description: 'Maximum number of tasks to inspect',
+        description: 'Maximum number of sessions to inspect',
         minimum: 1,
         maximum: 50,
       },
@@ -211,7 +261,34 @@ export const getFocusSessionsTool: ToolDefinition<GetFocusSessionsInput, FocusSe
     context: ToolExecutionContext,
   ): Promise<FocusSessionReport> => {
     const userId = context.auth.userId;
-    const tasksRes = await tasksRepo.findMany({ assigneeId: userId, limit: input.limit || 50 });
+    const [tasksRes, dbSessions] = await Promise.all([
+      tasksRepo.findMany({ assigneeId: userId, limit: input.limit || 50 }),
+      db.focusSession.findMany({
+        where: { userId },
+        include: { task: { select: { title: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: input.limit || 20,
+      }).catch(() => []),
+    ]);
+
+    const active = dbSessions.find((s) => s.status === 'IN_PROGRESS');
+    const activeSession = active
+      ? {
+          id: active.id,
+          type: active.type,
+          durationMinutes: active.durationMinutes,
+          status: active.status,
+          taskTitle: active.task?.title,
+        }
+      : null;
+
+    const recentSessions = dbSessions.map((s) => ({
+      id: s.id,
+      type: s.type,
+      status: s.status,
+      durationMinutes: s.durationMinutes,
+      createdAt: s.createdAt.toISOString(),
+    }));
 
     const tasksWithTime = tasksRes.data
       .filter((t) => t.loggedMinutes > 0)
@@ -221,10 +298,23 @@ export const getFocusSessionsTool: ToolDefinition<GetFocusSessionsInput, FocusSe
         loggedMinutes: t.loggedMinutes,
       }));
 
-    const totalMinutes = tasksWithTime.reduce((sum, t) => sum + t.loggedMinutes, 0);
+    const totalMinutes =
+      tasksWithTime.reduce((sum, t) => sum + t.loggedMinutes, 0) +
+      dbSessions
+        .filter((s) => s.status === 'COMPLETED')
+        .reduce(
+          (sum, s) =>
+            sum +
+            (s.actualDurationSeconds
+              ? Math.round(s.actualDurationSeconds / 60)
+              : s.durationMinutes),
+          0,
+        );
 
     return {
       totalLoggedHours: parseFloat((totalMinutes / 60).toFixed(1)),
+      activeSession,
+      recentSessions,
       tasksWithLoggedTime: tasksWithTime,
     };
   },
@@ -341,7 +431,11 @@ export const createCalendarEventTool: ToolDefinition<
       createdAt: event.createdAt.toISOString(),
     };
   },
-  verify: async (output: CreateCalendarEventOutput): Promise<ToolVerificationResult> => {
+  verify: async (
+    output: CreateCalendarEventOutput,
+    _input?: CreateCalendarEventInput,
+    _context?: ToolExecutionContext,
+  ): Promise<ToolVerificationResult> => {
     const event = await db.calendarEvent.findFirst({
       where: { id: output.eventId, deletedAt: null },
     });

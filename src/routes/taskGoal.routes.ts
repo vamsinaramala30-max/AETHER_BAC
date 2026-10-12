@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
+import { AppError } from '../middleware/error.middleware';
 import { ProjectsModuleSharedRepository } from '../modules/projects/project.repository';
 import { ProjectsOrchestrationService } from '../modules/projects/project.service';
 import { TasksController } from '../modules/projects/tasks/tasks.controller';
@@ -39,10 +40,8 @@ router.get(
   '/tasks',
   handle((req) =>
     tasksController.list({
-      query: {
-        ...req.query,
-        assigneeId: (req as any).user?.id,
-      } as any,
+      query: req.query as any,
+      user: (req as any).user,
     }),
   ),
 );
@@ -51,13 +50,27 @@ router.post(
   '/tasks',
   handleCreated((req) => {
     const userId = (req as any).user?.id;
+    if (!req.body.projectId) {
+      throw new AppError('A valid project ID is required to create a task', 400, 'INVALID_PROJECT_ID');
+    }
     return tasksController.create({
       body: {
         ...req.body,
         assigneeIds: req.body.assigneeIds || (userId ? [userId] : []),
       },
+      user: (req as any).user,
     });
   }),
+);
+
+router.post(
+  '/tasks/bulk',
+  handle((req) =>
+    tasksController.bulk({
+      body: req.body,
+      user: (req as any).user,
+    }),
+  ),
 );
 
 router.get(

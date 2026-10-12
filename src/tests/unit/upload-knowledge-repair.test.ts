@@ -315,22 +315,45 @@ describe('Phase 5: Upload Preview & Knowledge API Production Repair Suite', () =
       if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
     });
 
-    it('authenticates preview via query token (?token=...) for browser elements', async () => {
-      const req = {
+    it('rejects preview access via unsafe query token (?token=...) by default and accepts Bearer header', async () => {
+      // 1. Unsafe query token is rejected by default
+      const queryReq = {
         headers: {},
         query: { token: validTokenUserA },
       } as any;
-      const res = {
+      const queryRes = {
         status: vi.fn().mockReturnThis(),
         json: vi.fn(),
       } as any;
-      const next = vi.fn();
+      const nextQuery = vi.fn();
 
-      await authenticate(req, res, next);
+      await authenticate(queryReq, queryRes, nextQuery);
 
-      expect(next).toHaveBeenCalled();
-      expect(req.user).toBeDefined();
-      expect(req.user.id).toBe(userA);
+      expect(queryRes.status).toHaveBeenCalledWith(401);
+      expect(queryRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({ code: 'QUERY_TOKEN_DISALLOWED' }),
+        }),
+      );
+      expect(nextQuery).not.toHaveBeenCalled();
+
+      // 2. Authorization Bearer header is accepted
+      vi.spyOn(db.user, 'findUnique').mockResolvedValue({ id: userA, tokenVersion: 0 } as any);
+      const headerReq = {
+        headers: { authorization: `Bearer ${validTokenUserA}` },
+        query: {},
+      } as any;
+      const headerRes = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as any;
+      const nextHeader = vi.fn();
+
+      await authenticate(headerReq, headerRes, nextHeader);
+
+      expect(nextHeader).toHaveBeenCalled();
+      expect(headerReq.user).toBeDefined();
+      expect(headerReq.user.id).toBe(userA);
     });
 
     it('rejects preview access when user is not the owner and not in workspace with 403 FORBIDDEN', async () => {

@@ -9,6 +9,54 @@ import { db } from '../../database/client';
 export class ProjectsOrchestrationController {
   constructor(private readonly orchestrationService: ProjectsOrchestrationService) {}
 
+  async list(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+
+      const workspaceId =
+        (req.headers['x-workspace-id'] as string) ||
+        (req.query.workspaceId as string) ||
+        (req as any).user?.workspaceId;
+
+      if (workspaceId) {
+        const membership = await db.workspaceMember.findFirst({
+          where: { workspaceId, userId },
+        });
+        if (!membership) {
+          res.status(403).json({ success: false, message: 'Forbidden: Access to workspace denied' });
+          return;
+        }
+      }
+
+      const filter: any = {
+        ...req.query,
+      };
+
+      if (workspaceId) {
+        filter.workspaceId = workspaceId;
+      } else {
+        filter.memberId = userId;
+      }
+
+      const result = await this.orchestrationService.projectsRepo.findMany(filter);
+      res.status(200).json({
+        success: true,
+        data: result.data,
+        projects: result.data,
+        total: result.total,
+        page: result.page,
+        limit: result.limit,
+        totalPages: result.totalPages,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async getDashboard(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = (req as any).user?.id || (req.query.userId as string) || '';
