@@ -45,6 +45,7 @@ router.post(
 );
 
 router.get('/:id', automationController.getAutomationById.bind(automationController));
+router.get('/workflows/:id', automationController.getAutomationById.bind(automationController));
 router.put(
   '/:id',
   validate(updateAutomationSchema),
@@ -66,10 +67,30 @@ router.post(
   validate(runAutomationSchema),
   automationController.runAutomation.bind(automationController),
 );
-
+router.post(
+  '/:id/execute',
+  automationRateLimiter,
+  validate(runAutomationSchema),
+  automationController.runAutomation.bind(automationController),
+);
+router.post(
+  '/workflows/:id/execute',
+  automationRateLimiter,
+  validate(runAutomationSchema),
+  automationController.runAutomation.bind(automationController),
+);
+router.post(
+  '/workflows/:id/run',
+  automationRateLimiter,
+  validate(runAutomationSchema),
+  automationController.runAutomation.bind(automationController),
+);
 
 // Execution history & Activity
 router.get('/:id/activity', automationController.getAutomationActivity.bind(automationController));
+router.get('/:id/logs', automationController.getAutomationActivity.bind(automationController));
+router.get('/workflows/:id/activity', automationController.getAutomationActivity.bind(automationController));
+router.get('/workflows/:id/logs', automationController.getAutomationActivity.bind(automationController));
 router.get('/:id/executions', automationController.getExecutions.bind(automationController));
 
 // Execution Approvals & Cancellation

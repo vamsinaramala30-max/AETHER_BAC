@@ -7,6 +7,36 @@ import Redis from 'ioredis';
 
 const router = Router();
 
+export async function checkRedisHealth(): Promise<boolean> {
+  let redisClient: Redis | null = null;
+  try {
+    redisClient = new Redis({
+      ...redisConfig.options,
+      lazyConnect: true,
+      enableOfflineQueue: false,
+      connectTimeout: 2000,
+      retryStrategy: () => null,
+      maxRetriesPerRequest: 1,
+    });
+    redisClient.on('error', () => {
+      // Suppress unhandled error events during health probe
+    });
+    await redisClient.connect();
+    const result = await redisClient.ping();
+    await redisClient.quit().catch(() => redisClient?.disconnect());
+    return result === 'PONG';
+  } catch {
+    if (redisClient) {
+      try {
+        redisClient.disconnect();
+      } catch {
+        // Disconnect failure ignored
+      }
+    }
+    return false;
+  }
+}
+
 /**
  * Standard Prompt 9 Liveness Probe: GET /health/live
  */
@@ -39,13 +69,9 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
     healthStatus.status = 'degraded';
   }
 
-  try {
-    const redisClient = new Redis(redisConfig.options);
-    await redisClient.ping();
+  const isRedisUp = await checkRedisHealth();
+  if (isRedisUp) {
     healthStatus.services.redis = 'up';
-    await redisClient.quit();
-  } catch {
-    // Redis optional fallback
   }
 
   const emailHealth = await emailService.checkHealth();
@@ -171,12 +197,10 @@ router.get('/readiness', async (_req: Request, res: Response): Promise<void> => 
   }
 
   // 2. Redis Check
-  try {
-    const redisClient = new Redis(redisConfig.options);
-    await redisClient.ping();
+  const isRedisReady = await checkRedisHealth();
+  if (isRedisReady) {
     readiness.components.redis = 'up';
-    await redisClient.quit();
-  } catch {
+  } else {
     readiness.components.redis = 'degraded'; // Non-critical
   }
 

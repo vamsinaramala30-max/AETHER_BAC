@@ -17,7 +17,7 @@ export const requireAdmin = (req: Request, res: Response, next: NextFunction): v
     return;
   }
 
-  const allowedRoles = ['ADMIN', 'SUPER_ADMIN'];
+  const allowedRoles = ['ADMIN', 'SUPERADMIN', 'SUPER_ADMIN'];
 
   if (!allowedRoles.includes(req.user.role)) {
     logger.warn(`Forbidden admin access attempt by user ${req.user.id} with role ${req.user.role}`);

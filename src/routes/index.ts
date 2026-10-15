@@ -53,5 +53,7 @@ router.use('/admin', adminRoutes);
 router.use('/favorites', favoritesRoutes);
 router.use('/contact', contactRoutes);
 router.use('/feedback', contactRoutes);
+router.use('/complaint', contactRoutes);
+router.use('/complaints', contactRoutes);
 
 export const apiRoutes: Router = router;

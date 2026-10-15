@@ -252,6 +252,40 @@ router.get('/events', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// GET /calendar/:id — fetch a single calendar category
+router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const { id } = req.params;
+
+    const calendar = await db.userCalendar.findFirst({
+      where: { id, userId, deletedAt: null },
+    });
+
+    if (!calendar) {
+      res.status(404).json({ error: 'Calendar not found' });
+      return;
+    }
+
+    res.status(200).json({
+      data: {
+        id: calendar.id,
+        title: calendar.title,
+        color: calendar.color,
+        isPrimary: calendar.isPrimary,
+        isVisible: calendar.isVisible,
+        accessLevel: 'owner',
+        ownerId: userId,
+        timeZone: calendar.timeZone,
+        createdAt: calendar.createdAt.toISOString(),
+        updatedAt: calendar.updatedAt.toISOString(),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /calendar/events — create a calendar event
 router.post('/events', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -539,16 +573,17 @@ router.delete('/events/:id', async (req: Request, res: Response, next: NextFunct
       return;
     }
 
-    await db.calendarEvent.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-
-    // Unlink calendar event from planner blocks
-    await db.plannerBlock.updateMany({
-      where: { calendarEventId: id },
-      data: { calendarEventId: null },
-    });
+    // Atomically soft-delete calendar event and unlink from planner blocks
+    await db.$transaction([
+      db.calendarEvent.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      }),
+      db.plannerBlock.updateMany({
+        where: { calendarEventId: id },
+        data: { calendarEventId: null },
+      }),
+    ]);
 
     emitToUser(userId, SocketEvent.CALENDAR_DELETED, { id });
     if (existing.workspaceId) {

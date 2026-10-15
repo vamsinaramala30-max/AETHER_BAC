@@ -23,7 +23,14 @@ const isUuid = (val?: string | null): boolean =>
   Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
 
 const dbAvailable = (): boolean =>
-  Boolean(db && typeof (db as any).agentExecution?.create === 'function');
+  Boolean(
+    db &&
+      (typeof (db as any).agentExecution?.create === 'function' ||
+        typeof (db as any).agentExecutionStep?.findUnique === 'function' ||
+        typeof (db as any).agentExecutionStep?.upsert === 'function' ||
+        typeof (db as any).agentExecution?.findUnique === 'function' ||
+        typeof (db as any).agentExecution?.findFirst === 'function'),
+  );
 
 // ============================================================================
 // IExecutionRepository Interface

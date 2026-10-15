@@ -1,11 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { UploadService } from './upload.service';
+import { uploadService } from './upload.service';
 import { AppError } from '../../middleware/error.middleware';
 import { logger } from '../../config';
-
-const uploadService = new UploadService();
 
 const PREVIEW_SUPPORTED_EXTENSIONS = new Set([
   // Images
@@ -361,6 +359,16 @@ export class UploadController {
 
       res.setHeader('Content-Type', mimeType);
       res.setHeader('X-Content-Type-Options', 'nosniff');
+      if (
+        mimeType.includes('svg') ||
+        mimeType.includes('html') ||
+        mimeType.includes('xml') ||
+        fileRecord.filename.toLowerCase().endsWith('.svg') ||
+        fileRecord.filename.toLowerCase().endsWith('.html') ||
+        fileRecord.filename.toLowerCase().endsWith('.htm')
+      ) {
+        res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+      }
       res.setHeader(
         'Content-Disposition',
         `inline; filename="${encodeURIComponent(fileRecord.filename)}"`,

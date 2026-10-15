@@ -25,6 +25,7 @@ router.get('/:id/files', (req, res, next) => {
   (req.query as any).projectId = req.params.id;
   return uploadController.listFiles(req, res, next);
 });
+router.get('/:id/members', (req, res, next) => projectController.getMembers(req, res, next));
 router.get('/:id', (req, res, next) => projectController.getById(req, res, next));
 router.put('/:id', validate(updateProjectSchema), (req, res, next) =>
   projectController.update(req, res, next),

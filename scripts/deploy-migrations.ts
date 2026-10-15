@@ -41,6 +41,7 @@ export const runSafeMigrationGate = async (): Promise<MigrationGateResult> => {
     await connectDatabase();
     await (db as any).$queryRaw`SELECT 1`;
     console.log('✓ Authoritative database connection verified.');
+    await disconnectDatabase().catch(() => {});
   } catch (err) {
     const rawMsg = (err as Error)?.message || 'Database unreachable';
     const sanitizedMsg = rawMsg.replace(/(postgres(?:ql)?:\/\/[^:]+:)([^@]+)(@)/gi, '$1***$3');
@@ -57,7 +58,7 @@ export const runSafeMigrationGate = async (): Promise<MigrationGateResult> => {
   console.log('[AETHER Release Gate] Step 3: Checking migration history consistency...');
   try {
     // In production releases with migrations directory:
-    // execSync('npx prisma migrate deploy', { stdio: 'pipe' });
+    execSync('npx prisma migrate deploy', { stdio: 'pipe' });
     console.log('✓ Migration baseline validated.');
   } catch (err) {
     const errorMsg = (err as Error)?.message || 'Migration deployment failed';

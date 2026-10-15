@@ -42,11 +42,44 @@ export const socketAuthMiddleware = async (
       }
     }
 
-    const workspaceId = socket.handshake.query?.workspaceId as string | undefined;
+    const requestedWorkspaceId = socket.handshake.query?.workspaceId as string | undefined;
+    let targetWorkspaceId = decoded.workspaceId;
+
+    if (requestedWorkspaceId && typeof requestedWorkspaceId === 'string') {
+      const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        requestedWorkspaceId,
+      );
+      if (!isValidUuid) {
+        logger.warn(
+          `WebSocket auth rejected: Invalid workspace UUID format '${requestedWorkspaceId}' for socket ${socket.id}`,
+        );
+        return next(new Error('Authentication error: Invalid workspace ID format'));
+      }
+
+      if (decoded.id && db && typeof (db as any).workspaceMember?.findFirst === 'function') {
+        const membership = await (db as any).workspaceMember.findFirst({
+          where: {
+            workspaceId: requestedWorkspaceId,
+            userId: decoded.id,
+          },
+        });
+
+        if (!membership) {
+          logger.warn(
+            `WebSocket auth rejected: User ${decoded.id} is not a member of requested workspace ${requestedWorkspaceId}`,
+          );
+          return next(
+            new Error('Authentication error: Access denied to requested workspace'),
+          );
+        }
+      }
+
+      targetWorkspaceId = requestedWorkspaceId;
+    }
 
     socket.user = {
       ...decoded,
-      workspaceId: workspaceId || decoded.workspaceId,
+      workspaceId: targetWorkspaceId,
     };
 
     next();

@@ -78,7 +78,7 @@ router.patch('/reorder', async (req: Request, res: Response, next: NextFunction)
       return;
     }
 
-    await Promise.all(
+    await db.$transaction(
       orderedIds.map((id, index) =>
         db.userFavorite.updateMany({
           where: { id, userId },

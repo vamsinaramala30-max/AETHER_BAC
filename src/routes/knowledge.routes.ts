@@ -555,4 +555,70 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Root-level Document CRUD bindings for knowledgeApi compatibility
+router.post('/', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await documentsController.create({
+      body: req.body,
+      user: { id: userId },
+      headers: req.headers,
+    });
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await documentsController.findOne({
+      params: req.params as any,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await documentsController.update({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    const result = await documentsController.update({
+      params: req.params as any,
+      body: req.body,
+      user: { id: userId },
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const userId = (req as any).user?.id || '';
+    await _knowledgeService.documentsService.deleteDocument(req.params.id, userId);
+    res.status(200).json({ success: true, message: 'Document deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export const knowledgeRoutes: Router = router;

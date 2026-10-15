@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { usersController } from '../modules/users/users.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { requireAdmin } from '../middleware/admin.middleware';
 import { validate } from '../middleware/validation.middleware';
 import { updateUserSchema } from '../validators/user.validator';
 
@@ -19,7 +20,7 @@ router.get('/settings/notifications', usersController.getNotificationSettings);
 router.put('/settings/notifications', usersController.updateNotificationSettings);
 router.patch('/settings/notifications', usersController.updateNotificationSettings);
 
-router.get('/', usersController.getUsers);
+router.get('/', requireAdmin, usersController.getUsers);
 router.get('/:id', usersController.getUserById);
 router.put('/:id', validate(updateUserSchema), usersController.updateUser);
 router.delete('/:id', usersController.deleteUser);

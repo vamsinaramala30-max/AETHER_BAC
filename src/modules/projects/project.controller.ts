@@ -211,4 +211,61 @@ export class ProjectsOrchestrationController {
       next(err);
     }
   }
+
+  async getMembers(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+      }
+      const existing = await this.orchestrationService.projectsRepo.findById(req.params.id);
+      if (!existing) {
+        res.status(404).json({ success: false, message: 'Project not found' });
+        return;
+      }
+      if (existing.ownerId !== userId) {
+        let isMember = false;
+        if (existing.workspaceId) {
+          const membership = await db.workspaceMember.findFirst({
+            where: { workspaceId: existing.workspaceId, userId },
+          });
+          isMember = !!membership;
+        }
+        if (!isMember) {
+          res.status(403).json({ success: false, message: 'Forbidden: Access to project denied' });
+          return;
+        }
+      }
+
+      const workspaceMembers = existing.workspaceId
+        ? await db.workspaceMember.findMany({
+            where: { workspaceId: existing.workspaceId },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  email: true,
+                  avatarUrl: true,
+                },
+              },
+            },
+          })
+        : [];
+
+      const members = workspaceMembers.map((m: any) => ({
+        id: m.id,
+        userId: m.userId,
+        role: m.role,
+        joinedAt: m.createdAt?.toISOString ? m.createdAt.toISOString() : new Date().toISOString(),
+        createdAt: m.createdAt?.toISOString ? m.createdAt.toISOString() : new Date().toISOString(),
+        user: m.user,
+      }));
+
+      res.status(200).json({ success: true, data: members, members });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
