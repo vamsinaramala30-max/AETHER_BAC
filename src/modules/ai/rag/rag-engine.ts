@@ -89,6 +89,9 @@ export interface IRAGEngine extends IRAGProvider {
 
 // ─── RAG Engine Implementation ────────────────────────────────────────────────
 
+export const defaultVectorStore = new InMemoryVectorStore();
+export const defaultKeywordIndex = new InMemoryKeywordIndex();
+
 export class RAGEngine implements IRAGEngine, IRAGProvider {
   private readonly loader: DocumentLoader;
   private readonly parser: DocumentParser;
@@ -109,8 +112,8 @@ export class RAGEngine implements IRAGEngine, IRAGProvider {
   constructor(config: AIConfig, options?: RAGEngineOptions) {
     this.config = config;
 
-    this.vectorStore = options?.vectorStore ?? new InMemoryVectorStore();
-    this.keywordIndex = options?.keywordIndex ?? new InMemoryKeywordIndex();
+    this.vectorStore = options?.vectorStore ?? defaultVectorStore;
+    this.keywordIndex = options?.keywordIndex ?? defaultKeywordIndex;
     this.chunkStore = options?.chunkStore ?? knowledgeChunkRepository;
 
     // Resolve embedding engine based on config
@@ -119,7 +122,11 @@ export class RAGEngine implements IRAGEngine, IRAGProvider {
         ? config.runtime.type === 'ollama'
           ? config.runtime.baseUrl
           : (config.runtime as { serverUrl: string }).serverUrl
-        : '';
+        : (process.env['AETHER_EMBEDDING_BASE_URL'] ||
+           process.env['AETHER_MODEL_BASE_URL'] ||
+           process.env['LOCAL_LLM_BASE_URL'] ||
+           config.providers?.localLlmBaseUrl ||
+           'http://localhost:5002');
 
     const embeddingModel = runtimeBaseUrl
       ? createEmbeddingModel(config.embedding, runtimeBaseUrl)

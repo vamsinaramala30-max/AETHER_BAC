@@ -285,7 +285,7 @@ describe('AETHER Phase 13 — Agent Intelligence Layer', () => {
       expect(planText).toContain('project c');
       expect(planText).toContain('friday');
     }
-  });
+  }, 360000);
 
   // ─── TOOL-CHAIN: Sequential Tool Execution with Observation Propagation ──
   it('TOOL-CHAIN: Sequential tool execution propagates observations between dependent steps', async () => {

@@ -1,54 +1,23 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/auth.middleware';
-import { db } from '../database/client';
+import { plannerService } from '../modules/workspace/planner/planner.service';
 
 const router = Router();
 
 router.use(authenticate);
 
-interface PlannerBlock {
-  id: string;
-  start: number;
-  duration: number;
-  label: string;
-  bucket: 'study' | 'other';
-  kind: 'fixed' | 'flexible';
-  subject: string | null;
-  priority: 'P0' | 'P1' | 'P2' | 'P3' | null;
-  energy: 'high' | 'medium' | 'low' | null;
-  revision: { stage: 1 | 4 | 7 } | null;
-  groupId: string | null;
-  completed: boolean;
-  taskId?: string | null;
-  calendarEventId?: string | null;
-}
-
-interface DayData {
-  sleepStart?: number;
-  sleepEnd?: number;
-  blocks: PlannerBlock[];
-}
-
-type DaysData = Record<string, DayData>;
+// ============================================================================
+// Batch & Weekly Planner Routes (Frontend Compatible)
+// ============================================================================
 
 // GET /planner — fetch complete weekly planner data
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
-    const settings = await db.userSettings.findUnique({
-      where: { userId },
-    });
-
-    const displayPrefs = (settings?.displayPreferences as Record<string, any>) || {};
-    const weeklyPlanner = displayPrefs.weeklyPlanner || {};
-    const daysData: DaysData = weeklyPlanner.daysData || {};
-
+    const result = await plannerService.getPlanner(userId);
     res.status(200).json({
       success: true,
-      data: {
-        daysData,
-        updatedAt: weeklyPlanner.updatedAt || null,
-      },
+      data: result,
     });
   } catch (err) {
     next(err);
@@ -60,36 +29,10 @@ router.get('/week', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const { start } = req.query; // Expects YYYY-MM-DD
-    const settings = await db.userSettings.findUnique({
-      where: { userId },
-    });
-
-    const displayPrefs = (settings?.displayPreferences as Record<string, any>) || {};
-    const allDays: DaysData = displayPrefs.weeklyPlanner?.daysData || {};
-
-    let filteredDays: DaysData = allDays;
-    if (typeof start === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(start)) {
-      filteredDays = {};
-      const startDate = new Date(start);
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(startDate);
-        d.setDate(startDate.getDate() + i);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const key = `${y}-${m}-${day}`;
-        if (allDays[key]) {
-          filteredDays[key] = allDays[key];
-        }
-      }
-    }
-
+    const result = await plannerService.getWeek(userId, typeof start === 'string' ? start : undefined);
     res.status(200).json({
       success: true,
-      data: {
-        daysData: filteredDays,
-        updatedAt: displayPrefs.weeklyPlanner?.updatedAt || null,
-      },
+      data: result,
     });
   } catch (err) {
     next(err);
@@ -101,35 +44,10 @@ router.put('/', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const incomingDays = req.body.daysData || {};
-
-    const settings = await db.userSettings.findUnique({
-      where: { userId },
-    });
-
-    const currentPrefs = (settings?.displayPreferences as Record<string, any>) || {};
-    const updatedPlanner = {
-      daysData: incomingDays,
-      updatedAt: new Date().toISOString(),
-    };
-    const updatedPrefs = { ...currentPrefs, weeklyPlanner: updatedPlanner };
-
-    await db.userSettings.upsert({
-      where: { userId },
-      create: {
-        userId,
-        displayPreferences: updatedPrefs as any,
-      },
-      update: {
-        displayPreferences: updatedPrefs as any,
-      },
-    });
-
+    const result = await plannerService.savePlanner(userId, incomingDays);
     res.status(200).json({
       success: true,
-      data: {
-        daysData: incomingDays,
-        updatedAt: updatedPlanner.updatedAt,
-      },
+      data: result,
     });
   } catch (err) {
     next(err);
@@ -141,45 +59,102 @@ router.put('/day/:key', async (req: Request, res: Response, next: NextFunction) 
   try {
     const userId = req.user!.id;
     const { key } = req.params;
-    const incomingDay: DayData = req.body.dayData || { blocks: [] };
-
-    const settings = await db.userSettings.findUnique({
-      where: { userId },
-    });
-
-    const currentPrefs = (settings?.displayPreferences as Record<string, any>) || {};
-    const currentPlanner = currentPrefs.weeklyPlanner || { daysData: {} };
-    const currentDays = currentPlanner.daysData || {};
-
-    const updatedDays: DaysData = {
-      ...currentDays,
-      [key]: incomingDay,
-    };
-
-    const updatedPlanner = {
-      daysData: updatedDays,
-      updatedAt: new Date().toISOString(),
-    };
-    const updatedPrefs = { ...currentPrefs, weeklyPlanner: updatedPlanner };
-
-    await db.userSettings.upsert({
-      where: { userId },
-      create: {
-        userId,
-        displayPreferences: updatedPrefs as any,
-      },
-      update: {
-        displayPreferences: updatedPrefs as any,
-      },
-    });
-
+    const incomingDay = req.body.dayData || { blocks: [] };
+    const result = await plannerService.saveDay(userId, key, incomingDay);
     res.status(200).json({
       success: true,
-      data: {
-        key,
-        dayData: incomingDay,
-        updatedAt: updatedPlanner.updatedAt,
-      },
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================================================
+// Direct Relational Planner Block CRUD Routes
+// ============================================================================
+
+// POST /planner/blocks — create individual block
+router.post('/blocks', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const block = await plannerService.createBlock(userId, req.body);
+    res.status(201).json({
+      success: true,
+      data: block,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /planner/blocks — list blocks with optional dayKey/taskId filter
+router.get('/blocks', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const { dayKey, taskId } = req.query;
+    const blocks = await plannerService.listBlocks(userId, {
+      dayKey: typeof dayKey === 'string' ? dayKey : undefined,
+      taskId: typeof taskId === 'string' ? taskId : undefined,
+    });
+    res.status(200).json({
+      success: true,
+      data: blocks,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /planner/blocks/:id — get single block
+router.get('/blocks/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const block = await plannerService.getBlock(userId, req.params.id);
+    res.status(200).json({
+      success: true,
+      data: block,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /planner/blocks/:id or PATCH /planner/blocks/:id — update single block
+router.put('/blocks/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const block = await plannerService.updateBlock(userId, req.params.id, req.body);
+    res.status(200).json({
+      success: true,
+      data: block,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/blocks/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const block = await plannerService.updateBlock(userId, req.params.id, req.body);
+    res.status(200).json({
+      success: true,
+      data: block,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /planner/blocks/:id — delete single block
+router.delete('/blocks/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    await plannerService.deleteBlock(userId, req.params.id);
+    res.status(200).json({
+      success: true,
+      message: 'Planner block deleted successfully',
     });
   } catch (err) {
     next(err);

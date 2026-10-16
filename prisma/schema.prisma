@@ -131,6 +131,7 @@ model User {
   twoFactorRecoveryCodes  String[]          @default([])
   lastLoginAt             DateTime?
   passwordLastChangedAt   DateTime?
+  tokenVersion            Int               @default(0)
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
   deletedAt               DateTime?
@@ -139,6 +140,7 @@ model User {
   memberships     WorkspaceMember[]
   projects        Project[]         @relation("ProjectOwner")
   files           File[]
+  fileVersions    FileVersion[]     @relation("UserFileVersions")
   notifications   Notification[]
   auditLogs       AuditLog[]
   sessions        Session[]
@@ -160,12 +162,16 @@ model User {
   activities      ActivityLog[]
   favorites       UserFavorite[]
   userCalendars   UserCalendar[]
+  syncAccounts    SyncAccount[]
   automations          Automation[]
   automationExecutions AutomationExecution[]
   automationActivities AutomationActivity[]
   aiMemories           AIMemory[]
   agentPlans           AgentPlan[]
   agentExecutions      AgentExecution[]
+  plannerBlocks        PlannerBlock[]
+  focusSessions        FocusSession[]
+  documents            Document[]
 
   @@index([email])
   @@index([username])
@@ -241,6 +247,9 @@ model Workspace {
   members        WorkspaceMember[]
   projects       Project[]
   knowledge      KnowledgeBase[]
+  plannerBlocks  PlannerBlock[]
+  focusSessions  FocusSession[]
+  documents      Document[]
 
   @@map("workspaces")
 }
@@ -292,6 +301,8 @@ model Project {
   goals          Goal[]
   milestones     Milestone[]
   calendarEvents CalendarEvent[]
+  focusSessions  FocusSession[]
+  documents      Document[]
 
   @@index([workspaceId, ownerId])
   @@index([workspaceId, status])
@@ -316,6 +327,7 @@ model Task {
   recurringRule  String?
   position       Int             @default(0)
   estimatedHours Float?
+  loggedMinutes  Int             @default(0)
   completedAt    DateTime?
   archivedAt     DateTime?
   createdAt      DateTime        @default(now())
@@ -330,6 +342,8 @@ model Task {
   comments       TaskComment[]
   attachments    TaskAttachment[]
   calendarEvents CalendarEvent[]
+  plannerBlocks  PlannerBlock[]
+  focusSessions  FocusSession[]
 
   @@index([projectId, status])
   @@index([assigneeId, status])
@@ -427,9 +441,10 @@ model CalendarEvent {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project     Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  task        Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task          Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  plannerBlocks PlannerBlock[]
 
   @@index([workspaceId, userId])
   @@index([startDate, endDate])
@@ -501,6 +516,9 @@ model KnowledgeBase {
 model Document {
   id              String        @id @default(uuid()) @db.Uuid
   knowledgeBaseId String        @db.Uuid
+  workspaceId     String?       @db.Uuid
+  projectId       String?       @db.Uuid
+  userId          String?       @db.Uuid
   fileName        String?
   fileUrl         String?
   content         String?
@@ -509,7 +527,15 @@ model Document {
   updatedAt       DateTime      @updatedAt
 
   knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  workspace       Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project         Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([knowledgeBaseId])
+  @@index([workspaceId])
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
   @@map("documents")
 }
 
@@ -544,19 +570,21 @@ model AIMemory {
 }
 
 model DocumentChunk {
-  id          String   @id @default(uuid()) @db.Uuid
-  documentId  String?  @db.Uuid
-  workspaceId String?  @db.Uuid
-  projectId   String?  @db.Uuid
-  userId      String   @db.Uuid
+  id          String                 @id @default(uuid()) @db.Uuid
+  documentId  String?                @db.Uuid
+  workspaceId String?                @db.Uuid
+  projectId   String?                @db.Uuid
+  userId      String                 @db.Uuid
   content     String
-  tokenCount  Int      @default(0)
-  chunkIndex  Int      @default(0)
+  tokenCount  Int                    @default(0)
+  chunkIndex  Int                    @default(0)
+  embedding   Unsupported("vector")?
   metadata    Json?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime               @default(now())
 
   @@index([userId])
   @@index([workspaceId, userId])
+  @@index([workspaceId, projectId])
   @@index([documentId])
   @@index([projectId])
   @@map("document_chunks")
@@ -661,27 +689,52 @@ model Folder {
 // ============================================================================
 
 model File {
-  id          String           @id @default(uuid()) @db.Uuid
-  filename    String
-  mimeType    String
-  size        Int
-  storagePath String
-  status      FileStatus       @default(PENDING)
-  userId      String           @db.Uuid
-  workspaceId String?          @db.Uuid
-  projectId   String?          @db.Uuid
-  folderId    String?          @db.Uuid
-  description String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id             String           @id @default(uuid()) @db.Uuid
+  filename       String
+  mimeType       String
+  size           Int
+  storagePath    String
+  status         FileStatus       @default(PENDING)
+  userId         String           @db.Uuid
+  workspaceId    String?          @db.Uuid
+  projectId      String?          @db.Uuid
+  folderId       String?          @db.Uuid
+  description    String?
+  isTrash        Boolean          @default(false)
+  deletedAt      DateTime?
+  lastAccessedAt DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  folder      Folder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  attachments TaskAttachment[]
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder         Folder?          @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  attachments    TaskAttachment[]
+  versions       FileVersion[]
 
   @@index([userId])
   @@index([workspaceId])
+  @@index([projectId])
+  @@index([userId, lastAccessedAt])
+  @@index([userId, isTrash])
   @@map("files")
+}
+
+model FileVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  fileId      String   @db.Uuid
+  version     Int
+  size        Int
+  storagePath String
+  createdBy   String   @db.Uuid
+  createdAt   DateTime @default(now())
+  comment     String?
+
+  file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  user        User     @relation("UserFileVersions", fields: [createdBy], references: [id], onDelete: Cascade)
+
+  @@index([fileId])
+  @@index([fileId, version])
+  @@map("file_versions")
 }
 
 // ============================================================================
@@ -884,6 +937,46 @@ model UserCalendar {
 
   @@index([userId])
   @@map("user_calendars")
+}
+
+// ============================================================================
+// External Calendar Synchronization
+// ============================================================================
+
+model SyncAccount {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  provider     String
+  accessToken  String
+  refreshToken String?
+  expiresAt    DateTime?
+  scope        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  syncJobs     SyncJob[]
+
+  @@unique([userId, provider])
+  @@index([userId])
+  @@map("sync_accounts")
+}
+
+model SyncJob {
+  id            String    @id @default(uuid()) @db.Uuid
+  syncAccountId String    @db.Uuid
+  calendarId    String
+  status        String    @default("SYNCING")
+  syncedCount   Int       @default(0)
+  errorMessage  String?
+  lastSyncedAt  DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  syncAccount   SyncAccount @relation(fields: [syncAccountId], references: [id], onDelete: Cascade)
+
+  @@index([syncAccountId])
+  @@map("sync_jobs")
 }
 
 // ============================================================================
@@ -1110,5 +1203,76 @@ model AgentExecutionAttempt {
   @@unique([stepId, attempt])
   @@index([stepId])
   @@map("agent_execution_attempts")
+}
+
+// ============================================================================
+// Productivity: Planner & Focus Persistence
+// ============================================================================
+
+model PlannerBlock {
+  id              String         @id @default(uuid()) @db.Uuid
+  userId          String         @db.Uuid
+  workspaceId     String?        @db.Uuid
+  dayKey          String
+  title           String
+  start           Float
+  duration        Int
+  startTime       DateTime?
+  endTime         DateTime?
+  bucket          String         @default("other")
+  kind            String         @default("flexible")
+  subject         String?
+  priority        String?
+  energy          String?
+  revision        Json?
+  groupId         String?
+  completed       Boolean        @default(false)
+  position        Int            @default(0)
+  taskId          String?        @db.Uuid
+  calendarEventId String?        @db.Uuid
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace       Workspace?     @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  task            Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  calendarEvent   CalendarEvent? @relation(fields: [calendarEventId], references: [id], onDelete: SetNull)
+
+  @@index([userId, dayKey])
+  @@index([userId, createdAt])
+  @@index([taskId])
+  @@index([calendarEventId])
+  @@map("planner_blocks")
+}
+
+model FocusSession {
+  id                    String     @id @default(uuid()) @db.Uuid
+  userId                String     @db.Uuid
+  workspaceId           String?    @db.Uuid
+  projectId             String?    @db.Uuid
+  taskId                String?    @db.Uuid
+  type                  String     @default("focus")
+  status                String     @default("IN_PROGRESS")
+  durationMinutes       Int        @default(25)
+  actualDurationSeconds Int        @default(0)
+  distractionsCount     Int        @default(0)
+  startTime             DateTime?  @default(now())
+  endTime               DateTime?
+  metadata              Json?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  user                  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace             Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  project               Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  task                  Task?      @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([userId, createdAt])
+  @@index([workspaceId, userId])
+  @@index([taskId])
+  @@index([projectId])
+  @@map("focus_sessions")
 }
 

@@ -7,8 +7,33 @@ const usersService = new UsersService();
 const userConnectionsMap = new Map<string, Record<string, string>>();
 
 export class UsersController {
+  private isAuthorizedForUser(req: Request, targetId: string): boolean {
+    const requester = (req as any).user;
+    if (!requester) return false;
+    const isAdmin =
+      requester.role === 'ADMIN' ||
+      requester.role === 'SUPERADMIN' ||
+      requester.role === 'SUPER_ADMIN';
+    return isAdmin || requester.id === targetId;
+  }
+
   public async getUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      const requester = (req as any).user;
+      const isAdmin =
+        requester?.role === 'ADMIN' ||
+        requester?.role === 'SUPERADMIN' ||
+        requester?.role === 'SUPER_ADMIN';
+      if (!isAdmin) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Administrative privileges required to list all users.',
+          },
+        });
+        return;
+      }
       const page = parseInt(req.query.page as string, 10) || 1;
       const limit = parseInt(req.query.limit as string, 10) || 20;
       const result = await usersService.listUsers(page, limit);
@@ -20,6 +45,16 @@ export class UsersController {
 
   public async getUserById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      if (!this.isAuthorizedForUser(req, req.params.id)) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied. You do not have permission to view this user profile.',
+          },
+        });
+        return;
+      }
       const user = await usersService.getUserById(req.params.id);
       res.status(200).json({ success: true, data: user });
     } catch (err) {
@@ -29,6 +64,16 @@ export class UsersController {
 
   public async updateUser(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      if (!this.isAuthorizedForUser(req, req.params.id)) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied. You do not have permission to modify this user profile.',
+          },
+        });
+        return;
+      }
       const updated = await usersService.updateUser(req.params.id, req.body);
       res.status(200).json({ success: true, data: updated });
     } catch (err) {
@@ -140,6 +185,16 @@ export class UsersController {
 
   public async deleteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      if (!this.isAuthorizedForUser(req, req.params.id)) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Access denied. You do not have permission to delete this user profile.',
+          },
+        });
+        return;
+      }
       await usersService.deleteUser(req.params.id);
       res.status(200).json({ success: true, message: 'User deleted successfully' });
     } catch (err) {

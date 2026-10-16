@@ -1,6 +1,7 @@
 import { CalendarRepository } from './calendar.repository';
 import { CreateCalendarDTO, UpdateCalendarDTO } from './calendar.dto';
 import { CalendarRole } from './calendar.types';
+import { AppError } from '../../../middleware/error.middleware';
 
 export class CalendarService {
   constructor(private calendarRepo: CalendarRepository) {}
@@ -40,12 +41,36 @@ export class CalendarService {
     return this.calendarRepo.delete(calendarId);
   }
 
-  async getEvents(_params: {
+  async getEvents(params: {
     workspaceId?: string;
     userId?: string;
     limit?: number;
+    startDate?: Date;
+    endDate?: Date;
   }): Promise<{ data: any[] }> {
-    // Stub: returns empty events list; real implementation would query events by workspaceId
-    return { data: [] };
+    const isUuid = (val?: string | null): boolean =>
+      Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+    if (params.workspaceId && !isUuid(params.workspaceId)) {
+      throw new AppError('Invalid workspace ID', 400, 'INVALID_WORKSPACE_ID');
+    }
+    if (params.userId && !isUuid(params.userId)) {
+      throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    }
+
+    // Verify workspace membership when both workspaceId and userId are provided
+    if (params.workspaceId && params.userId) {
+      const isMember = await this.calendarRepo.checkWorkspaceMembership(
+        params.workspaceId,
+        params.userId,
+      );
+      if (!isMember) {
+        throw new AppError('Forbidden: Access to workspace calendar denied', 403, 'FORBIDDEN');
+      }
+    }
+
+    const events = await this.calendarRepo.findEvents(params);
+    return { data: events };
   }
 }
+

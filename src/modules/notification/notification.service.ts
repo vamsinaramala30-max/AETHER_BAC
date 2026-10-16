@@ -6,8 +6,11 @@ import {
   SendNotificationDTO,
   PushSubscriptionDTO,
 } from './notification.types';
+import { emitToUser } from '../../websocket/socket';
+import { SocketEvent } from '../../websocket/socketTypes';
 
 export class NotificationService {
+
   constructor(
     private repo: NotificationRepository,
     private emailService?: EmailService,
@@ -58,7 +61,7 @@ export class NotificationService {
     const results: Record<string, boolean> = {};
 
     if (dto.channels.includes('IN_APP')) {
-      await this.repo.createNotification({
+      const created = await this.repo.createNotification({
         userId: dto.userId,
         title: dto.title,
         message: dto.message,
@@ -66,8 +69,10 @@ export class NotificationService {
         link: dto.link,
         metadata: dto.metadata,
       });
+      emitToUser(dto.userId, SocketEvent.NOTIFICATION_NEW, created);
       results.IN_APP = true;
     }
+
 
     if (dto.channels.includes('EMAIL') && dto.email) {
       const emailRes = await this.emailService!.sendNotificationEmail(
@@ -152,6 +157,10 @@ export class NotificationService {
     link?: string;
     metadata?: Record<string, unknown>;
   }) {
-    return this.repo.createNotification(payload);
+    const created = await this.repo.createNotification(payload);
+    emitToUser(payload.userId, SocketEvent.NOTIFICATION_NEW, created);
+    return created;
   }
 }
+
+export const notificationService = new NotificationService(new NotificationRepository());

@@ -7,6 +7,7 @@ import { TaskEntity } from './tasks.entity';
 import { TaskFilterDTO } from './tasks.dto';
 import { PaginatedResult } from '../projects.repository';
 import { TaskStatus as PrismaTaskStatus, TaskPriority as PrismaTaskPriority } from '@prisma/client';
+import { AppError } from '../../../middleware/error.middleware';
 
 export class TasksRepository {
   private mapToEntity(t: any): TaskEntity {
@@ -26,7 +27,7 @@ export class TasksRepository {
       dependencyTaskIds: [],
       dueDate: t.dueDate ? new Date(t.dueDate) : null,
       estimatedMinutes: t.estimatedHours ? Math.round(t.estimatedHours * 60) : null,
-      loggedMinutes: 0,
+      loggedMinutes: typeof t.loggedMinutes === 'number' ? t.loggedMinutes : 0,
       recurrence: t.recurringRule ? ('WEEKLY' as any) : ('NONE' as any),
       labels: t.labels || [],
       checklists: [],
@@ -70,13 +71,21 @@ export class TasksRepository {
     if (filter.projectId && isUuid.test(filter.projectId)) {
       where.projectId = filter.projectId;
     }
+    if (filter.workspaceId && isUuid.test(filter.workspaceId)) {
+      where.workspaceId = filter.workspaceId;
+    } else if (filter.workspaceIds && Array.isArray(filter.workspaceIds)) {
+      const validWsIds = filter.workspaceIds.filter((id) => isUuid.test(id));
+      where.workspaceId = { in: validWsIds };
+    }
     if (filter.status) {
       where.status = filter.status as PrismaTaskStatus;
     }
     if (filter.priority) {
       where.priority = filter.priority as PrismaTaskPriority;
     }
-    if (filter.assigneeId && isUuid.test(filter.assigneeId)) {
+    if (filter.assigneeId === 'unassigned' || filter.assigneeId === 'none') {
+      where.assigneeId = null;
+    } else if (filter.assigneeId && isUuid.test(filter.assigneeId)) {
       where.assigneeId = filter.assigneeId;
     }
     if (filter.search) {
@@ -129,83 +138,42 @@ export class TasksRepository {
     let projectId = task.projectId;
     let creatorId = task.creatorId;
 
-    if (creatorId && isUuid.test(creatorId)) {
-      const userExists = await db.user.findUnique({ where: { id: creatorId } });
-      if (!userExists) {
-        try {
-          await db.user.create({
-            data: {
-              id: creatorId,
-              email: `user-${creatorId.substring(0, 8)}@aether.local`,
-              fullName: 'Aether User',
-            },
-          });
-        } catch {
-          // ignore
-        }
-      }
-    } else {
-      const firstUser = await db.user.findFirst();
-      creatorId = firstUser?.id || '00000000-0000-0000-0000-000000000000';
+    if (!creatorId || !isUuid.test(creatorId)) {
+      throw new AppError('Valid creatorId UUID is required to persist task', 400, 'CREATOR_REQUIRED');
+    }
+
+    const userExists = await db.user.findUnique({ where: { id: creatorId } });
+    if (!userExists) {
+      throw new AppError(`Creator user ${creatorId} does not exist`, 404, 'USER_NOT_FOUND');
     }
 
     if (!projectId || !isUuid.test(projectId)) {
-      // Find a project or create a fallback project
-      const firstProj = await db.project.findFirst({ where: { deletedAt: null } });
-      if (firstProj) {
-        projectId = firstProj.id;
-      } else {
-        const ownerId = creatorId;
-        let wsMember = await db.workspaceMember.findFirst({ where: { userId: ownerId } });
-        let wsId = wsMember?.workspaceId;
-        if (!wsId) {
-          const ws = await db.workspace.create({
-            data: {
-              name: 'Personal Workspace',
-              slug: `ws-${Date.now().toString(36)}`,
-              members: { create: { userId: ownerId, role: 'OWNER' } },
-            },
-          });
-          wsId = ws.id;
-        }
-        const newProj = await db.project.create({
-          data: {
-            name: 'General Tasks Project',
-            ownerId,
-            workspaceId: wsId,
-            category: 'General',
-          },
-        });
-        projectId = newProj.id;
-      }
+      throw new AppError('A valid project ID is required to persist a task', 400, 'INVALID_PROJECT_ID');
     }
 
-    const proj = await db.project.findUnique({ where: { id: projectId } });
-    const workspaceId = proj?.workspaceId || '00000000-0000-0000-0000-000000000000';
+    const proj = await db.project.findFirst({ where: { id: projectId, deletedAt: null } });
+    if (!proj) {
+      throw new AppError(`Project ${projectId} not found`, 404, 'PROJECT_NOT_FOUND');
+    }
+    const workspaceId = proj.workspaceId;
+    if (!workspaceId || !isUuid.test(workspaceId)) {
+      throw new AppError(`Project ${projectId} has no valid workspace association`, 400, 'INVALID_PROJECT_WORKSPACE');
+    }
 
     if (task.id && isUuid.test(task.id)) {
       const existing = await db.task.findUnique({ where: { id: task.id } });
       if (existing) {
-        let updateAssigneeId: string | undefined;
-        if (task.assigneeIds && task.assigneeIds.length > 0 && isUuid.test(task.assigneeIds[0]!)) {
+        let updateAssigneeId: string | undefined = undefined;
+        if (task.assigneeIds && task.assigneeIds.length > 0) {
           const aId = task.assigneeIds[0]!;
+          if (!isUuid.test(aId)) {
+            throw new Error('Invalid assigneeId UUID format');
+          }
           const aUser = await db.user.findUnique({ where: { id: aId } });
           if (!aUser) {
-            try {
-              await db.user.create({
-                data: {
-                  id: aId,
-                  email: `user-${aId.substring(0, 8)}@aether.local`,
-                  fullName: 'Assignee User',
-                },
-              });
-              updateAssigneeId = aId;
-            } catch {
-              // ignore
-            }
-          } else {
-            updateAssigneeId = aId;
+            throw new Error(`Assignee user ${aId} does not exist`);
           }
+          updateAssigneeId = aId;
         }
 
         const updated = await db.task.update({
@@ -219,6 +187,7 @@ export class TasksRepository {
             assigneeId: updateAssigneeId,
             labels: task.labels,
             estimatedHours: task.estimatedMinutes ? task.estimatedMinutes / 60 : undefined,
+            loggedMinutes: task.loggedMinutes !== undefined ? task.loggedMinutes : undefined,
             completedAt: task.isCompleted || task.status === 'DONE' ? new Date() : null,
           },
           include: { comments: true },
@@ -228,25 +197,16 @@ export class TasksRepository {
     }
 
     let assigneeId: string | null = null;
-    if (task.assigneeIds && task.assigneeIds.length > 0 && isUuid.test(task.assigneeIds[0]!)) {
+    if (task.assigneeIds && task.assigneeIds.length > 0) {
       const aId = task.assigneeIds[0]!;
+      if (!isUuid.test(aId)) {
+        throw new Error('Invalid assigneeId UUID format');
+      }
       const aUser = await db.user.findUnique({ where: { id: aId } });
       if (!aUser) {
-        try {
-          await db.user.create({
-            data: {
-              id: aId,
-              email: `user-${aId.substring(0, 8)}@aether.local`,
-              fullName: 'Assignee User',
-            },
-          });
-          assigneeId = aId;
-        } catch {
-          // ignore
-        }
-      } else {
-        assigneeId = aId;
+        throw new Error(`Assignee user ${aId} does not exist`);
       }
+      assigneeId = aId;
     }
 
     const created = await db.task.create({
@@ -262,6 +222,7 @@ export class TasksRepository {
         dueDate: task.dueDate,
         labels: task.labels || [],
         estimatedHours: task.estimatedMinutes ? task.estimatedMinutes / 60 : null,
+        loggedMinutes: task.loggedMinutes || 0,
       },
       include: {
         comments: true,
@@ -287,9 +248,17 @@ export class TasksRepository {
     }
   }
 
-  async deleteMany(ids: string[]): Promise<number> {
+  async deleteMany(ids: string[], workspaceId?: string): Promise<number> {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const validIds = ids.filter((id) => isUuid.test(id));
+    if (validIds.length === 0) return 0;
+
+    const where: any = { id: { in: validIds } };
+    if (workspaceId && isUuid.test(workspaceId)) {
+      where.workspaceId = workspaceId;
+    }
     const res = await db.task.updateMany({
-      where: { id: { in: ids } },
+      where,
       data: { deletedAt: new Date() },
     });
     return res.count;

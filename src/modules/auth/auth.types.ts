@@ -3,6 +3,7 @@ export interface AuthTokenPayload {
   email: string;
   role: string;
   workspaceId?: string;
+  tokenVersion?: number;
 }
 
 export interface LoginResponse {

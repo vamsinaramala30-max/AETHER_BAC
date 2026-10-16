@@ -4,7 +4,8 @@
  * idempotency, retry, and multi-step dependency rules.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
+import { db } from '../../database/client.js';
 import { toolRegistry } from '../../modules/ai/tools/tool-registry.js';
 import { toolExecutor } from '../../modules/ai/tools/tool-executor.js';
 import { toolPermissions } from '../../modules/ai/tools/tool-permissions.js';
@@ -43,10 +44,10 @@ describe('Prompt 24 — Tools + Controlled Actions', () => {
       'knowledge:write',
       'workspace:read',
     ],
-    workspaceId: 'w0000000-0000-0000-0000-000000000001',
+    workspaceId: 'c0000000-0000-4000-a000-000000000001',
     userWorkspaceIds: [
-      'w0000000-0000-0000-0000-000000000001',
-      'w0000000-0000-0000-0000-000000000002',
+      'c0000000-0000-4000-a000-000000000001',
+      'c0000000-0000-4000-a000-000000000002',
     ],
   };
 
@@ -55,8 +56,8 @@ describe('Prompt 24 — Tools + Controlled Actions', () => {
     sessionId: 'sess_restricted_456',
     roles: ['guest'],
     permissions: ['tasks:read'],
-    workspaceId: 'w0000000-0000-0000-0000-000000000003',
-    userWorkspaceIds: ['w0000000-0000-0000-0000-000000000003'],
+    workspaceId: 'c0000000-0000-4000-a000-000000000003',
+    userWorkspaceIds: ['c0000000-0000-4000-a000-000000000003'],
   };
 
   const dummyContext: ToolExecutionContext = {
@@ -65,6 +66,38 @@ describe('Prompt 24 — Tools + Controlled Actions', () => {
     conversationId: 'conv_test_001',
     requestId: 'req_test_001',
   };
+
+  beforeAll(async () => {
+    try {
+      await db.user.upsert({
+        where: { id: standardAuth.userId },
+        update: {},
+        create: {
+          id: standardAuth.userId,
+          email: 'standard_tool_user@aether.test',
+          fullName: 'Standard Tool User',
+          passwordHash: 'dummy_hash',
+        },
+      });
+
+      if (standardAuth.workspaceId) {
+        await db.workspace.upsert({
+          where: { id: standardAuth.workspaceId },
+          update: {},
+          create: {
+            id: standardAuth.workspaceId,
+            name: 'Tool Test Workspace',
+            slug: `tool-ws-${Date.now().toString(36)}`,
+            members: {
+              create: { userId: standardAuth.userId, role: 'OWNER' },
+            },
+          },
+        });
+      }
+    } catch {
+      // Database seeding fallback for offline testing
+    }
+  });
 
   beforeEach(() => {
     toolExecutor.clearIdempotencyCache();

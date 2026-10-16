@@ -1003,15 +1003,36 @@ export class HeuristicIntentEngine implements IIntentEngine {
       'sup',
     ];
 
-    if (greetings.includes(lower)) return true;
-    return greetings.some((g) => {
-      return (
-        lower.startsWith(`${g} `) ||
-        lower.startsWith(`${g},`) ||
-        lower.startsWith(`${g}!`) ||
-        lower.startsWith(`${g}.`)
-      );
-    });
+    const cleanLower = lower.trim().replace(/^[,.!\s]+/, '').replace(/[,.!\s]+$/, '');
+    if (greetings.includes(cleanLower)) return true;
+
+    for (const g of greetings) {
+      if (
+        cleanLower.startsWith(`${g} `) ||
+        cleanLower.startsWith(`${g},`) ||
+        cleanLower.startsWith(`${g}!`) ||
+        cleanLower.startsWith(`${g}.`)
+      ) {
+        const remainder = cleanLower
+          .slice(g.length)
+          .replace(/^[,.!\s]+/, '')
+          .replace(/[,.!\s]+$/, '')
+          .trim();
+        const pleasantries = [
+          '',
+          'there',
+          'aether',
+          'how are you',
+          'how are you?',
+          'how are you doing',
+          'how are you doing?',
+          'hope you are well',
+          'friend',
+        ];
+        return pleasantries.includes(remainder);
+      }
+    }
+    return false;
   }
 
   // ─── Capabilities Check ─────────────────────────────────────────────────────

@@ -32,9 +32,33 @@ export enum SocketEvent {
   // Real-time Collaboration Events
   PROJECT_UPDATED = 'project:updated',
   WORKSPACE_MEMBER_MUTATED = 'workspace:member_mutated',
+  WORKSPACE_MEMBER_ADDED = 'workspace:member_added',
+  WORKSPACE_MEMBER_UPDATED = 'workspace:member_updated',
+  WORKSPACE_MEMBER_REMOVED = 'workspace:member_removed',
+
+  // Task Events
+  TASK_CREATED = 'task:created',
+  TASK_UPDATED = 'task:updated',
+  TASK_COMPLETED = 'task:completed',
+  TASK_DELETED = 'task:deleted',
+
+  // Planner Events
+  PLANNER_CREATED = 'planner:created',
+  PLANNER_UPDATED = 'planner:updated',
+  PLANNER_DELETED = 'planner:deleted',
+
+  // Calendar Events
+  CALENDAR_CREATED = 'calendar:created',
+  CALENDAR_UPDATED = 'calendar:updated',
+  CALENDAR_DELETED = 'calendar:deleted',
+
+  // Focus Events
+  FOCUS_STARTED = 'focus:started',
+  FOCUS_COMPLETED = 'focus:completed',
 
   // Notification Events
   NOTIFICATION_NEW = 'notification:new',
+  NOTIFICATION_CREATED = 'notification:created',
 }
 
 export interface AISreamPayload {
@@ -42,3 +66,4 @@ export interface AISreamPayload {
   prompt: string;
   workspaceId: string;
 }
+

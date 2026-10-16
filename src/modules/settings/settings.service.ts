@@ -244,12 +244,16 @@ export class SettingsService {
     const passwordUpdateData: Record<string, any> = {
       passwordHash: newPasswordHash,
       passwordLastChangedAt: now,
+      tokenVersion: { increment: 1 },
     };
 
     await db.user.update({
       where: { id: userId },
       data: passwordUpdateData as any,
     });
+
+    // Invalidate existing sessions in db.session upon password change
+    await db.session.deleteMany({ where: { userId } }).catch(() => null);
 
     // Create security in-app notification
     await db.notification.create({

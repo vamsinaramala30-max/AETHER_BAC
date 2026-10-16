@@ -57,8 +57,11 @@ export class Retriever implements IRetriever {
         collectionIds: query.collectionIds,
       };
 
-      // Embed the query
-      const embeddingResult = await this.embeddingEngine.embed(query.text);
+      // Embed the query (prefer precomputed embedding if provided)
+      const embeddingResult =
+        query.embedding && query.embedding.length > 0
+          ? ok(query.embedding)
+          : await this.embeddingEngine.embed(query.text);
 
       let retrievedChunks: DocumentChunk[];
 
@@ -88,6 +91,10 @@ export class Retriever implements IRetriever {
           this.keywordIndex.search(query.text, query.topK * 2, query.collectionIds, scope),
         ]);
 
+        if (vectorResults.length === 0 && keywordResults.length === 0) {
+          return ok([]);
+        }
+
         const hybridResults = this.hybridSearch.fuse(vectorResults, keywordResults, query.topK * 2);
 
         if (hybridResults.length === 0) return ok([]);
@@ -106,8 +113,10 @@ export class Retriever implements IRetriever {
       };
 
       const reranked = await this.reranker.rerank(rerankRequest);
+      const threshold = typeof query.scoreThreshold === 'number' ? query.scoreThreshold : (this.config.scoreThreshold ?? 0);
+      const filtered = threshold > 0 ? reranked.filter((r) => r.score >= threshold) : reranked;
       return ok(
-        reranked.map((r) => ({
+        filtered.map((r) => ({
           ...r.chunk,
           metadata: {
             ...r.chunk.metadata,
@@ -127,9 +136,18 @@ export class Retriever implements IRetriever {
     chunkIds: readonly string[],
     scope?: { userId?: string; workspaceId?: string; projectId?: string },
   ): Promise<DocumentChunk[]> {
+    if (chunkIds.length === 0) return [];
+
+    // Use batch lookup if available to prevent N+1 query patterns
+    const rawChunks: DocumentChunk[] =
+      typeof (this.chunkStore as any).getByIds === 'function'
+        ? await (this.chunkStore as any).getByIds(chunkIds)
+        : (
+            await Promise.all(chunkIds.map((id) => this.chunkStore.getById(id)))
+          ).filter((c): c is DocumentChunk => c !== undefined);
+
     const chunks: DocumentChunk[] = [];
-    for (const id of chunkIds) {
-      const chunk = await this.chunkStore.getById(id);
+    for (const chunk of rawChunks) {
       if (chunk) {
         // Enforce user/workspace/project isolation
         if (scope?.workspaceId) {
@@ -140,6 +158,12 @@ export class Retriever implements IRetriever {
 
         if (scope?.userId) {
           if (chunk.userId && chunk.userId !== scope.userId) {
+            // Check private document restrictions: private docs or docs with restricted canRead cannot enter foreign user context
+            const isPrivate = Boolean((chunk.metadata as any)?.isPrivate);
+            const canRead = (chunk.metadata as any)?.canRead as string[] | undefined;
+            if (isPrivate || (Array.isArray(canRead) && !canRead.includes(scope.userId))) {
+              continue;
+            }
             if (!scope.workspaceId || chunk.workspaceId !== scope.workspaceId) continue;
           }
         } else if (chunk.userId) {

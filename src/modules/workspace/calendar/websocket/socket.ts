@@ -21,8 +21,11 @@ export class CalendarWebSocketServer {
 
   private setupAuth(): void {
     this.io.use((socket: Socket, next) => {
-      const token = socket.handshake.auth.token || socket.handshake.query.token;
-      if (!token) return next(new Error('Authentication failed: Missing token'));
+      if (socket.handshake.query && typeof (socket.handshake.query as any).token !== 'undefined') {
+        delete (socket.handshake.query as any).token;
+      }
+      const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '');
+      if (!token) return next(new Error('Authentication failed: Missing token in handshake auth'));
 
       try {
         const decoded = jwt.verify(

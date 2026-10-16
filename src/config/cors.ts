@@ -2,10 +2,10 @@ import { CorsOptions } from 'cors';
 import { env } from './env';
 
 const configuredOrigins = env.CORS_ORIGIN.split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/+$/, ''))
   .filter(Boolean);
 
-const frontendOrigin = env.FRONTEND_URL ? env.FRONTEND_URL.trim() : null;
+const frontendOrigin = env.FRONTEND_URL ? env.FRONTEND_URL.trim().replace(/\/+$/, '') : null;
 const allowedOrigins = Array.from(
   new Set([...configuredOrigins, ...(frontendOrigin ? [frontendOrigin] : [])]),
 );
@@ -21,12 +21,14 @@ export const corsConfig: CorsOptions = {
       return;
     }
 
+    const normalizedOrigin = origin.replace(/\/+$/, '');
     const isProduction = process.env.NODE_ENV === 'production';
 
     // In production, strictly reject wildcard origins when credentials are enabled
     if (isProduction) {
+      // Must not allow wildcards (*, *.vercel.app, etc.) with credentials: true
       const isAllowed = allowedOrigins.some(
-        (o) => o !== '*' && (o === origin || new RegExp(`^${o.replace(/\*/g, '.*')}$`).test(origin)),
+        (o) => o && !o.includes('*') && o === normalizedOrigin,
       );
 
       if (isAllowed) {
@@ -45,19 +47,19 @@ export const corsConfig: CorsOptions = {
 
     const isLocalNetworkIp =
       /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
-        origin,
+        normalizedOrigin,
       );
 
     const isLocalhost =
-      origin.startsWith('http://localhost') ||
-      origin.startsWith('http://127.0.0.1');
+      normalizedOrigin.startsWith('http://localhost') ||
+      normalizedOrigin.startsWith('http://127.0.0.1');
 
     if (
-      allowedOrigins.includes(origin) ||
+      allowedOrigins.includes(normalizedOrigin) ||
       isLocalhost ||
       isLocalNetworkIp ||
       allowedOrigins.some(
-        (o) => o !== '*' && new RegExp(`^${o.replace(/\*/g, '.*')}$`).test(origin),
+        (o) => o !== '*' && new RegExp(`^${o.replace(/\*/g, '.*')}$`).test(normalizedOrigin),
       )
     ) {
       callback(null, true);
@@ -66,33 +68,55 @@ export const corsConfig: CorsOptions = {
     }
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
   allowedHeaders: [
     'Content-Type',
+    'content-type',
     'Authorization',
+    'authorization',
+    'Accept',
+    'accept',
+    'Origin',
+    'origin',
     'X-Requested-With',
+    'x-requested-with',
+    'X-Folder-ID',
+    'x-folder-id',
+    'X-Project-ID',
+    'x-project-id',
     'X-Workspace-ID',
     'x-workspace-id',
-    'Accept',
+    'X-User-ID',
+    'x-user-id',
     'X-Correlation-ID',
     'x-correlation-id',
+    'X-Request-ID',
+    'x-request-id',
+    'X-Session-ID',
+    'x-session-id',
     'traceparent',
     'tracestate',
     'Idempotency-Key',
     'idempotency-key',
-    'X-Session-ID',
-    'x-session-id',
-    'X-User-ID',
-    'x-user-id',
+    'Content-Disposition',
+    'content-disposition',
   ],
   exposedHeaders: [
     'Content-Range',
+    'content-range',
     'X-Total-Count',
+    'x-total-count',
     'X-RateLimit-Limit',
+    'x-ratelimit-limit',
     'X-RateLimit-Remaining',
+    'x-ratelimit-remaining',
     'X-Correlation-ID',
     'x-correlation-id',
+    'X-Request-ID',
+    'x-request-id',
     'traceparent',
+    'Content-Disposition',
+    'content-disposition',
   ],
   maxAge: 86400, // 24 hours
 };

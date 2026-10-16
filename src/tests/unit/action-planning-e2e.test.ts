@@ -26,6 +26,7 @@ const tasksRepo = new TasksRepository();
 const projectsRepo = new ProjectsRepository();
 const goalsRepo = new GoalsRepository();
 const automationService = new AutomationService();
+let testProjectId: string = '';
 
 const userA: AuthenticationContext = {
   userId: 'a0000000-0000-0000-0000-000000000001',
@@ -85,9 +86,9 @@ describe(
           },
         });
 
-        const ws = await db.workspace.findFirst();
+        let ws = await db.workspace.findFirst();
         if (!ws) {
-          await db.workspace.create({
+          ws = await db.workspace.create({
             data: {
               id: '00000000-0000-0000-0000-000000000000',
               name: 'Default Workspace',
@@ -95,6 +96,37 @@ describe(
             },
           });
         }
+
+        await db.workspaceMember.upsert({
+          where: {
+            workspaceId_userId: {
+              workspaceId: ws.id,
+              userId: userA.userId,
+            },
+          },
+          update: {},
+          create: {
+            workspaceId: ws.id,
+            userId: userA.userId,
+            role: 'OWNER',
+          },
+        });
+
+        (userA as any).workspaceId = ws.id;
+
+        let defaultProj = await db.project.findFirst({
+          where: { workspaceId: ws.id, deletedAt: null },
+        });
+        if (!defaultProj) {
+          defaultProj = await db.project.create({
+            data: {
+              name: 'Default Test Project',
+              workspaceId: ws.id,
+              ownerId: userA.userId,
+            },
+          });
+        }
+        testProjectId = defaultProj.id;
       } catch (e) {
         console.warn('DB setup warning (mock mode will be used if DB unavailable):', e);
       }
@@ -160,6 +192,7 @@ describe(
       const initialTask = await tasksRepo.save({
         title: 'Fix authentication',
         creatorId: userA.userId,
+        projectId: testProjectId,
         status: TaskStatus.TODO,
         priority: 'HIGH' as any,
       });

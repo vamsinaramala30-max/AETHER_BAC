@@ -6,11 +6,13 @@ import { ActivityRepository } from './repositories/activity.repository';
 import { ExecutionEngine } from './engine/execution-engine';
 import { AutomationScheduler } from './scheduler/automation-scheduler';
 import { AutomationWorker } from './workers/automation-worker';
+import { ScheduleManager } from './scheduler/schedule-manager';
 import { AppError } from '../../middleware/error.middleware';
 import {
   CreateAutomationInput,
   UpdateAutomationInput,
   AutomationTemplate,
+  SchedulerHealthStatus,
 } from './automation.types';
 import { isValidUuid } from './utils/automation.utils';
 import { logger } from '../../config';
@@ -35,8 +37,18 @@ export class AutomationService {
     this.scheduler = new AutomationScheduler(prisma);
     this.worker = new AutomationWorker(prisma);
 
-    // Initialize scheduled automations
-    this.scheduler.initializeScheduledAutomations();
+    // Initialize authoritative scheduled automations from database
+    this.scheduler.start().catch((err) => {
+      logger.error('[AutomationService] Failed to start background scheduler:', err);
+    });
+  }
+
+  public getScheduler(): AutomationScheduler {
+    return this.scheduler;
+  }
+
+  public getSchedulerHealth(): SchedulerHealthStatus {
+    return this.scheduler.getHealthStatus();
   }
 
   public parseIntent(prompt: string) {
@@ -57,6 +69,22 @@ export class AutomationService {
         401,
         'UNAUTHORIZED',
       );
+    }
+
+    // Timezone validation (Phase 5.4)
+    if (input.timezone && !ScheduleManager.isValidTimezone(input.timezone)) {
+      throw new AppError(`Invalid IANA timezone: '${input.timezone}'`, 400, 'VALIDATION_ERROR');
+    }
+
+    // Schedule validation if schedule string is provided
+    if (input.schedule) {
+      const detected = ScheduleManager.detectTriggerType(input.schedule);
+      if (detected === 'CRON') {
+        const cronNormalized = ScheduleManager.normalizeSchedule(input.schedule);
+        if (!ScheduleManager.isValidCron(cronNormalized)) {
+          throw new AppError(`Invalid cron expression: '${input.schedule}'`, 400, 'VALIDATION_ERROR');
+        }
+      }
     }
 
     // Verify workspace membership if workspaceId is provided
@@ -110,10 +138,6 @@ export class AutomationService {
       input.userId || null,
     );
 
-    if (created.schedule) {
-      this.scheduler.scheduleAutomation(created.id, created.name, created.schedule);
-    }
-
     return created;
   }
 
@@ -138,7 +162,6 @@ export class AutomationService {
     }
     return this.autoRepo.findByWorkspaceId(workspaceId, page, limit);
   }
-
 
   public async getUserAutomations(userId: string, page: number = 1, limit: number = 50) {
     return this.autoRepo.findByUserId(userId, page, limit);
@@ -179,6 +202,20 @@ export class AutomationService {
   public async updateAutomation(id: string, input: UpdateAutomationInput, userId?: string) {
     const auto = await this.getAutomationById(id, userId);
 
+    if (input.timezone && !ScheduleManager.isValidTimezone(input.timezone)) {
+      throw new AppError(`Invalid IANA timezone: '${input.timezone}'`, 400, 'VALIDATION_ERROR');
+    }
+
+    if (input.schedule) {
+      const detected = ScheduleManager.detectTriggerType(input.schedule);
+      if (detected === 'CRON') {
+        const cronNormalized = ScheduleManager.normalizeSchedule(input.schedule);
+        if (!ScheduleManager.isValidCron(cronNormalized)) {
+          throw new AppError(`Invalid cron expression: '${input.schedule}'`, 400, 'VALIDATION_ERROR');
+        }
+      }
+    }
+
     const updated = await this.autoRepo.update(id, input);
 
     await this.actRepo.logActivity(
@@ -190,21 +227,12 @@ export class AutomationService {
       userId || null,
     );
 
-    if (input.schedule !== undefined || input.isEnabled !== undefined) {
-      if (updated.isEnabled && updated.schedule) {
-        this.scheduler.scheduleAutomation(updated.id, updated.name, updated.schedule);
-      } else {
-        this.scheduler.unscheduleAutomation(updated.id);
-      }
-    }
-
     return updated;
   }
 
   public async deleteAutomation(id: string, userId?: string) {
     const auto = await this.getAutomationById(id, userId);
 
-    this.scheduler.unscheduleAutomation(id);
     await this.autoRepo.softDelete(id);
 
     await this.actRepo.logActivity(
@@ -227,10 +255,6 @@ export class AutomationService {
       status: AutomationStatus.ACTIVE,
     });
 
-    if (updated.schedule) {
-      this.scheduler.scheduleAutomation(updated.id, updated.name, updated.schedule);
-    }
-
     await this.actRepo.logActivity(
       auto.id,
       auto.workspaceId,
@@ -250,8 +274,6 @@ export class AutomationService {
       isEnabled: false,
       status: AutomationStatus.PAUSED,
     });
-
-    this.scheduler.unscheduleAutomation(id);
 
     await this.actRepo.logActivity(
       auto.id,
@@ -305,6 +327,17 @@ export class AutomationService {
     };
   }
 
+  public async triggerAutomation(id: string, userId?: string, triggerData?: Record<string, unknown>) {
+    return this.runAutomation(id, triggerData, userId);
+  }
+
+  public async cancelExecution(executionId: string, userId?: string) {
+    const success = await this.executionEngine.cancelExecution(executionId, userId);
+    if (!success) {
+      throw new AppError('Active execution not found or could not be cancelled', 404, 'EXECUTION_NOT_FOUND');
+    }
+    return { message: 'Execution cancelled successfully' };
+  }
 
   public async getStats(workspaceId?: string, userId?: string) {
     const autoWhere: any = { deletedAt: null };
@@ -329,6 +362,7 @@ export class AutomationService {
         schedule: true,
         lastRunAt: true,
         runCount: true,
+        conditions: true,
       },
     });
 
@@ -355,12 +389,17 @@ export class AutomationService {
 
     const upcomingRuns = automations
       .filter((a) => a.isEnabled && a.schedule)
-      .map((a) => ({
-        id: a.id,
-        name: a.name,
-        schedule: a.schedule,
-        nextRunAt: new Date(Date.now() + 3600000).toISOString(),
-      }));
+      .map((a) => {
+        const cond = (a.conditions as Record<string, any>) || {};
+        const meta = cond._meta || {};
+        return {
+          id: a.id,
+          name: a.name,
+          schedule: a.schedule,
+          nextRunAt: meta.nextRunAt || new Date(Date.now() + 3600000).toISOString(),
+          timezone: meta.timezone || 'UTC',
+        };
+      });
 
     return {
       totalAutomations: automations.length,
@@ -374,6 +413,7 @@ export class AutomationService {
       timeSavedHours,
       upcomingRuns,
       systemHealth: failedExecutionsCount > 0 || failedCount > 0 ? 'Attention Required' : 'Optimal',
+      schedulerHealth: this.scheduler.getHealthStatus(),
     };
   }
 
@@ -440,7 +480,7 @@ export class AutomationService {
         description: 'Summarizes daily tasks, milestones, and events every morning at 8 AM',
         category: 'ai',
         icon: 'Sparkles',
-        trigger: { type: 'SCHEDULE', schedule: '0 8 * * *' },
+        trigger: { type: 'SCHEDULE', schedule: '0 8 * * *', timezone: 'UTC' },
         actions: [
           { type: 'AI_SUMMARIZE', params: { text: 'Daily task progress' } },
           { type: 'NOTIFICATION_CREATE', params: { title: 'Your Daily Digest Is Ready' } },
@@ -448,49 +488,15 @@ export class AutomationService {
       },
       {
         id: 'tpl_task_auto_assign',
-        name: 'Auto-Organize Urgent Tasks',
-        description:
-          'Automatically elevates priority and sets reminders for overdue high priority tasks',
+        name: 'Auto-Organize New Tasks',
+        description: 'Analyzes project context and organizes tasks automatically',
         category: 'tasks',
         icon: 'CheckSquare',
-        trigger: { type: 'TASK_OVERDUE' },
+        trigger: { type: 'TASK_CREATED' },
         actions: [
-          { type: 'TASK_SET_PRIORITY', params: { priority: 'URGENT' } },
-          { type: 'NOTIFICATION_REMINDER', params: { title: 'Overdue Task Alert' } },
-        ],
-      },
-      {
-        id: 'tpl_calendar_sync',
-        name: 'Auto-Create Calendar Meetings for Milestones',
-        description: 'Creates a calendar event whenever a project milestone is created',
-        category: 'calendar',
-        icon: 'Calendar',
-        trigger: { type: 'PROJECT_CREATED' },
-        actions: [{ type: 'CALENDAR_CREATE_EVENT', params: { title: 'Kickoff Meeting' } }],
-      },
-      {
-        id: 'tpl_knowledge_indexer',
-        name: 'AI Document Knowledge Base Indexer',
-        description:
-          'Analyzes uploaded documents and stores extracted knowledge in the vector knowledge base',
-        category: 'files',
-        icon: 'BookOpen',
-        trigger: { type: 'FILE_UPLOADED' },
-        actions: [
-          { type: 'AI_EXTRACT', params: { entities: ['summary', 'key_points'] } },
-          { type: 'KNOWLEDGE_CREATE_ITEM', params: { title: 'Indexed Document Summary' } },
+          { type: 'TASK_CREATE', params: { title: 'Automated follow-up task' } },
         ],
       },
     ];
-  }
-
-  public async getLogs(query: {
-    search?: string;
-    status?: string;
-    page?: number;
-    limit?: number;
-    workspaceId?: string;
-  }) {
-    return this.getAllActivity(query);
   }
 }

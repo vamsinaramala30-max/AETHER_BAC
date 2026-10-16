@@ -5,6 +5,8 @@ export interface DocumentMetadata {
   mimeType: string;
   originalName: string;
   workspaceId?: string;
+  projectId?: string;
+  userId?: string;
   encoding?: string;
   pageCount?: number;
   wordCount?: number;

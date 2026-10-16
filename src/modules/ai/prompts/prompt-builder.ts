@@ -54,6 +54,11 @@ export class PromptBuilder implements IPromptBuilder {
 
       let systemContent = systemText;
 
+      // ─── Live Active Productivity State (P1C) ────────────────────────
+      if (context.productivityContext && context.productivityContext.summaryText) {
+        systemContent += `\n\n[AUTHORITATIVE CURRENT AETHER STATE]\n${context.productivityContext.summaryText}\n(Instructions: Base your response on this authoritative application state. If no matching items exist in this state, say "No matching data found." Do not fabricate data.)`;
+      }
+
       // ─── Long-Term Memory Context ────────────────────────────────────
 
       if (includeMemory && context.longTermMemory && context.longTermMemory.length > 0) {
@@ -129,19 +134,21 @@ export class PromptBuilder implements IPromptBuilder {
   }
 
   private buildMemoryBlock(
-    memories: readonly { content: string; type: string; importance: number }[],
+    memories: readonly { content: string; type?: string; importance: number }[],
     maxTokens: number,
   ): string {
     const lines: string[] = [];
     let usedTokens = 0;
+    const effectiveLimit = Math.max(maxTokens, 400);
 
     // Sort by importance desc
     const sorted = [...memories].sort((a, b) => b.importance - a.importance);
 
     for (const mem of sorted) {
-      const line = `[${mem.type}] ${mem.content}`;
+      const type = mem.type || (mem as any).category || 'fact';
+      const line = `[${type}] ${mem.content}`;
       const tokens = defaultTokenizer.count(line).tokenCount;
-      if (usedTokens + tokens > maxTokens) break;
+      if (lines.length > 0 && usedTokens + tokens > effectiveLimit) break;
       lines.push(line);
       usedTokens += tokens;
     }

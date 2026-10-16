@@ -1,42 +1,33 @@
 import multer, { FileFilterCallback } from 'multer';
 import { Request } from 'express';
+import path from 'path';
 import { env } from '../config';
+import { isBlockedExecutable } from '../utils/fileTypeDetector';
 
 const storage = multer.memoryStorage();
 
-const allowedMimeTypes = [
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'application/pdf',
-  'text/plain',
-  'text/csv',
-  'application/json',
-  'text/markdown',
-  'text/x-markdown',
-  'text/html',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel',
-];
-
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
-  if (allowedMimeTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error(`File type '${file.mimetype}' is not supported.`));
+  const ext = path.extname(file.originalname || '').toLowerCase();
+
+  // Always block dangerous executable binaries
+  if (isBlockedExecutable(file.originalname || '')) {
+    return cb(new Error(`File extension '${ext}' is prohibited for security reasons.`));
   }
+
+  // Universal acceptance for all non-executable data, documents, media, code, archives, and custom files
+  cb(null, true);
 };
 
 const maxSizeBytes = env.UPLOAD_MAX_SIZE_MB * 1024 * 1024;
+
+export { fileFilter };
 
 export const upload = multer({
   storage,
   fileFilter,
   limits: {
     fileSize: maxSizeBytes,
-    files: 5,
+    files: 10, // Hardened batch limit: prevents concurrent heap spikes from memoryStorage
   },
 });
+

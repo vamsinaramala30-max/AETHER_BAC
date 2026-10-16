@@ -458,6 +458,7 @@ export type ContextSourceType =
   | 'rag_knowledge'
   | 'project_intelligence'
   | 'workspace'
+  | 'active_productivity_state'
   | 'system';
 
 export interface ContextSourceMetadata {
@@ -491,6 +492,77 @@ export interface WorkspaceContextSummary {
   readonly summaryText?: string;
 }
 
+export interface LiveProductivityTask {
+  readonly id: string;
+  readonly title: string;
+  readonly priority: string;
+  readonly status: string;
+  readonly dueDate?: Date | null;
+  readonly projectName?: string;
+}
+
+export interface LivePlannerBlockSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly start: number;
+  readonly duration: number;
+  readonly completed: boolean;
+  readonly bucket: string;
+  readonly taskId?: string | null;
+}
+
+export interface LiveCalendarEventSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly startDate: Date;
+  readonly endDate: Date;
+  readonly allDay: boolean;
+  readonly location?: string | null;
+}
+
+export interface LiveFocusSessionSummary {
+  readonly id: string;
+  readonly type: string;
+  readonly status: string;
+  readonly durationMinutes: number;
+  readonly startTime?: Date | null;
+  readonly taskTitle?: string;
+  readonly projectName?: string;
+}
+
+export interface LiveProjectUnfinishedSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly status: string;
+  readonly unfinishedTasksCount: number;
+}
+
+export interface LiveProductivityFileSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly createdAt: Date;
+}
+
+export interface LiveProductivityNoteSummary {
+  readonly id: string;
+  readonly title: string;
+  readonly content?: string | null;
+}
+
+export interface LiveProductivityContext {
+  readonly overdueTasks: readonly LiveProductivityTask[];
+  readonly todayTasks: readonly LiveProductivityTask[];
+  readonly todayPlannerBlocks: readonly LivePlannerBlockSummary[];
+  readonly upcomingCalendarEvents: readonly LiveCalendarEventSummary[];
+  readonly activeFocusSession?: LiveFocusSessionSummary | null;
+  readonly projectsWithUnfinishedWork: readonly LiveProjectUnfinishedSummary[];
+  readonly projectUploadedFiles?: readonly LiveProductivityFileSummary[];
+  readonly taskNotes?: readonly LiveProductivityNoteSummary[];
+  readonly summaryText: string;
+}
+
 export interface AIContext {
   readonly userId: UserId;
   readonly sessionId: SessionId;
@@ -507,6 +579,7 @@ export interface AIContext {
   readonly workspaceContext?: WorkspaceContextSummary;
   readonly activeEntities?: readonly Entity[];
   readonly sourcesMetadata?: readonly ContextSourceMetadata[];
+  readonly productivityContext?: LiveProductivityContext;
 }
 
 export interface ContextMessage {

@@ -54,6 +54,26 @@ export class MemoryWriter implements IMemoryWriter {
         // Embedding failure is non-fatal — memory is stored without vector
       }
 
+      // Deduplicate: check if an identical active memory already exists for this user
+      const existing = await this.store.getByUser(request.userId);
+      const duplicate = existing.find(
+        (m) =>
+          m.content.trim().toLowerCase() === request.content.trim().toLowerCase() &&
+          m.metadata?.status !== 'deleted' &&
+          m.metadata?.status !== 'superseded',
+      );
+      if (duplicate) {
+        const updatedImportance = Math.max(duplicate.importance, importance);
+        const updatedItem: MemoryItem = {
+          ...duplicate,
+          importance: updatedImportance,
+          updatedAt: now,
+          version: (duplicate.version ?? 1) + 1,
+        };
+        await this.store.create(updatedItem);
+        return ok(updatedItem);
+      }
+
       const item: MemoryItem = {
         id: randomUUID(),
         userId: request.userId,

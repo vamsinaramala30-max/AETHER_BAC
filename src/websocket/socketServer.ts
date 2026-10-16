@@ -69,4 +69,8 @@ export class SocketServer {
     }
     return this.io;
   }
+
+  public setIO(io: Server): void {
+    this.io = io;
+  }
 }

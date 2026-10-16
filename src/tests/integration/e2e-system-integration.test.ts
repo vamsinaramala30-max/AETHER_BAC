@@ -30,7 +30,7 @@ describe('PROMPT 3 — Aether Full System Integration & Acceptance Tests', () =>
     engine = globalAiEngine;
     await engine.initialize();
 
-    // Ensure test user exists in database for relational integrity if needed
+    // Ensure test user and workspace exist in database for relational integrity
     try {
       await (db as any).user.upsert({
         where: { id: testUserId },
@@ -44,6 +44,31 @@ describe('PROMPT 3 — Aether Full System Integration & Acceptance Tests', () =>
           role: 'ADMIN',
         },
       });
+
+      await (db as any).workspace.upsert({
+        where: { id: testWorkspaceId },
+        update: {},
+        create: {
+          id: testWorkspaceId,
+          name: 'E2E Test Workspace',
+          slug: `e2e-ws-${Date.now()}`,
+        },
+      });
+
+      await (db as any).workspaceMember.upsert({
+        where: {
+          workspaceId_userId: {
+            workspaceId: testWorkspaceId,
+            userId: testUserId,
+          },
+        },
+        update: {},
+        create: {
+          workspaceId: testWorkspaceId,
+          userId: testUserId,
+          role: 'OWNER',
+        },
+      });
     } catch {
       // In-memory or database test environment fallback
     }
@@ -51,6 +76,10 @@ describe('PROMPT 3 — Aether Full System Integration & Acceptance Tests', () =>
 
   afterAll(async () => {
     try {
+      await (db as any).workspaceMember.deleteMany({ where: { workspaceId: testWorkspaceId } }).catch(() => {});
+      await (db as any).task.deleteMany({ where: { workspaceId: testWorkspaceId } }).catch(() => {});
+      await (db as any).project.deleteMany({ where: { workspaceId: testWorkspaceId } }).catch(() => {});
+      await (db as any).workspace.delete({ where: { id: testWorkspaceId } }).catch(() => {});
       await (db as any).user.delete({ where: { id: testUserId } }).catch(() => {});
     } catch {
       // Ignore

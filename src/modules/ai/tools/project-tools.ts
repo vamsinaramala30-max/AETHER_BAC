@@ -7,8 +7,10 @@
 import type { ToolDefinition, ToolExecutionContext, ToolVerificationResult } from './tool-types.js';
 import { toolRegistry } from './tool-registry.js';
 import { ProjectsRepository } from '../../projects/projects.repository.js';
+import { TasksRepository } from '../../projects/tasks/tasks.repository.js';
 
 const projectsRepo = new ProjectsRepository();
+const tasksRepo = new TasksRepository();
 
 // ─── Get Project Tool ────────────────────────────────────────────────────────
 
@@ -313,6 +315,104 @@ export const deleteProjectTool: ToolDefinition<DeleteProjectInput, DeleteProject
   },
 };
 
+// ─── Analyze Project Tool ────────────────────────────────────────────────────
+
+export interface AnalyzeProjectInput extends Record<string, unknown> {
+  readonly projectId: string;
+}
+
+export interface ProjectAnalysisReport {
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly status: string;
+  readonly healthStatus: 'HEALTHY' | 'AT_RISK' | 'CRITICAL';
+  readonly totalTasks: number;
+  readonly completedTasks: number;
+  readonly pendingTasks: number;
+  readonly overdueTasks: number;
+  readonly completionRate: number;
+  readonly urgentTasks: number;
+  readonly summary: string;
+  readonly analyzedAt: string;
+}
+
+export const analyzeProjectTool: ToolDefinition<AnalyzeProjectInput, ProjectAnalysisReport> = {
+  id: 'tool_analyze_project',
+  name: 'analyze_project',
+  description:
+    'Analyzes project progress, task completions, overdue deadlines, and overall health status.',
+  category: 'projects',
+  riskLevel: 'READ_ONLY',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      projectId: { type: 'string', description: 'The project ID to analyze' },
+    },
+    required: ['projectId'],
+  },
+  requiredPermissions: ['projects:read'],
+  handler: async (
+    input: AnalyzeProjectInput,
+    _context: ToolExecutionContext,
+  ): Promise<ProjectAnalysisReport> => {
+    const proj = await projectsRepo.findById(input.projectId);
+    if (!proj) {
+      throw new Error(`Project "${input.projectId}" not found.`);
+    }
+
+    const tasksRes = await tasksRepo.findMany({ projectId: input.projectId, limit: 500 });
+    const tasks = tasksRes.data;
+    const now = new Date();
+
+    const completedTasks = tasks.filter((t) => t.isCompleted || t.status === 'DONE').length;
+    const pendingTasks = tasks.filter(
+      (t) => !t.isCompleted && t.status !== 'DONE' && t.status !== 'CANCELLED',
+    ).length;
+    const overdueTasks = tasks.filter((t) => {
+      if (!t.dueDate || t.isCompleted || t.status === 'DONE') return false;
+      return new Date(t.dueDate) < now;
+    }).length;
+    const urgentTasks = tasks.filter((t) => t.priority === 'URGENT' && !t.isCompleted).length;
+    const completionRate =
+      tasks.length > 0 ? Math.round((completedTasks / tasks.length) * 100) : 100;
+
+    let healthStatus: 'HEALTHY' | 'AT_RISK' | 'CRITICAL' = 'HEALTHY';
+    if (overdueTasks > 3 || (tasks.length > 5 && completionRate < 30)) {
+      healthStatus = 'CRITICAL';
+    } else if (overdueTasks > 0 || urgentTasks > 2) {
+      healthStatus = 'AT_RISK';
+    }
+
+    const summary = `Project "${proj.name}" is ${healthStatus} with ${completionRate}% completion (${completedTasks}/${tasks.length} tasks completed, ${overdueTasks} overdue, ${urgentTasks} urgent).`;
+
+    return {
+      projectId: proj.id,
+      projectName: proj.name,
+      status: proj.status || 'active',
+      healthStatus,
+      totalTasks: tasks.length,
+      completedTasks,
+      pendingTasks,
+      overdueTasks,
+      completionRate,
+      urgentTasks,
+      summary,
+      analyzedAt: new Date().toISOString(),
+    };
+  },
+  verify: async (output: ProjectAnalysisReport): Promise<ToolVerificationResult> => {
+    const proj = await projectsRepo.findById(output.projectId);
+    if (!proj) {
+      return { verified: false, error: `Project ${output.projectId} not found in database.` };
+    }
+    return {
+      verified: true,
+      details: `Project "${proj.name}" analysis verified against real PostgreSQL tasks state.`,
+      verifiedObject: output,
+    };
+  },
+};
+
 // ─── All Project Tools ───────────────────────────────────────────────────────
 
 export const projectTools = [
@@ -321,6 +421,7 @@ export const projectTools = [
   createProjectTool,
   updateProjectTool,
   deleteProjectTool,
+  analyzeProjectTool,
 ] as const;
 
 // Auto-register tools on load
@@ -333,3 +434,4 @@ for (const tool of projectTools) {
     // Already registered
   }
 }
+

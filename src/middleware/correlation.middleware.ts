@@ -22,6 +22,48 @@ declare global {
   }
 }
 
+const SENSITIVE_PARAM_NAMES = new Set([
+  'token',
+  'refreshtoken',
+  'refresh_token',
+  'accesstoken',
+  'access_token',
+  'password',
+  'secret',
+  'client_secret',
+  'code',
+  'apikey',
+  'api_key',
+  'key',
+  'authorization',
+  'auth',
+]);
+
+export const sanitizeUrlForLogging = (rawUrl: string): string => {
+  if (!rawUrl) return rawUrl;
+  try {
+    const [pathPart, queryPart] = rawUrl.split('?');
+    if (!queryPart) return pathPart;
+
+    const searchParams = new URLSearchParams(queryPart);
+    for (const key of Array.from(searchParams.keys())) {
+      const lower = key.toLowerCase();
+      if (
+        SENSITIVE_PARAM_NAMES.has(lower) ||
+        lower.includes('secret') ||
+        lower.includes('token') ||
+        lower.includes('password') ||
+        lower.includes('key')
+      ) {
+        searchParams.set(key, '[REDACTED]');
+      }
+    }
+    return `${pathPart}?${searchParams.toString()}`;
+  } catch {
+    return rawUrl.split('?')[0];
+  }
+};
+
 export const correlationMiddleware = (req: Request, res: Response, next: NextFunction): void => {
   const startNow = performance.now();
 
@@ -51,6 +93,7 @@ export const correlationMiddleware = (req: Request, res: Response, next: NextFun
   }
 
   // 4. Start Root HTTP Trace Span
+  const sanitizedUrl = sanitizeUrlForLogging(req.originalUrl || req.url);
   const span = tracer.startSpan(`HTTP ${req.method} ${req.path}`, {
     traceId: incomingTraceId,
     parentSpanId: incomingParentSpanId,
@@ -59,7 +102,7 @@ export const correlationMiddleware = (req: Request, res: Response, next: NextFun
     attributes: {
       httpMethod: req.method,
       httpPath: req.path,
-      httpUrl: req.originalUrl || req.url,
+      httpUrl: sanitizedUrl,
       clientIp: req.ip || 'unknown',
     },
   });
@@ -88,13 +131,13 @@ export const correlationMiddleware = (req: Request, res: Response, next: NextFun
     const routePattern = (req.route && req.route.path) ? String(req.route.path) : req.path;
     metrics.recordApiRequest(req.method, routePattern, statusCode, durationMs);
 
-    // Structured Access Log
+    // Structured Access Log with sanitized URL
     const logContext = {
       correlationId,
       traceId: span.traceId,
       requestId,
       method: req.method,
-      path: req.originalUrl || req.url,
+      path: sanitizedUrl,
       statusCode,
       durationMs,
       ip: req.ip,
@@ -103,11 +146,11 @@ export const correlationMiddleware = (req: Request, res: Response, next: NextFun
     };
 
     if (statusCode >= 500) {
-      logger.error(`HTTP Request Failed ${req.method} ${req.originalUrl} -> ${statusCode}`, logContext);
+      logger.error(`HTTP Request Failed ${req.method} ${sanitizedUrl} -> ${statusCode}`, logContext);
     } else if (statusCode >= 400) {
-      logger.warn(`HTTP Client Warning ${req.method} ${req.originalUrl} -> ${statusCode}`, logContext);
+      logger.warn(`HTTP Client Warning ${req.method} ${sanitizedUrl} -> ${statusCode}`, logContext);
     } else {
-      logger.info(`HTTP Request Completed ${req.method} ${req.originalUrl} -> ${statusCode}`, logContext);
+      logger.info(`HTTP Request Completed ${req.method} ${sanitizedUrl} -> ${statusCode}`, logContext);
     }
   });
 

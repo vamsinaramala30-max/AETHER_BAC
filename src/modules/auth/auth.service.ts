@@ -226,15 +226,37 @@ export class AuthService {
    * Logout
    * ------------------------------------------------------------------------
    */
-  public async logout(refreshToken: string): Promise<void> {
-    if (!refreshToken) {
-      return;
-    }
-
-    try {
-      await this.repo.deleteSessionByToken(refreshToken);
-    } catch (error) {
-      logger.info('Session cleanup during logout failed or token was already deleted.');
+  public async logout(refreshToken?: string, userId?: string): Promise<void> {
+    if (userId) {
+      try {
+        await db.user.update({
+          where: { id: userId },
+          data: { tokenVersion: { increment: 1 } },
+        });
+        await db.session.deleteMany({
+          where: { userId },
+        });
+      } catch (error) {
+        logger.warn(`Failed to update tokenVersion or clear sessions for user ${userId}:`, error);
+      }
+    } else if (refreshToken) {
+      try {
+        const session = await this.repo.findSessionByToken(refreshToken);
+        if (session && (session as any).userId) {
+          const sUserId = (session as any).userId;
+          await db.user.update({
+            where: { id: sUserId },
+            data: { tokenVersion: { increment: 1 } },
+          }).catch(() => null);
+          await db.session.deleteMany({
+            where: { userId: sUserId },
+          }).catch(() => null);
+        } else {
+          await this.repo.deleteSessionByToken(refreshToken);
+        }
+      } catch (error) {
+        logger.info('Session cleanup during logout failed or token was already deleted.');
+      }
     }
   }
 
@@ -406,6 +428,7 @@ export class AuthService {
       email: fullUser.email,
       role: fullUser.role || 'USER',
       workspaceId,
+      tokenVersion: (fullUser as any).tokenVersion ?? 0,
     };
 
     /**
@@ -550,3 +573,6 @@ export class AuthService {
     return this.repo.updateUser(userId, updateData);
   }
 }
+
+export const authService = new AuthService();
+

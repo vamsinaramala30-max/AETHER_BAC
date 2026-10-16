@@ -10,7 +10,8 @@ export class TasksController {
   constructor(private readonly service: TasksService) {}
 
   async create(req: { body: CreateTaskDTO; user?: { id: string } }) {
-    const data = await this.service.createTask(req.body);
+    const userId = req.user?.id;
+    const data = await this.service.createTask(req.body, userId);
     return { success: true, data };
   }
 
@@ -22,7 +23,7 @@ export class TasksController {
   }
 
   async list(req: { query: TaskFilterDTO; user?: { id: string } }) {
-    const result = await this.service.listTasks(req.query);
+    const result = await this.service.listTasks(req.query, req.user?.id);
     return { success: true, ...result };
   }
 
@@ -40,8 +41,10 @@ export class TasksController {
     return { success: true, data };
   }
 
-  async bulk(req: { body: BulkTaskOperationDTO; user?: { id: string } }) {
-    const result = await this.service.executeBulkOperation(req.body);
+  async bulk(req: { body: BulkTaskOperationDTO; user?: { id: string; workspaceId?: string } }) {
+    const userId = req.user?.id;
+    if (!userId) throw new AppError('Unauthorized: valid user ID required', 401, 'UNAUTHORIZED');
+    const result = await this.service.executeBulkOperation(req.body, userId, req.user?.workspaceId);
     return { success: true, result };
   }
 

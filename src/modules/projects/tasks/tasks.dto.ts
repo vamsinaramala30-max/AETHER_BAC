@@ -5,6 +5,8 @@
 import { TaskStatus, PriorityLevel, RecurrenceInterval } from '../projects.constants';
 
 export interface CreateTaskDTO {
+  id?: string;
+  clientMutationId?: string;
   projectId: string;
   listId?: string;
   parentTaskId?: string;
@@ -37,6 +39,8 @@ export interface UpdateTaskDTO {
 }
 
 export interface TaskFilterDTO {
+  workspaceId?: string;
+  workspaceIds?: string[];
   projectId?: string;
   listId?: string;
   status?: TaskStatus;

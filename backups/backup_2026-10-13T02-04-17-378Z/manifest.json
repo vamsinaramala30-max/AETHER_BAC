@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2026-10-13T02:04:17.399Z",
+  "environment": "production",
+  "targetRpo": "< 15 minutes with WAL archiving, < 24 hours with daily snapshots",
+  "targetRto": "< 30 minutes (DB restore < 15m, storage restore < 10m, verification < 5m)",
+  "artifacts": {
+    "database": {
+      "filename": "aether_db.dump",
+      "format": "custom_compressed (pg_dump -F c)",
+      "sizeBytes": 64,
+      "sha256": "a1a285cc7b8a2439f814c77dcac86b239fe3bb1b459233bcc4e50e3143cf9daf"
+    },
+    "storage": {
+      "filename": "storage_inventory.json",
+      "sizeBytes": 66,
+      "fileCount": 281,
+      "sha256": "7fc3ec3b3ac3ded8e6a94cc5ef8a717287a6835003923f3da2570ac70b8730b5"
+    }
+  },
+  "checksumAlgorithm": "sha256",
+  "status": "COMPLETED"
+}

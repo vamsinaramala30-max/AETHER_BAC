@@ -62,12 +62,14 @@ const envSchema = z.object({
   AI_FALLBACK_PROVIDER: z.string().default('none'),
   AETHER_MODEL_BASE_URL: z.string().default('http://localhost:5002'),
   AETHER_MODEL_URL: z.string().default('http://localhost:5002'),
+  AETHER_MODEL_API_KEY: z.string().optional(),
   AETHER_MODEL_TIMEOUT_MS: z
     .string()
     .transform((val) => parseInt(val, 10))
     .default('60000'),
   GEMINI_API_KEY: z.string().optional(),
   OPENAI_API_KEY: z.string().optional(),
+
 
   // Storage local/cloud
   STORAGE_DRIVER: z.enum(['local', 'supabase']).default('local'),
@@ -94,6 +96,7 @@ const envSchema = z.object({
   PROMPTS_LOGGED: z.string().transform((v) => v === 'true').default('false'),
   OUTPUTS_LOGGED: z.string().transform((v) => v === 'true').default('false'),
   TRACE_SAMPLE_RATE: z.string().transform((v) => parseFloat(v)).default('1.0'),
+  ALLOW_LOCAL_MODEL_IN_PROD: z.string().transform((v) => v === 'true' || v === '1').default('false'),
 });
 
 type EnvConfig = z.infer<typeof envSchema>;
@@ -121,8 +124,13 @@ const parseEnv = (): EnvConfig => {
       'aether-session-secret-change-in-production',
       'your-jwt-secret-key-at-least-32-chars',
       'your-jwt-refresh-secret-key',
+      'your-session-secret-key',
       'super_secret_aether_jwt_key_change_me_in_production_32bytes',
       'super_secret_aether_refresh_jwt_key_change_me_in_production_32bytes',
+      'super_secret_aether_session_key_change_me_32bytes',
+      'replace_with_cryptographically_secure_jwt_secret_32bytes_min',
+      'replace_with_distinct_refresh_jwt_secret_32bytes_min',
+      'replace_with_distinct_session_cookie_secret_32bytes_min',
     ];
 
     if (insecureSecrets.includes(result.data.JWT_SECRET)) {
@@ -136,6 +144,31 @@ const parseEnv = (): EnvConfig => {
     if (insecureSecrets.includes(result.data.SESSION_SECRET)) {
       console.error('❌ FATAL: Insecure default SESSION_SECRET detected in production environment.');
       throw new Error('Insecure SESSION_SECRET detected in production. Production deployment halted.');
+    }
+    if (result.data.JWT_SECRET === result.data.JWT_REFRESH_SECRET) {
+      console.error('❌ FATAL: JWT_SECRET and JWT_REFRESH_SECRET must be distinct keys in production.');
+      throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be distinct in production. Deployment halted.');
+    }
+    if (result.data.SESSION_SECRET === result.data.JWT_SECRET || result.data.SESSION_SECRET === result.data.JWT_REFRESH_SECRET) {
+      console.error('❌ FATAL: SESSION_SECRET must be distinct from JWT_SECRET and JWT_REFRESH_SECRET in production.');
+      throw new Error('SESSION_SECRET must be distinct from JWT_SECRET and JWT_REFRESH_SECRET. Deployment halted.');
+    }
+    if (result.data.CORS_ORIGIN === '*' || result.data.CORS_ORIGIN.includes('*')) {
+      console.error('❌ FATAL: Wildcard CORS_ORIGIN is not permitted in production with credentials.');
+      throw new Error('Wildcard CORS_ORIGIN is forbidden in production. Provide explicit allowed origins.');
+    }
+    const modelUrl = result.data.AETHER_MODEL_URL || result.data.AETHER_MODEL_BASE_URL;
+    const isLocalhostModel =
+      modelUrl.includes('localhost') ||
+      modelUrl.includes('127.0.0.1') ||
+      modelUrl.includes(':5002');
+    if (isLocalhostModel && !result.data.ALLOW_LOCAL_MODEL_IN_PROD && !process.env['ALLOW_LOCAL_MODEL_IN_PROD']) {
+      console.error(
+        '❌ FATAL: Production AETHER_BAC cannot silently fall back to localhost / 127.0.0.1 / :5002 for AETHER_MODEL_URL.',
+      );
+      throw new Error(
+        'AETHER_MODEL_URL must point to an authorized production cloud model endpoint in production, or set ALLOW_LOCAL_MODEL_IN_PROD=true for on-premise container deployment.',
+      );
     }
   }
 

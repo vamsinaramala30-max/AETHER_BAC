@@ -71,7 +71,8 @@ export type ActionState =
   | 'TIMED_OUT'
   | 'DENIED'
   | 'CANCELLED'
-  | 'REQUESTED';
+  | 'REQUESTED'
+  | 'AWAITING_APPROVAL';
 
 // ─── Authentication / Authorization Context ──────────────────────────────────
 
@@ -105,6 +106,8 @@ export interface ToolExecutionOptions {
   readonly timeoutMs?: number;
   readonly signal?: AbortSignal;
   readonly allowRetry?: boolean;
+  readonly confirmed?: boolean;
+  readonly requireConfirmation?: boolean;
 }
 
 export interface ToolValidationResult {
@@ -147,6 +150,7 @@ export type ToolResultCode =
   | 'CANCELLED'
   | 'UNAUTHORIZED_RESOURCE'
   | 'RATE_LIMITED'
+  | 'CONFIRMATION_REQUIRED'
   | ToolErrorCode;
 
 export interface ToolResultMetadata {
@@ -210,7 +214,9 @@ export type ToolCategory =
   | 'memory'
   | 'workspace'
   | 'system'
-  | 'automation';
+  | 'automation'
+  | 'analysis'
+  | 'planning';
 
 export interface ToolDefinition<
   TInput extends object = Record<string, unknown>,

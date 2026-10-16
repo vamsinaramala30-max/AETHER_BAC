@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { settingsController } from '../modules/settings/settings.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { strictRateLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
 
@@ -20,8 +21,8 @@ router.patch('/notifications', settingsController.updateNotificationPreferences)
 router.put('/notifications', settingsController.updateNotificationPreferences);
 
 // Password & Security
-router.patch('/password', settingsController.changePassword);
-router.post('/password', settingsController.changePassword);
+router.patch('/password', strictRateLimiter, settingsController.changePassword);
+router.post('/password', strictRateLimiter, settingsController.changePassword);
 
 // Sessions
 router.get('/sessions', settingsController.getActiveSessions);
@@ -33,6 +34,6 @@ router.get('/connections', settingsController.getConnectedAccounts);
 router.delete('/connections/:provider', settingsController.disconnectAccount);
 
 // Account Deletion
-router.delete('/account', settingsController.deleteAccount);
+router.delete('/account', strictRateLimiter, settingsController.deleteAccount);
 
 export const settingsRoutes: Router = router;

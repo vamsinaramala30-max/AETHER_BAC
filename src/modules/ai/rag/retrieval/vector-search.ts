@@ -8,6 +8,7 @@
 import type { IVectorStore, VectorSearchResult, DocumentChunk } from '../rag-types.js';
 import type { ChunkId } from '../../ai-types.js';
 import { cosineSimilarity } from '../embeddings/embedding-engine.js';
+import { knowledgeChunkRepository } from '../../storage/repositories/knowledge-chunk-repository.js';
 
 // ─── In-Memory Vector Store ───────────────────────────────────────────────────
 
@@ -53,6 +54,50 @@ export class InMemoryVectorStore implements IVectorStore {
       collectionIds?: readonly string[];
     },
   ): Promise<readonly VectorSearchResult[]> {
+    // 1. Try native PostgreSQL pgvector search first (accelerated by HNSW index)
+    if (queryEmbedding.length === 768) {
+      try {
+        const nativeHits = await (knowledgeChunkRepository as any).searchNativeVector(
+          queryEmbedding,
+          topK,
+          scoreThreshold,
+          scope,
+        );
+        if (nativeHits && nativeHits.length > 0) {
+          return nativeHits.map((r: any) => ({
+            chunkId: r.chunkId,
+            documentId: r.documentId,
+            score: r.score,
+          }));
+        }
+      } catch {
+        // Graceful fallback to in-memory cosine similarity
+      }
+    }
+
+    if (this.vectors.size === 0 && scope) {
+      try {
+        const persisted = await knowledgeChunkRepository.findByScope(scope);
+        if (persisted.length > 0) {
+          for (const chunk of persisted) {
+            if (chunk.embedding && chunk.embedding.length > 0) {
+              this.vectors.set(chunk.id, {
+                chunkId: chunk.id,
+                documentId: chunk.documentId,
+                embedding: chunk.embedding,
+                collectionId: chunk.metadata?.collectionId,
+                userId: chunk.userId || (chunk.metadata?.userId as string | undefined),
+                workspaceId: chunk.workspaceId || (chunk.metadata?.workspaceId as string | undefined),
+                projectId: chunk.projectId || (chunk.metadata?.projectId as string | undefined),
+              });
+            }
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
     if (this.vectors.size === 0) return [];
     if (queryEmbedding.length === 0) return [];
 
@@ -128,11 +173,25 @@ export class InMemoryVectorStore implements IVectorStore {
   }
 
   public async count(collectionId?: string): Promise<number> {
-    if (!collectionId) return this.vectors.size;
+    if (!collectionId) {
+      if (this.vectors.size === 0) {
+        try {
+          return await knowledgeChunkRepository.count();
+        } catch {
+          return 0;
+        }
+      }
+      return this.vectors.size;
+    }
     let count = 0;
     for (const stored of this.vectors.values()) {
       if (stored.collectionId === collectionId) count++;
     }
     return count;
   }
+
+  public async clear(): Promise<void> {
+    this.vectors.clear();
+  }
 }
+

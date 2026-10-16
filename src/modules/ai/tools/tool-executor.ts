@@ -34,6 +34,7 @@ import './knowledge-tools.js';
 import './workspace-tools.js';
 import './note-tools.js';
 import './memory-tools.js';
+import './planning-tools.js';
 import { actionAuditLogger } from '../audit/action-audit-logger.js';
 import type { IToolProvider } from '../interfaces/core-contracts.js';
 import type { ToolDefinition, ToolValidationResult } from './tool-types.js';
@@ -249,6 +250,33 @@ export class ToolExecutor implements IToolExecutor, IToolProvider {
         },
       );
       await this.logAudit(toolName, sanitizedInput, context, res, false, 'Cancelled');
+      return res;
+    }
+
+    // 4.5. Confirmation Check (HIGH_IMPACT or requiresConfirmation)
+    if (
+      (tool.requiresConfirmation || riskLevel === 'HIGH_IMPACT') &&
+      (options.confirmed === false || options.requireConfirmation === true)
+    ) {
+      const res = this.buildResult<TOutput>(
+        false,
+        'CONFIRMATION_REQUIRED',
+        startTime,
+        undefined,
+        `Tool "${toolName}" requires explicit user confirmation before execution.`,
+        false,
+        'Confirmation required before proceeding with high-impact operation.',
+        riskLevel,
+        'AWAITING_APPROVAL',
+        0,
+        'FAILED',
+        {
+          toolId,
+          executionId,
+          correlationId,
+        },
+      );
+      await this.logAudit(toolName, sanitizedInput, context, res, false, 'Awaiting user confirmation');
       return res;
     }
 

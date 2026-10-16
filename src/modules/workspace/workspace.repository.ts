@@ -93,6 +93,82 @@ export class WorkspaceRepository {
     });
   }
 
+  async updateWorkspace(
+    workspaceId: string,
+    data: { name?: string; description?: string; logoUrl?: string },
+  ) {
+    return db.workspace.update({
+      where: { id: workspaceId },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.logoUrl !== undefined && { logoUrl: data.logoUrl }),
+      },
+      include: {
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                fullName: true,
+                avatarUrl: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async deleteWorkspace(workspaceId: string) {
+    return db.workspace.update({
+      where: { id: workspaceId },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  async getMember(workspaceId: string, userId: string) {
+    return db.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId,
+        },
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  async listMembers(workspaceId: string) {
+    return db.workspaceMember.findMany({
+      where: { workspaceId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
   async addMember(
     workspaceId: string,
     userId: string,
@@ -104,6 +180,64 @@ export class WorkspaceRepository {
         userId,
         role,
       },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  async updateMemberRole(
+    workspaceId: string,
+    userId: string,
+    role: 'OWNER' | 'ADMIN' | 'MEMBER' | 'VIEWER',
+  ) {
+    return db.workspaceMember.update({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId,
+        },
+      },
+      data: { role },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            fullName: true,
+            avatarUrl: true,
+            role: true,
+          },
+        },
+      },
+    });
+  }
+
+  async removeMember(workspaceId: string, userId: string) {
+    return db.workspaceMember.delete({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId,
+        },
+      },
+    });
+  }
+
+  async countOwners(workspaceId: string): Promise<number> {
+    return db.workspaceMember.count({
+      where: {
+        workspaceId,
+        role: 'OWNER',
+      },
     });
   }
 
@@ -111,3 +245,4 @@ export class WorkspaceRepository {
     return fn();
   }
 }
+
