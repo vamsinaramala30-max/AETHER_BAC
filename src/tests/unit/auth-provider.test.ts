@@ -82,4 +82,17 @@ describe('SEC-09: DefaultAuthProvider Security & Environment Boundary', () => {
     expect(context.permissions).toEqual(['read', 'write']);
     expect(context.sessionId).toBe('sess_test_123');
   });
+
+  it('strictly enforces HS256 algorithm restriction and rejects tokens with unauthorized algorithms (AUDIT-MED-03)', async () => {
+    process.env.NODE_ENV = 'production';
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ id: 'attacker-id', role: 'admin' })).toString('base64url');
+    const unsignedToken = `${header}.${payload}.`;
+
+    await expect(
+      provider.authenticate({
+        authorization: `Bearer ${unsignedToken}`,
+      }),
+    ).rejects.toThrow(/UNAUTHORIZED/);
+  });
 });

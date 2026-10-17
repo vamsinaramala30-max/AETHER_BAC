@@ -107,14 +107,18 @@ export class AuthService {
       throw new AppError('Failed to create user', 500, 'USER_CREATION_FAILED');
     }
 
-    await db.notification.create({
-      data: {
-        userId: user.id,
-        title: 'Welcome aboard',
-        message: 'Your AETHER workspace is ready. Start by creating your first project or task.',
-        type: 'SYSTEM',
-      },
-    });
+    try {
+      await db.notification.create({
+        data: {
+          userId: user.id,
+          title: 'Welcome aboard',
+          message: 'Your AETHER workspace is ready. Start by creating your first project or task.',
+          type: 'SYSTEM',
+        },
+      });
+    } catch (notifErr) {
+      logger.warn(`Welcome notification skipped for ${user.id}: ${(notifErr as Error)?.message || notifErr}`);
+    }
 
     return this.generateAuthResponse(user);
   }
@@ -158,17 +162,23 @@ export class AuthService {
       throw new AppError('Invalid email or password credentials', 401, 'INVALID_CREDENTIALS');
     }
 
-    await db.notification.create({
-      data: {
-        userId: user.id,
-        title: 'Sign-in detected',
-        message: 'You signed in successfully to your AETHER account.',
-        type: 'SECURITY',
-      },
-    });
+    try {
+      await db.notification.create({
+        data: {
+          userId: user.id,
+          title: 'Sign-in detected',
+          message: 'You signed in successfully to your AETHER account.',
+          type: 'SECURITY',
+        },
+      });
+    } catch (notifErr) {
+      logger.warn(`Sign-in notification skipped for ${user.id}: ${(notifErr as Error)?.message || notifErr}`);
+    }
 
     return this.generateAuthResponse(user);
   }
+
+  private static rotationCache = new Map<string, { response: LoginResponse; expiresAt: number }>();
 
   /**
    * ------------------------------------------------------------------------
@@ -181,6 +191,16 @@ export class AuthService {
     }
 
     const trimmedToken = refreshToken.trim();
+
+    // Check recent rotation grace window (prevents concurrent refresh races)
+    const cachedRotation = AuthService.rotationCache.get(trimmedToken);
+    if (cachedRotation) {
+      if (Date.now() < cachedRotation.expiresAt) {
+        logger.info('Returning recently rotated token from rotation grace window');
+        return cachedRotation.response;
+      }
+      AuthService.rotationCache.delete(trimmedToken);
+    }
 
     // Verify JWT cryptographic signature if token is formatted as JWT
     try {
@@ -218,7 +238,25 @@ export class AuthService {
       throw new AppError('User not found', 401, 'USER_NOT_FOUND');
     }
 
-    return this.generateAuthResponse(user);
+    const authResponse = await this.generateAuthResponse(user);
+
+    // Cache the rotation response for 30s grace window to absorb concurrent requests
+    AuthService.rotationCache.set(trimmedToken, {
+      response: authResponse,
+      expiresAt: Date.now() + 30000,
+    });
+
+    // Prune stale rotation cache entries if map grows
+    if (AuthService.rotationCache.size > 500) {
+      const now = Date.now();
+      for (const [key, entry] of AuthService.rotationCache.entries()) {
+        if (entry.expiresAt <= now) {
+          AuthService.rotationCache.delete(key);
+        }
+      }
+    }
+
+    return authResponse;
   }
 
   /**

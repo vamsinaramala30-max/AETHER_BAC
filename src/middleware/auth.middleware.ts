@@ -77,7 +77,9 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       return;
     }
 
-    const decoded = jwt.verify(token, securityConfig.jwt.secret) as AuthenticatedUser;
+    const decoded = jwt.verify(token, securityConfig.jwt.secret, {
+      algorithms: ['HS256'],
+    }) as AuthenticatedUser;
     req.user = decoded;
 
     // Server-side session / token invalidation check (SEC-P1A)
@@ -110,12 +112,25 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       }
     }
 
-    // Workspace membership validation (SEC-08)
-    const workspaceHeader =
-      req.headers['x-workspace-id'] ||
-      (typeof req.query?.workspaceId === 'string' ? req.query.workspaceId : undefined);
-    if (workspaceHeader && typeof workspaceHeader === 'string') {
-      if (!isValidUuid(workspaceHeader)) {
+    // Workspace membership and tenant boundary validation across headers, query, and request body (AUDIT-HIGH-03 / SEC-08)
+    const rawHeader = req.headers['x-workspace-id'];
+    const headerWorkspaceId = Array.isArray(rawHeader)
+      ? rawHeader[0]
+      : typeof rawHeader === 'string'
+        ? rawHeader
+        : undefined;
+    const queryWorkspaceId = typeof req.query?.workspaceId === 'string' ? req.query.workspaceId : undefined;
+    const bodyWorkspaceId = typeof req.body?.workspaceId === 'string' ? req.body.workspaceId : undefined;
+
+    const candidateWorkspaceIds: string[] = [];
+    if (headerWorkspaceId) candidateWorkspaceIds.push(headerWorkspaceId);
+    if (queryWorkspaceId) candidateWorkspaceIds.push(queryWorkspaceId);
+    if (bodyWorkspaceId) candidateWorkspaceIds.push(bodyWorkspaceId);
+
+    const uniqueCandidateIds = Array.from(new Set(candidateWorkspaceIds));
+
+    for (const candidateId of uniqueCandidateIds) {
+      if (!isValidUuid(candidateId)) {
         res.status(400).json({
           success: false,
           error: {
@@ -126,10 +141,13 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         return;
       }
 
-      if (isValidUuid(req.user.id) && db && typeof (db as any).workspaceMember?.findFirst === 'function') {
+      const userRole = (req.user as any)?.role;
+      const isSystemAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN' || userRole === 'SUPER_ADMIN';
+
+      if (!isSystemAdmin && isValidUuid(req.user.id) && db && typeof (db as any).workspaceMember?.findFirst === 'function') {
         const membership = await (db as any).workspaceMember.findFirst({
           where: {
-            workspaceId: workspaceHeader,
+            workspaceId: candidateId,
             userId: req.user.id,
           },
         });
@@ -145,8 +163,10 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
           return;
         }
       }
+    }
 
-      req.user.workspaceId = workspaceHeader;
+    if (uniqueCandidateIds.length > 0) {
+      req.user.workspaceId = headerWorkspaceId || bodyWorkspaceId || queryWorkspaceId;
     }
 
     next();
@@ -192,7 +212,9 @@ export const optionalAuthenticate = async (req: Request, _res: Response, next: N
       return next();
     }
 
-    const decoded = jwt.verify(token, securityConfig.jwt.secret) as AuthenticatedUser;
+    const decoded = jwt.verify(token, securityConfig.jwt.secret, {
+      algorithms: ['HS256'],
+    }) as AuthenticatedUser;
     if (isValidUuid(decoded.id) && db && typeof (db as any).user?.findUnique === 'function') {
       const userRecord = await (db as any).user.findUnique({
         where: { id: decoded.id },
