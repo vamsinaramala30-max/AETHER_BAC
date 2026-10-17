@@ -8,6 +8,7 @@ import { db } from '../../database/client';
 import { AppError } from '../../middleware/error.middleware';
 
 import { AuthTokenPayload, LoginResponse, OAuthUserPayload, GoogleUserPayload } from './auth.types';
+import { isVerifiedOwnerEmail } from '../../config/owner-allowlist';
 
 interface ProfileUserPayload {
   id: string;
@@ -45,10 +46,19 @@ export class AuthService {
 
     const lastName = parts.slice(1).join(' ') || '';
 
+    const email = user.email.toLowerCase();
+
+    const isOwner =
+      isVerifiedOwnerEmail(email) ||
+      (user as any).memberships?.some((m: any) => m.role === 'OWNER');
+
+    const assignedRole = isOwner ? 'OWNER' : user.role || 'USER';
+    const workspaceRole = isOwner ? 'OWNER' : (user as any).memberships?.[0]?.role || 'MEMBER';
+
     return {
       id: user.id,
 
-      email: user.email.toLowerCase(),
+      email,
 
       fullName,
 
@@ -58,7 +68,9 @@ export class AuthService {
 
       name: fullName || fallbackName,
 
-      role: user.role || 'USER',
+      role: assignedRole,
+
+      workspaceRole,
 
       avatarUrl: user.avatarUrl || null,
 
@@ -107,14 +119,18 @@ export class AuthService {
       throw new AppError('Failed to create user', 500, 'USER_CREATION_FAILED');
     }
 
-    await db.notification.create({
-      data: {
-        userId: user.id,
-        title: 'Welcome aboard',
-        message: 'Your AETHER workspace is ready. Start by creating your first project or task.',
-        type: 'SYSTEM',
-      },
-    });
+    try {
+      await db.notification.create({
+        data: {
+          userId: user.id,
+          title: 'Welcome aboard',
+          message: 'Your AETHER workspace is ready. Start by creating your first project or task.',
+          type: 'SYSTEM',
+        },
+      });
+    } catch (notifErr) {
+      logger.warn(`Welcome notification skipped for ${user.id}: ${(notifErr as Error)?.message || notifErr}`);
+    }
 
     return this.generateAuthResponse(user);
   }
@@ -158,17 +174,26 @@ export class AuthService {
       throw new AppError('Invalid email or password credentials', 401, 'INVALID_CREDENTIALS');
     }
 
-    await db.notification.create({
-      data: {
-        userId: user.id,
-        title: 'Sign-in detected',
-        message: 'You signed in successfully to your AETHER account.',
-        type: 'SECURITY',
-      },
-    });
+    // Non-blocking security audit notification dispatch (does not block HTTP response)
+    void db.notification
+      .create({
+        data: {
+          userId: user.id,
+          title: 'Sign-in detected',
+          message: 'You signed in successfully to your AETHER account.',
+          type: 'SECURITY',
+        },
+      })
+      .catch((notifErr) => {
+        logger.warn(
+          `Sign-in notification skipped for ${user.id}: ${(notifErr as Error)?.message || notifErr}`,
+        );
+      });
 
     return this.generateAuthResponse(user);
   }
+
+  private static rotationCache = new Map<string, { response: LoginResponse; expiresAt: number }>();
 
   /**
    * ------------------------------------------------------------------------
@@ -181,6 +206,16 @@ export class AuthService {
     }
 
     const trimmedToken = refreshToken.trim();
+
+    // Check recent rotation grace window (prevents concurrent refresh races)
+    const cachedRotation = AuthService.rotationCache.get(trimmedToken);
+    if (cachedRotation) {
+      if (Date.now() < cachedRotation.expiresAt) {
+        logger.info('Returning recently rotated token from rotation grace window');
+        return cachedRotation.response;
+      }
+      AuthService.rotationCache.delete(trimmedToken);
+    }
 
     // Verify JWT cryptographic signature if token is formatted as JWT
     try {
@@ -218,7 +253,25 @@ export class AuthService {
       throw new AppError('User not found', 401, 'USER_NOT_FOUND');
     }
 
-    return this.generateAuthResponse(user);
+    const authResponse = await this.generateAuthResponse(user);
+
+    // Cache the rotation response for 30s grace window to absorb concurrent requests
+    AuthService.rotationCache.set(trimmedToken, {
+      response: authResponse,
+      expiresAt: Date.now() + 30000,
+    });
+
+    // Prune stale rotation cache entries if map grows
+    if (AuthService.rotationCache.size > 500) {
+      const now = Date.now();
+      for (const [key, entry] of AuthService.rotationCache.entries()) {
+        if (entry.expiresAt <= now) {
+          AuthService.rotationCache.delete(key);
+        }
+      }
+    }
+
+    return authResponse;
   }
 
   /**
@@ -398,9 +451,12 @@ export class AuthService {
     avatarUrl?: string | null;
   }): Promise<LoginResponse> {
     /**
-     * Reload complete user from database.
+     * Reuse existing user object if already complete, or load from database.
      */
-    const fullUser = await this.repo.findUserById(user.id);
+    const fullUser =
+      'tokenVersion' in user && (user as any).tokenVersion !== undefined
+        ? (user as any)
+        : await this.repo.findUserById(user.id);
 
     if (!fullUser) {
       throw new AppError(
@@ -426,7 +482,7 @@ export class AuthService {
     const payload: AuthTokenPayload = {
       id: fullUser.id,
       email: fullUser.email,
-      role: fullUser.role || 'USER',
+      role: (profile.role as any) || fullUser.role || 'USER',
       workspaceId,
       tokenVersion: (fullUser as any).tokenVersion ?? 0,
     };

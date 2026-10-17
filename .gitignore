@@ -41,7 +41,8 @@ prisma/migrations/dev_lock.json
 # Temporary files
 tmp/
 temp/
+tools/
 
 # File uploads (runtime artifacts)
 uploads/*
-!uploads/.gitkeep
+!uploads/.gitkeep

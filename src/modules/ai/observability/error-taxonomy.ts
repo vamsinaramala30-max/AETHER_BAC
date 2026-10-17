@@ -227,12 +227,32 @@ export class ErrorTaxonomy {
       rawCode === 'OAUTH_ACCOUNT' ||
       rawCode.includes('AUTH')
     ) {
+      const isInvalidCredentials =
+        rawCode === 'INVALID_CREDENTIALS' ||
+        lowerMessage.includes('invalid email or password') ||
+        lowerMessage.includes('invalid credentials');
+
+      const isOAuthAccount =
+        rawCode === 'OAUTH_ACCOUNT' || lowerMessage.includes('no password set');
+
+      let safeMessage: string;
+      if (isInvalidCredentials) {
+        safeMessage = 'Invalid email or password credentials.';
+      } else if (isOAuthAccount) {
+        safeMessage = 'Account has no password set. Use OAuth login.';
+      } else if (
+        rawMessage.length < 200 &&
+        !rawMessage.toLowerCase().includes('secret') &&
+        !/password\s*[:=]/i.test(rawMessage)
+      ) {
+        safeMessage = rawMessage;
+      } else {
+        safeMessage = 'Authentication is required to perform this action.';
+      }
+
       return new CanonicalError({
         code: 'AUTHENTICATION_ERROR',
-        message:
-          rawMessage.length < 200 && !rawMessage.toLowerCase().includes('password') && !rawMessage.toLowerCase().includes('secret')
-            ? rawMessage
-            : 'Authentication is required to perform this action.',
+        message: safeMessage,
         severity: 'WARN',
         retryable: false,
         correlationId: context?.correlationId,

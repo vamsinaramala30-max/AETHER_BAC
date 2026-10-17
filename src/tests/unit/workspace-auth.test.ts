@@ -13,6 +13,7 @@ describe('SEC-08: Workspace Authorization & Tenant Boundary Enforcement', () => 
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.spyOn(db.user, 'findUnique').mockResolvedValue({ id: validUserId, tokenVersion: 0 } as any);
     validToken = jwt.sign(
       {
         id: validUserId,
@@ -142,5 +143,145 @@ describe('SEC-08: Workspace Authorization & Tenant Boundary Enforcement', () => 
 
     expect(next).toHaveBeenCalled();
     expect(req.user.workspaceId).toBe(validWorkspaceId);
+  });
+
+  it('rejects unjoined workspaceId supplied in JSON request body with 403 FORBIDDEN_WORKSPACE (AUDIT-HIGH-03)', async () => {
+    vi.spyOn(db.workspaceMember, 'findFirst').mockResolvedValue(null as any);
+
+    const req = {
+      headers: {
+        authorization: `Bearer ${validToken}`,
+      },
+      body: {
+        workspaceId: foreignWorkspaceId,
+        title: 'Attacker Note Attempting Cross-Workspace Access',
+      },
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as any;
+    const next = vi.fn();
+
+    await authenticate(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({ code: 'FORBIDDEN_WORKSPACE' }),
+      }),
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed workspaceId in JSON request body with 400 INVALID_WORKSPACE_ID', async () => {
+    const req = {
+      headers: {
+        authorization: `Bearer ${validToken}`,
+      },
+      body: {
+        workspaceId: 'malformed-sql-injection-body-string',
+      },
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as any;
+    const next = vi.fn();
+
+    await authenticate(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({ code: 'INVALID_WORKSPACE_ID' }),
+      }),
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('binds validated workspaceId from JSON request body to req.user when member (AUDIT-HIGH-03)', async () => {
+    vi.spyOn(db.workspaceMember, 'findFirst').mockResolvedValue({
+      id: 'wm-body-record',
+      workspaceId: validWorkspaceId,
+      userId: validUserId,
+      role: 'MEMBER',
+    } as any);
+
+    const req = {
+      headers: {
+        authorization: `Bearer ${validToken}`,
+      },
+      body: {
+        workspaceId: validWorkspaceId,
+        title: 'Legitimate Body Workspace Document',
+      },
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as any;
+    const next = vi.fn();
+
+    await authenticate(req, res, next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user.workspaceId).toBe(validWorkspaceId);
+  });
+
+  it('rejects expired JWT token with 401 TOKEN_EXPIRED', async () => {
+    const expiredToken = jwt.sign(
+      { id: validUserId, email: 'tester@aether.internal', role: 'USER' },
+      securityConfig.jwt.secret,
+      { expiresIn: '-1s' },
+    );
+
+    const req = {
+      headers: {
+        authorization: `Bearer ${expiredToken}`,
+      },
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as any;
+    const next = vi.fn();
+
+    await authenticate(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: false,
+        error: expect.objectContaining({ code: 'TOKEN_EXPIRED' }),
+      }),
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rejects tampered token with invalid signature with 401', async () => {
+    const forgedToken = jwt.sign(
+      { id: validUserId, email: 'forged@aether.internal', role: 'USER' },
+      'wrong-secret-signature-key',
+      { expiresIn: '1h' },
+    );
+
+    const req = {
+      headers: {
+        authorization: `Bearer ${forgedToken}`,
+      },
+    } as any;
+    const res = {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn(),
+    } as any;
+    const next = vi.fn();
+
+    await authenticate(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
   });
 });

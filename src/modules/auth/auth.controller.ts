@@ -8,22 +8,61 @@ const authService = new AuthService();
 /**
  * Safely obtain configured frontend URL with production fallback.
  */
-const getFrontendUrl = (): string => {
+const getFrontendUrl = (req?: Request): string => {
+  const allowedOrigins = [
+    'https://aether-fro-lime.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:3000',
+  ];
+  if (env.FRONTEND_URL) {
+    const configured = env.FRONTEND_URL.trim().replace(/\/+$/, '');
+    if (configured && !allowedOrigins.includes(configured)) {
+      allowedOrigins.push(configured);
+    }
+  }
+
+  if (req) {
+    try {
+      const headerOrigin = req.headers.origin;
+      const refererOrigin = req.headers.referer ? new URL(req.headers.referer).origin : null;
+      const candidate = headerOrigin || refererOrigin;
+      if (candidate && allowedOrigins.includes(candidate)) {
+        return candidate;
+      }
+    } catch {
+      /* ignore URL parse error */
+    }
+  }
+
   const frontendUrl = env.FRONTEND_URL?.trim() || 'https://aether-fro-lime.vercel.app';
   return frontendUrl.replace(/\/+$/, '');
 };
 
 /**
  * Safely create a frontend redirect URL.
+ * Sensitive tokens must be passed in hashParams (RFC 6749 User-Agent pattern)
+ * so they are never transmitted in HTTP request lines, server logs, or Referer headers.
  */
-const getFrontendRedirect = (path: string, params?: Record<string, string>): string => {
-  const frontendUrl = getFrontendUrl();
+const getFrontendRedirect = (
+  path: string,
+  params?: Record<string, string>,
+  hashParams?: Record<string, string>,
+  req?: Request,
+): string => {
+  const frontendUrl = getFrontendUrl(req);
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const url = new URL(normalizedPath, `${frontendUrl}/`);
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.set(key, value);
     });
+  }
+  if (hashParams) {
+    const hash = new URLSearchParams();
+    Object.entries(hashParams).forEach(([key, value]) => {
+      hash.set(key, value);
+    });
+    url.hash = hash.toString();
   }
   return url.toString();
 };
@@ -226,6 +265,22 @@ export class AuthController {
    * GET /api/v1/auth/google/callback
    */
   public googleCallback = (req: Request, res: Response, next: NextFunction): void => {
+    // 1. Check if the user cancelled OAuth on Google's consent page
+    const queryError = req.query.error as string | undefined;
+    if (queryError === 'access_denied') {
+      logger.info('User cancelled Google OAuth consent screen.');
+      return res.redirect(
+        getFrontendRedirect(
+          '/login',
+          {
+            error: 'oauth_cancelled',
+          },
+          undefined,
+          req,
+        ),
+      );
+    }
+
     passport.authenticate(
       'google',
       {
@@ -236,13 +291,36 @@ export class AuthController {
          * Passport strategy error.
          */
         if (error) {
+          const isCancelled =
+            req.query.error === 'access_denied' ||
+            (typeof error?.message === 'string' && error.message.includes('access_denied'));
+
+          if (isCancelled) {
+            logger.info('Google OAuth cancelled by user.');
+            return res.redirect(
+              getFrontendRedirect(
+                '/login',
+                {
+                  error: 'oauth_cancelled',
+                },
+                undefined,
+                req,
+              ),
+            );
+          }
+
           logger.error('Google OAuth strategy failed:', error);
 
           try {
             return res.redirect(
-              getFrontendRedirect('/login', {
-                error: 'oauth_failed',
-              }),
+              getFrontendRedirect(
+                '/login',
+                {
+                  error: 'oauth_failed',
+                },
+                undefined,
+                req,
+              ),
             );
           } catch (redirectError) {
             return next(redirectError);
@@ -257,9 +335,14 @@ export class AuthController {
 
           try {
             return res.redirect(
-              getFrontendRedirect('/login', {
-                error: 'oauth_user_missing',
-              }),
+              getFrontendRedirect(
+                '/login',
+                {
+                  error: 'oauth_user_missing',
+                },
+                undefined,
+                req,
+              ),
             );
           } catch (redirectError) {
             return next(redirectError);
@@ -289,6 +372,7 @@ export class AuthController {
            * Use existing accessToken if already generated, otherwise generate now.
            */
           let token: string | undefined = user?.tokens?.accessToken;
+          let refreshToken: string | undefined = user?.tokens?.refreshToken;
           if (!token) {
             const authResponse = await authService.generateAuthResponse({
               id: userId,
@@ -298,6 +382,7 @@ export class AuthController {
               avatarUrl,
             });
             token = authResponse.tokens.accessToken;
+            refreshToken = authResponse.tokens.refreshToken;
           }
 
           if (!token) {
@@ -307,11 +392,16 @@ export class AuthController {
           logger.info(`Google OAuth successful for ${email}.`);
 
           /**
-           * Redirect to frontend authentication success page.
+           * Redirect to frontend authentication success page with tokens delivered securely via
+           * URL hash fragment (RFC 6749 OAuth 2.0 User-Agent / SPA pattern).
+           * Tokens in hash fragments are processed exclusively by client JavaScript and are never
+           * transmitted in HTTP request lines, logged in web server logs, or leaked in Referer headers.
            */
-          const redirectUrl = getFrontendRedirect('/auth/success', {
-            token,
-          });
+          const sensitiveTokens: Record<string, string> = { token };
+          if (refreshToken) {
+            sensitiveTokens.refreshToken = refreshToken;
+          }
+          const redirectUrl = getFrontendRedirect('/auth/success', undefined, sensitiveTokens, req);
 
           return res.redirect(redirectUrl);
         } catch (authError) {
@@ -319,9 +409,14 @@ export class AuthController {
 
           try {
             return res.redirect(
-              getFrontendRedirect('/login', {
-                error: 'token_generation_failed',
-              }),
+              getFrontendRedirect(
+                '/login',
+                {
+                  error: 'token_generation_failed',
+                },
+                undefined,
+                req,
+              ),
             );
           } catch (redirectError) {
             return next(redirectError);

@@ -122,6 +122,26 @@ export class ProjectsOrchestrationController {
         return;
       }
       const { name, description, category, workspaceId } = req.body;
+      if (workspaceId) {
+        const userRole = (req as any).user?.role;
+        const isSystemAdmin = userRole === 'ADMIN' || userRole === 'SUPERADMIN' || userRole === 'SUPER_ADMIN';
+        if (!isSystemAdmin) {
+          const membership = await db.workspaceMember.findFirst({
+            where: { workspaceId, userId },
+          });
+          if (!membership || membership.role === 'VIEWER') {
+            res.status(403).json({
+              success: false,
+              message: 'Forbidden: Cannot create project in this workspace',
+              error: {
+                code: 'FORBIDDEN_WORKSPACE',
+                message: 'Forbidden: Cannot create project in this workspace',
+              },
+            });
+            return;
+          }
+        }
+      }
       const project = await this.orchestrationService.projectsRepo.save({
         name,
         description,
@@ -148,15 +168,28 @@ export class ProjectsOrchestrationController {
         return;
       }
       if (existing.ownerId !== userId) {
-        let isMember = false;
-        if (existing.workspaceId) {
+        let isAuthorized = false;
+        const userRole = (req as any).user?.role;
+        if (userRole === 'ADMIN' || userRole === 'SUPERADMIN' || userRole === 'SUPER_ADMIN') {
+          isAuthorized = true;
+        } else if (existing.workspaceId) {
           const membership = await db.workspaceMember.findFirst({
             where: { workspaceId: existing.workspaceId, userId },
           });
-          isMember = !!membership;
+          // Viewers are read-only; OWNER, ADMIN, or MEMBER may update workspace projects
+          if (membership && membership.role !== 'VIEWER') {
+            isAuthorized = true;
+          }
         }
-        if (!isMember) {
-          res.status(403).json({ success: false, message: 'Forbidden: Access to project denied' });
+        if (!isAuthorized) {
+          res.status(403).json({
+            success: false,
+            message: 'Forbidden: Access to project denied',
+            error: {
+              code: 'FORBIDDEN_PROJECT_UPDATE',
+              message: 'Forbidden: Access to project denied',
+            },
+          });
           return;
         }
       }
@@ -189,15 +222,28 @@ export class ProjectsOrchestrationController {
         return;
       }
       if (existing.ownerId !== userId) {
-        let isMember = false;
-        if (existing.workspaceId) {
+        let isAuthorized = false;
+        const userRole = (req as any).user?.role;
+        if (userRole === 'ADMIN' || userRole === 'SUPERADMIN' || userRole === 'SUPER_ADMIN') {
+          isAuthorized = true;
+        } else if (existing.workspaceId) {
+          // In a shared workspace, only workspace OWNER or ADMIN may delete projects not owned by them (AUDIT-HIGH-02)
           const membership = await db.workspaceMember.findFirst({
             where: { workspaceId: existing.workspaceId, userId },
           });
-          isMember = !!membership;
+          if (membership && (membership.role === 'OWNER' || membership.role === 'ADMIN')) {
+            isAuthorized = true;
+          }
         }
-        if (!isMember) {
-          res.status(403).json({ success: false, message: 'Forbidden: Access to project denied' });
+        if (!isAuthorized) {
+          res.status(403).json({
+            success: false,
+            message: 'Forbidden: Only project owners or workspace admins can delete projects',
+            error: {
+              code: 'FORBIDDEN_PROJECT_DELETE',
+              message: 'Forbidden: Only project owners or workspace admins can delete projects',
+            },
+          });
           return;
         }
       }

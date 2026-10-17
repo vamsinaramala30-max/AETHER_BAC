@@ -65,7 +65,7 @@ describe('Google OAuth Callback Flow & Unbound Method Safety', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it('redirects to /auth/success?token=... when passport returns a valid user with token', async () => {
+  it('redirects to /auth/success#token=... via URL hash fragment when passport returns a valid user with token (AUDIT-HIGH-01)', async () => {
     const { googleCallback } = authController;
 
     const mockUser = {
@@ -75,6 +75,7 @@ describe('Google OAuth Callback Flow & Unbound Method Safety', () => {
       role: 'USER',
       tokens: {
         accessToken: 'mock-jwt-access-token-12345',
+        refreshToken: 'mock-jwt-refresh-token-67890',
       },
     };
 
@@ -98,7 +99,12 @@ describe('Google OAuth Callback Flow & Unbound Method Safety', () => {
     await googleCallback(req, res, next);
 
     expect(res.redirect).toHaveBeenCalled();
-    expect(redirectedUrl).toContain('/auth/success?token=mock-jwt-access-token-12345');
+    // Tokens must be in hash fragment (RFC 6749 User-Agent pattern)
+    expect(redirectedUrl).toContain('#token=mock-jwt-access-token-12345');
+    expect(redirectedUrl).toContain('refreshToken=mock-jwt-refresh-token-67890');
+    // Critical security assertion: tokens must NEVER be passed in the URL query string
+    expect(redirectedUrl).not.toContain('?token=');
+    expect(redirectedUrl).not.toContain('?refreshToken=');
     expect(next).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validation.middleware';
+import { optionalAuthenticate } from '../middleware/auth.middleware';
 import { db } from '../database/client';
 import { emailService } from '../modules/notification/email.service';
 import { strictRateLimiter } from '../middleware/rateLimit.middleware';
@@ -88,6 +89,7 @@ export const contactRoutes: Router = Router();
 contactRoutes.post(
   '/',
   strictRateLimiter,
+  optionalAuthenticate,
   validate(contactSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -148,6 +150,7 @@ contactRoutes.post(
 contactRoutes.post(
   '/complaint',
   strictRateLimiter,
+  optionalAuthenticate,
   validate(complaintSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -235,6 +238,7 @@ contactRoutes.post(
 contactRoutes.post(
   '/feedback',
   strictRateLimiter,
+  optionalAuthenticate,
   validate(contactSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     req.url = '/';
@@ -245,6 +249,7 @@ contactRoutes.post(
 contactRoutes.post(
   '/complaints',
   strictRateLimiter,
+  optionalAuthenticate,
   validate(complaintSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     req.url = '/complaint';

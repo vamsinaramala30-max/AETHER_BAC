@@ -274,6 +274,170 @@ describe('SEC-03, SEC-04, SEC-05: Entity IDOR & Multi-Tenant Authorization', () 
         }),
       );
     });
+
+    it('blocks workspace MEMBER from deleting another user workspace project with 403 (AUDIT-HIGH-02)', async () => {
+      mockOrchestrationService.projectsRepo.findById.mockResolvedValue({
+        id: 'proj-ws-1',
+        name: 'Shared Project',
+        ownerId: userA,
+        workspaceId: workspaceA,
+      });
+
+      vi.spyOn(db.workspaceMember, 'findFirst').mockResolvedValue({
+        id: 'wm-b',
+        workspaceId: workspaceA,
+        userId: userB,
+        role: 'MEMBER',
+      } as any);
+
+      const req = {
+        params: { id: 'proj-ws-1' },
+        user: { id: userB, role: 'USER' },
+      } as any;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as any;
+      const next = vi.fn();
+
+      await projectController.delete(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({ code: 'FORBIDDEN_PROJECT_DELETE' }),
+        }),
+      );
+      expect(mockOrchestrationService.projectsRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('blocks workspace VIEWER from deleting another user workspace project with 403 (AUDIT-HIGH-02)', async () => {
+      mockOrchestrationService.projectsRepo.findById.mockResolvedValue({
+        id: 'proj-ws-1',
+        name: 'Shared Project',
+        ownerId: userA,
+        workspaceId: workspaceA,
+      });
+
+      vi.spyOn(db.workspaceMember, 'findFirst').mockResolvedValue({
+        id: 'wm-b',
+        workspaceId: workspaceA,
+        userId: userB,
+        role: 'VIEWER',
+      } as any);
+
+      const req = {
+        params: { id: 'proj-ws-1' },
+        user: { id: userB, role: 'USER' },
+      } as any;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as any;
+      const next = vi.fn();
+
+      await projectController.delete(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({ code: 'FORBIDDEN_PROJECT_DELETE' }),
+        }),
+      );
+      expect(mockOrchestrationService.projectsRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('blocks workspace VIEWER from updating another user workspace project with 403', async () => {
+      mockOrchestrationService.projectsRepo.findById.mockResolvedValue({
+        id: 'proj-ws-1',
+        name: 'Shared Project',
+        ownerId: userA,
+        workspaceId: workspaceA,
+      });
+
+      vi.spyOn(db.workspaceMember, 'findFirst').mockResolvedValue({
+        id: 'wm-b',
+        workspaceId: workspaceA,
+        userId: userB,
+        role: 'VIEWER',
+      } as any);
+
+      const req = {
+        params: { id: 'proj-ws-1' },
+        body: { name: 'Unauthorized Title' },
+        user: { id: userB, role: 'USER' },
+      } as any;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as any;
+      const next = vi.fn();
+
+      await projectController.update(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.objectContaining({ code: 'FORBIDDEN_PROJECT_UPDATE' }),
+        }),
+      );
+      expect(mockOrchestrationService.projectsRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('allows workspace ADMIN to delete another user workspace project with 200 (AUDIT-HIGH-02)', async () => {
+      mockOrchestrationService.projectsRepo.findById.mockResolvedValue({
+        id: 'proj-ws-1',
+        name: 'Shared Project',
+        ownerId: userA,
+        workspaceId: workspaceA,
+      });
+      mockOrchestrationService.projectsRepo.delete.mockResolvedValue(true);
+
+      vi.spyOn(db.workspaceMember, 'findFirst').mockResolvedValue({
+        id: 'wm-admin',
+        workspaceId: workspaceA,
+        userId: userB,
+        role: 'ADMIN',
+      } as any);
+
+      const req = {
+        params: { id: 'proj-ws-1' },
+        user: { id: userB, role: 'USER' },
+      } as any;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as any;
+      const next = vi.fn();
+
+      await projectController.delete(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockOrchestrationService.projectsRepo.delete).toHaveBeenCalledWith('proj-ws-1');
+    });
+
+    it('allows project owner to delete their own project with 200', async () => {
+      mockOrchestrationService.projectsRepo.findById.mockResolvedValue({
+        id: 'proj-ws-1',
+        name: 'Shared Project',
+        ownerId: userA,
+        workspaceId: workspaceA,
+      });
+      mockOrchestrationService.projectsRepo.delete.mockResolvedValue(true);
+
+      const req = {
+        params: { id: 'proj-ws-1' },
+        user: { id: userA, role: 'USER' },
+      } as any;
+      const res = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      } as any;
+      const next = vi.fn();
+
+      await projectController.delete(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockOrchestrationService.projectsRepo.delete).toHaveBeenCalledWith('proj-ws-1');
+    });
   });
 
   describe('SEC-05: Automation Authorization & IDOR', () => {

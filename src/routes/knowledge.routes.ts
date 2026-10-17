@@ -25,6 +25,7 @@ router.use(authenticate);
 
 const getWorkspaceId = (req: any): string | undefined => {
   return (
+    req.user?.workspaceId ||
     req.headers?.['x-workspace-id'] ||
     req.query?.workspaceId ||
     req.body?.workspaceId ||

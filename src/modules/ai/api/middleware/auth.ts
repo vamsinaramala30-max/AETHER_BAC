@@ -28,7 +28,9 @@ export class DefaultAuthProvider implements IAuthProvider {
     if (headers.authorization?.startsWith('Bearer ')) {
       const token = headers.authorization.substring(7).trim();
       try {
-        const decoded = jwt.verify(token, securityConfig.jwt.secret) as {
+        const decoded = jwt.verify(token, securityConfig.jwt.secret, {
+          algorithms: ['HS256'],
+        }) as {
           id?: string;
           userId?: string;
           sub?: string;

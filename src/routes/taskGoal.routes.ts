@@ -13,7 +13,8 @@ const goalsController = new GoalsController(orchestration.goals);
 
 const router = Router();
 
-router.use(authenticate);
+// Scope authentication strictly to tasks and goals endpoints
+router.use(['/tasks', '/goals'], authenticate);
 
 function handle(
   handler: (req: Request) => Promise<unknown>,
