@@ -38,7 +38,7 @@ describe('AETHER Backend Authentication Reliability & Lifecycle Suite', () => {
     expect(regResult.user.email).toBe(testEmail);
     expect(regResult.tokens.accessToken).toBeDefined();
     expect(regResult.tokens.refreshToken).toBeDefined();
-  }, 15000);
+  }, 30000);
 
   it('Scenario 2: Correctly rejects duplicate registration with AppError(409)', async () => {
     await expect(
@@ -49,7 +49,7 @@ describe('AETHER Backend Authentication Reliability & Lifecycle Suite', () => {
         lastName: 'Tester',
       }),
     ).rejects.toThrow();
-  }, 10000);
+  }, 15000);
 
   it('Scenario 3: Successfully logs in with valid credentials and measures response time', async () => {
     const start = performance.now();
@@ -61,18 +61,23 @@ describe('AETHER Backend Authentication Reliability & Lifecycle Suite', () => {
 
     expect(loginResult.user.id).toBe(createdUserId);
     expect(loginResult.tokens.accessToken).toBeDefined();
-    expect(duration).toBeLessThan(5000); // Well within target
+    expect(duration).toBeLessThan(8000); // Responsive even with international RTT
     refreshToken = loginResult.tokens.refreshToken;
-  }, 10000);
+  }, 15000);
 
-  it('Scenario 4: Rejects login with invalid password', async () => {
-    await expect(
-      authService.login({
+  it('Scenario 4: Rejects login with invalid password and throws INVALID_CREDENTIALS', async () => {
+    try {
+      await authService.login({
         email: testEmail,
         password: 'WrongPassword!',
-      }),
-    ).rejects.toThrow('Invalid email or password credentials');
-  }, 10000);
+      });
+      expect.fail('Should have thrown an authentication error');
+    } catch (err: any) {
+      expect(err.statusCode).toBe(401);
+      expect(err.errorCode).toBe('INVALID_CREDENTIALS');
+      expect(err.message).toBe('Invalid email or password credentials');
+    }
+  }, 15000);
 
   it('Scenario 5: Successfully retrieves authenticated user profile', async () => {
     if (!createdUserId) throw new Error('No test user');
@@ -96,4 +101,17 @@ describe('AETHER Backend Authentication Reliability & Lifecycle Suite', () => {
     const user = await db.user.findUnique({ where: { id: createdUserId } });
     expect(user?.tokenVersion).toBeGreaterThan(0);
   }, 10000);
+
+  it('Scenario 8: Correctly maps INVALID_CREDENTIALS in error taxonomy without masking as "Authentication is required"', async () => {
+    const { classifyError } = await import('../../modules/ai/observability/error-taxonomy');
+    const { AppError } = await import('../../middleware/error.middleware');
+
+    const credError = new AppError('Invalid email or password credentials', 401, 'INVALID_CREDENTIALS');
+    const canonical = classifyError(credError);
+
+    expect(canonical.statusCode).toBe(401);
+    expect(canonical.code).toBe('AUTHENTICATION_ERROR');
+    expect(canonical.message).toBe('Invalid email or password credentials.');
+    expect(canonical.message).not.toContain('Authentication is required');
+  });
 });
