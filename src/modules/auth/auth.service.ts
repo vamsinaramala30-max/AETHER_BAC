@@ -8,6 +8,7 @@ import { db } from '../../database/client';
 import { AppError } from '../../middleware/error.middleware';
 
 import { AuthTokenPayload, LoginResponse, OAuthUserPayload, GoogleUserPayload } from './auth.types';
+import { isVerifiedOwnerEmail } from '../../config/owner-allowlist';
 
 interface ProfileUserPayload {
   id: string;
@@ -45,10 +46,19 @@ export class AuthService {
 
     const lastName = parts.slice(1).join(' ') || '';
 
+    const email = user.email.toLowerCase();
+
+    const isOwner =
+      isVerifiedOwnerEmail(email) ||
+      (user as any).memberships?.some((m: any) => m.role === 'OWNER');
+
+    const assignedRole = isOwner ? 'OWNER' : user.role || 'USER';
+    const workspaceRole = isOwner ? 'OWNER' : (user as any).memberships?.[0]?.role || 'MEMBER';
+
     return {
       id: user.id,
 
-      email: user.email.toLowerCase(),
+      email,
 
       fullName,
 
@@ -58,7 +68,9 @@ export class AuthService {
 
       name: fullName || fallbackName,
 
-      role: user.role || 'USER',
+      role: assignedRole,
+
+      workspaceRole,
 
       avatarUrl: user.avatarUrl || null,
 
@@ -470,7 +482,7 @@ export class AuthService {
     const payload: AuthTokenPayload = {
       id: fullUser.id,
       email: fullUser.email,
-      role: fullUser.role || 'USER',
+      role: (profile.role as any) || fullUser.role || 'USER',
       workspaceId,
       tokenVersion: (fullUser as any).tokenVersion ?? 0,
     };

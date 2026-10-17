@@ -9,7 +9,7 @@ export class AuthRepository extends PrismaService {
       include: {
         memberships: {
           take: 1,
-          select: { workspaceId: true },
+          select: { workspaceId: true, role: true },
         },
         settings: {
           select: { id: true },
@@ -25,7 +25,7 @@ export class AuthRepository extends PrismaService {
       include: {
         memberships: {
           take: 1,
-          select: { workspaceId: true },
+          select: { workspaceId: true, role: true },
         },
         settings: {
           select: { id: true },

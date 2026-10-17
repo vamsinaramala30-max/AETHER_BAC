@@ -171,8 +171,8 @@ export class WorkspaceService {
     data: { email?: string; userId?: string; role?: WorkspaceRole },
   ) {
     const requester = await this.workspaceRepo.getMember(workspaceId, requesterId);
-    if (!requester || (requester.role !== 'OWNER' && requester.role !== 'ADMIN')) {
-      throw new AppError('Insufficient permissions to add members', 403, 'FORBIDDEN');
+    if (!requester || requester.role !== 'OWNER') {
+      throw new AppError('Insufficient permissions: Only workspace owners can add or invite members', 403, 'FORBIDDEN');
     }
 
     let targetUserId = data.userId;
@@ -211,6 +211,20 @@ export class WorkspaceService {
     }
 
     const newMember = await this.workspaceRepo.addMember(workspaceId, targetUserId, assignedRole);
+
+    // Durable Audit Log
+    try {
+      await db.auditLog.create({
+        data: {
+          userId: requesterId,
+          action: 'WORKSPACE_MEMBER_ADDED',
+          resource: `workspace:${workspaceId}`,
+          payload: { targetUserId, role: assignedRole },
+        },
+      });
+    } catch {
+      // Audit log resilience
+    }
 
     // Durable Notification creation
     try {
@@ -254,8 +268,8 @@ export class WorkspaceService {
     role: WorkspaceRole,
   ) {
     const requester = await this.workspaceRepo.getMember(workspaceId, requesterId);
-    if (!requester || (requester.role !== 'OWNER' && requester.role !== 'ADMIN')) {
-      throw new AppError('Insufficient permissions to update member roles', 403, 'FORBIDDEN');
+    if (!requester || requester.role !== 'OWNER') {
+      throw new AppError('Insufficient permissions: Only workspace owners can update member roles', 403, 'FORBIDDEN');
     }
 
     const targetMember = await this.workspaceRepo.getMember(workspaceId, targetUserId);
@@ -280,6 +294,20 @@ export class WorkspaceService {
     }
 
     const updated = await this.workspaceRepo.updateMemberRole(workspaceId, targetUserId, role);
+
+    // Durable Audit Log
+    try {
+      await db.auditLog.create({
+        data: {
+          userId: requesterId,
+          action: 'WORKSPACE_MEMBER_ROLE_UPDATED',
+          resource: `workspace:${workspaceId}`,
+          payload: { targetUserId, newRole: role, previousRole: targetMember.role },
+        },
+      });
+    } catch {
+      // Audit log resilience
+    }
 
     emitToWorkspace(workspaceId, SocketEvent.WORKSPACE_MEMBER_UPDATED, {
       workspaceId,
@@ -308,12 +336,9 @@ export class WorkspaceService {
     const isSelf = requesterId === targetUserId;
 
     if (!isSelf) {
-      // Admin/Owner removing another member
-      if (requester.role !== 'OWNER' && requester.role !== 'ADMIN') {
-        throw new AppError('Insufficient permissions to remove members', 403, 'FORBIDDEN');
-      }
-      if (targetMember.role === 'OWNER' && requester.role !== 'OWNER') {
-        throw new AppError('Only owners can remove other owners', 403, 'FORBIDDEN');
+      // Only Owner can remove another member
+      if (requester.role !== 'OWNER') {
+        throw new AppError('Insufficient permissions: Only workspace owners can remove members', 403, 'FORBIDDEN');
       }
     }
 
@@ -330,6 +355,20 @@ export class WorkspaceService {
     }
 
     await this.workspaceRepo.removeMember(workspaceId, targetUserId);
+
+    // Durable Audit Log
+    try {
+      await db.auditLog.create({
+        data: {
+          userId: requesterId,
+          action: isSelf ? 'WORKSPACE_MEMBER_LEFT' : 'WORKSPACE_MEMBER_REMOVED',
+          resource: `workspace:${workspaceId}`,
+          payload: { targetUserId, removedBy: requesterId },
+        },
+      });
+    } catch {
+      // Audit log resilience
+    }
 
     emitToWorkspace(workspaceId, SocketEvent.WORKSPACE_MEMBER_REMOVED, {
       workspaceId,
