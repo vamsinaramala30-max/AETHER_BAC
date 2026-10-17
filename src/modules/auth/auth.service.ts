@@ -162,18 +162,21 @@ export class AuthService {
       throw new AppError('Invalid email or password credentials', 401, 'INVALID_CREDENTIALS');
     }
 
-    try {
-      await db.notification.create({
+    // Non-blocking security audit notification dispatch (does not block HTTP response)
+    void db.notification
+      .create({
         data: {
           userId: user.id,
           title: 'Sign-in detected',
           message: 'You signed in successfully to your AETHER account.',
           type: 'SECURITY',
         },
+      })
+      .catch((notifErr) => {
+        logger.warn(
+          `Sign-in notification skipped for ${user.id}: ${(notifErr as Error)?.message || notifErr}`,
+        );
       });
-    } catch (notifErr) {
-      logger.warn(`Sign-in notification skipped for ${user.id}: ${(notifErr as Error)?.message || notifErr}`);
-    }
 
     return this.generateAuthResponse(user);
   }
@@ -436,9 +439,12 @@ export class AuthService {
     avatarUrl?: string | null;
   }): Promise<LoginResponse> {
     /**
-     * Reload complete user from database.
+     * Reuse existing user object if already complete, or load from database.
      */
-    const fullUser = await this.repo.findUserById(user.id);
+    const fullUser =
+      'tokenVersion' in user && (user as any).tokenVersion !== undefined
+        ? (user as any)
+        : await this.repo.findUserById(user.id);
 
     if (!fullUser) {
       throw new AppError(

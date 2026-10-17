@@ -2,17 +2,35 @@ import { User, Session, OAuthAccount, Prisma } from '@prisma/client';
 import { PrismaService, TransactionClient } from '../../database/prisma';
 
 export class AuthRepository extends PrismaService {
-  public async findUserByEmail(email: string, tx?: TransactionClient): Promise<User | null> {
+  public async findUserByEmail(email: string, tx?: TransactionClient): Promise<any | null> {
     const client = tx || this.prisma;
     return client.user.findUnique({
       where: { email: email.toLowerCase() },
+      include: {
+        memberships: {
+          take: 1,
+          select: { workspaceId: true },
+        },
+        settings: {
+          select: { id: true },
+        },
+      },
     });
   }
 
-  public async findUserById(id: string, tx?: TransactionClient): Promise<User | null> {
+  public async findUserById(id: string, tx?: TransactionClient): Promise<any | null> {
     const client = tx || this.prisma;
     return client.user.findUnique({
       where: { id },
+      include: {
+        memberships: {
+          take: 1,
+          select: { workspaceId: true },
+        },
+        settings: {
+          select: { id: true },
+        },
+      },
     });
   }
 
@@ -95,10 +113,26 @@ export class AuthRepository extends PrismaService {
     });
   }
 
-  public async ensureUserWorkspaceAndSettings(user: User): Promise<string> {
-    const membership = await this.prisma.workspaceMember.findFirst({
-      where: { userId: user.id },
-    });
+  public async ensureUserWorkspaceAndSettings(user: any): Promise<string> {
+    const cachedWorkspaceId = user.memberships?.[0]?.workspaceId;
+    const hasCachedSettings = Boolean(user.settings);
+
+    if (cachedWorkspaceId && hasCachedSettings) {
+      return cachedWorkspaceId;
+    }
+
+    const [membership, settings] = await Promise.all([
+      cachedWorkspaceId
+        ? Promise.resolve({ workspaceId: cachedWorkspaceId })
+        : this.prisma.workspaceMember.findFirst({
+            where: { userId: user.id },
+          }),
+      hasCachedSettings
+        ? Promise.resolve({ id: 'existing' })
+        : this.prisma.userSettings.findUnique({
+            where: { userId: user.id },
+          }),
+    ]);
 
     let workspaceId: string;
 
@@ -122,10 +156,6 @@ export class AuthRepository extends PrismaService {
     } else {
       workspaceId = membership.workspaceId;
     }
-
-    const settings = await this.prisma.userSettings.findUnique({
-      where: { userId: user.id },
-    });
 
     if (!settings) {
       await this.prisma.userSettings.create({
