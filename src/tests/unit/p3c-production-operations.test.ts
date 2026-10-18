@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import child_process from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
@@ -215,11 +216,15 @@ describe('AETHER P3C — Production Operations & Reliability Suite', () => {
   // ============================================================================
   describe('P3C-05: Database Migration & Release Safety Gate', () => {
     it('migration release gate validates schema and handles database connection gracefully', async () => {
+      vi.spyOn(child_process, 'execSync').mockReturnValue(Buffer.from(''));
       (vi.spyOn(db as any, '$connect') as any).mockResolvedValueOnce(undefined);
       (vi.spyOn(db as any, '$queryRaw') as any).mockResolvedValueOnce([{ '?column?': 1 }]);
       (vi.spyOn(db as any, '$disconnect') as any).mockResolvedValueOnce(undefined);
 
-      const result = await runSafeMigrationGate();
+      const result = await runSafeMigrationGate({
+        databaseUrl: 'postgresql://postgres:postgres@localhost:5432/test_db',
+        directUrl: 'postgresql://postgres:postgres@localhost:5432/test_db',
+      });
       expect(result.schemaValid).toBe(true);
       expect(result.databaseConnected).toBe(true);
       expect(result.success).toBe(true);

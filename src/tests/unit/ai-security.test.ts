@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import express, { Express } from 'express';
 import http from 'http';
 import jwt from 'jsonwebtoken';
 import { aiRoutes } from '../../routes/ai.routes.js';
 import { securityConfig } from '../../config/index.js';
+import { db } from '../../database/client.js';
 
 describe('SEC-07: AI Route Classification & Authentication Enforcement', () => {
   let app: Express;
@@ -38,9 +39,15 @@ describe('SEC-07: AI Route Classification & Authentication Enforcement', () => {
       securityConfig.jwt.secret,
       { expiresIn: '1h' },
     );
+
+    vi.spyOn((db as any).user, 'findUnique').mockResolvedValue({
+      id: '11111111-1111-4111-8111-111111111111',
+      tokenVersion: 0,
+    } as any);
   });
 
   afterAll(async () => {
+    vi.restoreAllMocks();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
     });

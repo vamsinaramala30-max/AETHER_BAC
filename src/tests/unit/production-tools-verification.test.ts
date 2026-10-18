@@ -13,8 +13,9 @@
  * 8. REST API Tools Controller endpoints
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import crypto from 'node:crypto';
+import { db } from '../../database/client.js';
 import { toolRegistry } from '../../modules/ai/tools/tool-registry.js';
 import { toolExecutor } from '../../modules/ai/tools/tool-executor.js';
 import { toolPermissions } from '../../modules/ai/tools/tool-permissions.js';
@@ -41,8 +42,10 @@ import '../../modules/ai/tools/memory-tools.js';
 describe('Prompt 6 — Production Tools + Verified Actions Authoritative Suite', () => {
   const userAId = 'a1111111-1111-4111-a111-111111111111';
   const userBId = 'b2222222-2222-4222-b222-222222222222';
-  const workspaceAId = 'w1111111-1111-4111-a111-111111111111';
-  const workspaceBId = 'w2222222-2222-4222-b222-222222222222';
+  const workspaceAId = 'c1111111-1111-4111-a111-111111111111';
+  const workspaceBId = 'c2222222-2222-4222-b222-222222222222';
+  const projectAId = 'c3333333-3333-4333-a333-333333333333';
+  const projectBId = 'c4444444-4444-4444-a444-444444444444';
 
   const userAAuth: AuthenticationContext = {
     userId: userAId,
@@ -76,8 +79,11 @@ describe('Prompt 6 — Production Tools + Verified Actions Authoritative Suite',
     workspaceId: workspaceBId,
   };
 
+  const adminId = 'd9999999-9999-4999-a999-999999999999';
+  const restrictedId = 'e8888888-8888-4888-a888-888888888888';
+
   const adminAuth: AuthenticationContext = {
-    userId: 'd9999999-9999-4999-a999-999999999999',
+    userId: adminId,
     sessionId: 'sess_admin',
     roles: ['admin'],
     permissions: ['*'],
@@ -85,7 +91,7 @@ describe('Prompt 6 — Production Tools + Verified Actions Authoritative Suite',
   };
 
   const restrictedAuth: AuthenticationContext = {
-    userId: 'e8888888-8888-4888-a888-888888888888',
+    userId: restrictedId,
     sessionId: 'sess_restricted',
     roles: ['guest'],
     permissions: ['tasks:read'], // Cannot write
@@ -97,6 +103,140 @@ describe('Prompt 6 — Production Tools + Verified Actions Authoritative Suite',
     traceId: `trace_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     correlationId: `corr_${Date.now()}`,
     workspaceId: auth.workspaceId,
+  });
+
+  beforeAll(async () => {
+    try {
+      await (db as any).user.upsert({
+        where: { id: userAId },
+        update: {},
+        create: {
+          id: userAId,
+          email: 'user_a_tools@aether.internal',
+          username: 'user_a_tools',
+          fullName: 'User A Tools',
+          role: 'USER',
+        },
+      });
+
+      await (db as any).user.upsert({
+        where: { id: userBId },
+        update: {},
+        create: {
+          id: userBId,
+          email: 'user_b_tools@aether.internal',
+          username: 'user_b_tools',
+          fullName: 'User B Tools',
+          role: 'USER',
+        },
+      });
+
+      await (db as any).workspace.upsert({
+        where: { id: workspaceAId },
+        update: {},
+        create: {
+          id: workspaceAId,
+          name: 'Workspace A Tools',
+          slug: `ws-a-${Date.now()}`,
+        },
+      });
+
+      await (db as any).workspace.upsert({
+        where: { id: workspaceBId },
+        update: {},
+        create: {
+          id: workspaceBId,
+          name: 'Workspace B Tools',
+          slug: `ws-b-${Date.now()}`,
+        },
+      });
+
+      await (db as any).workspaceMember.upsert({
+        where: { workspaceId_userId: { workspaceId: workspaceAId, userId: userAId } },
+        update: {},
+        create: { workspaceId: workspaceAId, userId: userAId, role: 'OWNER' },
+      });
+
+      await (db as any).workspaceMember.upsert({
+        where: { workspaceId_userId: { workspaceId: workspaceBId, userId: userBId } },
+        update: {},
+        create: { workspaceId: workspaceBId, userId: userBId, role: 'OWNER' },
+      });
+
+      await (db as any).user.upsert({
+        where: { id: adminId },
+        update: {},
+        create: {
+          id: adminId,
+          email: 'admin_tools@aether.internal',
+          username: 'admin_tools',
+          fullName: 'Admin Tools',
+          role: 'ADMIN',
+        },
+      });
+
+      await (db as any).workspaceMember.upsert({
+        where: { workspaceId_userId: { workspaceId: workspaceAId, userId: adminId } },
+        update: {},
+        create: { workspaceId: workspaceAId, userId: adminId, role: 'ADMIN' },
+      });
+
+      await (db as any).user.upsert({
+        where: { id: restrictedId },
+        update: {},
+        create: {
+          id: restrictedId,
+          email: 'restricted_tools@aether.internal',
+          username: 'restricted_tools',
+          fullName: 'Restricted Tools',
+          role: 'USER',
+        },
+      });
+
+      await (db as any).workspaceMember.upsert({
+        where: { workspaceId_userId: { workspaceId: workspaceAId, userId: restrictedId } },
+        update: {},
+        create: { workspaceId: workspaceAId, userId: restrictedId, role: 'MEMBER' },
+      });
+
+      await (db as any).project.upsert({
+        where: { id: projectAId },
+        update: {},
+        create: {
+          id: projectAId,
+          name: 'General Tasks A',
+          workspaceId: workspaceAId,
+          ownerId: userAId,
+        },
+      });
+
+      await (db as any).project.upsert({
+        where: { id: projectBId },
+        update: {},
+        create: {
+          id: projectBId,
+          name: 'General Tasks B',
+          workspaceId: workspaceBId,
+          ownerId: userBId,
+        },
+      });
+    } catch (e) {
+      console.warn('[production-tools-verification] beforeAll warning:', e);
+    }
+  });
+
+  afterAll(async () => {
+    try {
+      await (db as any).task.deleteMany({ where: { creatorId: { in: [userAId, userBId, adminId, restrictedId] } } });
+      await (db as any).note.deleteMany({ where: { userId: { in: [userAId, userBId, adminId, restrictedId] } } });
+      await (db as any).aiMemory.deleteMany({ where: { userId: { in: [userAId, userBId, adminId, restrictedId] } } });
+      await (db as any).project.deleteMany({ where: { ownerId: { in: [userAId, userBId, adminId, restrictedId] } } });
+      await (db as any).workspaceMember.deleteMany({ where: { userId: { in: [userAId, userBId, adminId, restrictedId] } } });
+      await (db as any).workspace.deleteMany({ where: { id: { in: [workspaceAId, workspaceBId] } } });
+      await (db as any).user.deleteMany({ where: { id: { in: [userAId, userBId, adminId, restrictedId] } } });
+    } catch {
+      // Ignore cleanup errors
+    }
   });
 
   beforeEach(() => {

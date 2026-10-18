@@ -137,6 +137,24 @@ describe('AETHER P2V — Reliability & Certification Regression Suite', () => {
         ownerId: userId,
       } as any);
 
+      vi.spyOn(db.user, 'findUnique').mockResolvedValue({
+        id: userId,
+        email: 'tester@aether.internal',
+        role: 'USER',
+      } as any);
+
+      vi.spyOn(db.task, 'create').mockResolvedValue({
+        id: taskId,
+        projectId,
+        workspaceId,
+        title: 'AI Automated Task',
+        creatorId: userId,
+        status: 'TODO',
+        priority: 'MEDIUM',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as any);
+
       const ctx: any = {
         auth: {
           userId,
