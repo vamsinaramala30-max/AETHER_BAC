@@ -18,6 +18,8 @@ import { validateEnv, env } from './src/config/env';
 import { connectDatabase, disconnectDatabase } from './src/database/client';
 import { cronScheduler } from './src/cron/scheduler';
 import { automationScheduler } from './src/modules/automation/scheduler/automation-scheduler';
+import { notificationService } from './src/modules/notification/notification.service';
+import { setupNotificationScheduler } from './src/modules/notification/notification.scheduler';
 
 // Validate required environment variables at launch
 validateEnv();
@@ -200,6 +202,9 @@ export const startServer = async (): Promise<http.Server> => {
 
     logger.info('Starting authoritative background AutomationScheduler...');
     await automationScheduler.start();
+
+    logger.info('Initializing Notification Scheduler (Task Reminders & Weekly Digest)...');
+    setupNotificationScheduler(notificationService);
 
     return new Promise((resolve) => {
       server.listen(PORT, HOST, () => {

@@ -10,7 +10,7 @@
  * - Sanitizes all error messages to protect connection credentials.
  */
 
-import { execSync } from 'child_process';
+import child_process, { execSync } from 'child_process';
 
 export interface DeployMigrationOptions {
   readonly confirmProductionMigration?: boolean;
@@ -271,7 +271,7 @@ export const runSafeMigrationGate = async (
 
   console.log('[AETHER Release Gate] Step 1: Validating Prisma Schema syntax and relations...');
   try {
-    execSync('npx prisma validate', {
+    child_process.execSync('npx prisma validate', {
       env: {
         ...process.env,
         DATABASE_URL: targetValidation.validatedDatabaseUrl,
@@ -350,7 +350,7 @@ export const runSafeMigrationGate = async (
 
   console.log('[AETHER Release Gate] Step 3: Checking migration history consistency...');
   try {
-    execSync('npx prisma migrate deploy', {
+    child_process.execSync('npx prisma migrate deploy', {
       env: {
         ...process.env,
         DATABASE_URL: targetValidation.validatedDatabaseUrl,

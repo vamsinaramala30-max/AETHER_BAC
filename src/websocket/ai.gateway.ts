@@ -1,14 +1,14 @@
 import { Server } from 'socket.io';
 import { AuthenticatedSocket, SocketEvent, AISreamPayload } from './socketTypes';
-import { OllamaRuntime } from '../modules/ai/llm/model-runtime';
+import { AetherModelProvider } from '../modules/ai/llm/providers/aether-provider';
 import { AETHER_BASE_SYSTEM_PROMPT } from '../modules/ai/prompts/system-prompts';
 import { logger } from '../config';
 
 export class AIGateway {
-  private aiProvider: OllamaRuntime;
+  private aiProvider: AetherModelProvider;
 
   constructor() {
-    this.aiProvider = new OllamaRuntime();
+    this.aiProvider = new AetherModelProvider();
   }
 
   public registerHandlers(io: Server, socket: AuthenticatedSocket): void {
@@ -26,10 +26,10 @@ export class AIGateway {
         );
 
         let fullText = '';
-        await this.aiProvider.generateStream(
+        const streamResult = await this.aiProvider.generateStream(
           {
             requestId: `req_${Date.now()}`,
-            modelId: 'llama3.1:8b',
+            modelId: 'qwen2.5-1.5b-instruct-q4km',
             messages: [
               { role: 'system', content: AETHER_BASE_SYSTEM_PROMPT },
               { role: 'user', content: payload.prompt },
@@ -45,6 +45,10 @@ export class AIGateway {
             });
           },
         );
+
+        if (!streamResult.ok) {
+          throw streamResult.error;
+        }
 
         socket.emit(SocketEvent.AI_STREAM_COMPLETE, {
           conversationId: payload.conversationId,

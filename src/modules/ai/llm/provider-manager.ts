@@ -144,23 +144,6 @@ export class ProviderManager {
           fallbackReason,
         };
       }
-
-      // Check optional Ollama fallback if configured
-      if (fallbackName !== 'ollama' && primaryName !== 'ollama') {
-        const ollamaProvider = this.getProvider('ollama');
-        const ollamaStatus = await ollamaProvider.healthCheck();
-        if (ollamaStatus.status === 'available') {
-          const ollamaRes = await ollamaProvider.generate(request);
-          if (ollamaRes.ok) {
-            return {
-              result: ollamaRes,
-              activeProvider: 'ollama',
-              usedFallback: true,
-              fallbackReason: `${fallbackReason} & ${fallbackName} failed`,
-            };
-          }
-        }
-      }
     }
 
     // Both providers failed: return clear error
@@ -244,23 +227,6 @@ export class ProviderManager {
           usedFallback: true,
           fallbackReason,
         };
-      }
-
-      // Check optional Ollama
-      if (fallbackName !== 'ollama' && primaryName !== 'ollama') {
-        const ollamaProvider = this.getProvider('ollama');
-        const ollamaStatus = await ollamaProvider.healthCheck();
-        if (ollamaStatus.status === 'available') {
-          const ollamaRes = await ollamaProvider.generateStream(request, onChunk);
-          if (ollamaRes.ok) {
-            return {
-              result: ollamaRes,
-              activeProvider: 'ollama',
-              usedFallback: true,
-              fallbackReason: `${fallbackReason} & ${fallbackName} failed`,
-            };
-          }
-        }
       }
     }
 

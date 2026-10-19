@@ -415,13 +415,17 @@ export class ExecutionEngine {
           );
 
           if (userId) {
-            await this.notifRepo.createNotification({
-              userId,
-              title: `Approval Required: ${auto.name}`,
-              message: `Your automation '${auto.name}' is waiting for approval to run '${actionType}'.`,
-              type: 'AUTOMATION',
-              metadata: { automationId: auto.id, executionId, stepIndex, actionType, priority: 'HIGH' },
-            });
+            try {
+              await this.notifRepo.createNotification({
+                userId,
+                title: `Approval Required: ${auto.name}`,
+                message: `Your automation '${auto.name}' is waiting for approval to run '${actionType}'.`,
+                type: 'AUTOMATION',
+                metadata: { automationId: auto.id, executionId, stepIndex, actionType, priority: 'HIGH' },
+              });
+            } catch (notifErr) {
+              logger.warn(`[ExecutionEngine] Non-critical approval notification failed: ${notifErr}`);
+            }
           }
 
           return { executionId, status: AutomationStatus.NEEDS_APPROVAL };
@@ -534,13 +538,17 @@ export class ExecutionEngine {
 
       // Send persistent completion notification
       if (userId) {
-        await this.notifRepo.createNotification({
-          userId,
-          title: `Automation Completed: ${auto.name}`,
-          message: `Your automation '${auto.name}' completed successfully.`,
-          type: 'AUTOMATION',
-          metadata: { automationId: auto.id, executionId, priority: 'NORMAL' },
-        });
+        try {
+          await this.notifRepo.createNotification({
+            userId,
+            title: `Automation Completed: ${auto.name}`,
+            message: `Your automation '${auto.name}' completed successfully.`,
+            type: 'AUTOMATION',
+            metadata: { automationId: auto.id, executionId, priority: 'NORMAL' },
+          });
+        } catch (notifErr) {
+          logger.warn(`[ExecutionEngine] Non-critical completion notification failed: ${notifErr}`);
+        }
       }
 
       eventBus.emit('automation.executed', {
@@ -613,22 +621,26 @@ export class ExecutionEngine {
       // Persistent Failure Notifications (Phase 5.23)
       const targetUserId = requestUserId || autoRecord.userId;
       if (targetUserId) {
-        if (shouldBreak) {
-          await this.notifRepo.createNotification({
-            userId: targetUserId,
-            title: `Automation Paused: ${autoRecord.name}`,
-            message: `Automation '${autoRecord.name}' was automatically paused after ${currentFailures} consecutive failures.`,
-            type: 'AUTOMATION',
-            metadata: { automationId: autoRecord.id, consecutiveFailures: currentFailures, priority: 'HIGH' },
-          });
-        } else {
-          await this.notifRepo.createNotification({
-            userId: targetUserId,
-            title: `Automation Failed: ${autoRecord.name}`,
-            message: `Automation '${autoRecord.name}' failed: ${sanitizedErrorObj.message}`,
-            type: 'AUTOMATION',
-            metadata: { automationId: autoRecord.id, executionId, error: sanitizedErrorObj.message, priority: 'HIGH' },
-          });
+        try {
+          if (shouldBreak) {
+            await this.notifRepo.createNotification({
+              userId: targetUserId,
+              title: `Automation Paused: ${autoRecord.name}`,
+              message: `Automation '${autoRecord.name}' was automatically paused after ${currentFailures} consecutive failures.`,
+              type: 'AUTOMATION',
+              metadata: { automationId: autoRecord.id, consecutiveFailures: currentFailures, priority: 'HIGH' },
+            });
+          } else {
+            await this.notifRepo.createNotification({
+              userId: targetUserId,
+              title: `Automation Failed: ${autoRecord.name}`,
+              message: `Automation '${autoRecord.name}' failed: ${sanitizedErrorObj.message}`,
+              type: 'AUTOMATION',
+              metadata: { automationId: autoRecord.id, executionId, error: sanitizedErrorObj.message, priority: 'HIGH' },
+            });
+          }
+        } catch (notifErr) {
+          logger.warn(`[ExecutionEngine] Could not deliver notification for automation ${autoRecord.id}:`, notifErr);
         }
       }
 

@@ -271,7 +271,7 @@ describe('AETHER P1B — Workspace, Realtime & Core System Integration', () => {
     });
 
     it('enforces database membership check when client attempts to join workspace room', async () => {
-      const socketListeners: Record<string, Function> = {};
+      const socketListeners: Record<string, (...args: any[]) => void> = {};
       const joinedRooms: string[] = [];
 
       const mockSocket: any = {
@@ -279,7 +279,7 @@ describe('AETHER P1B — Workspace, Realtime & Core System Integration', () => {
         join: vi.fn().mockImplementation((room: string) => {
           joinedRooms.push(room);
         }),
-        on: vi.fn().mockImplementation((event: string, handler: Function) => {
+        on: vi.fn().mockImplementation((event: string, handler: (...args: any[]) => void) => {
           socketListeners[event] = handler;
         }),
         emit: vi.fn(),

@@ -41,6 +41,10 @@ describe('Batch 5: Planner, Calendar & Focus Persistence (Authoritative PostgreS
         createdAt: new Date(),
       };
 
+      vi.spyOn(db.user, 'findUnique').mockResolvedValue({
+        id: mockUserId1,
+      } as any);
+
       vi.spyOn(db.workspaceMember, 'findFirst').mockResolvedValue({
         id: 'mem-1',
         userId: mockUserId1,
@@ -50,6 +54,9 @@ describe('Batch 5: Planner, Calendar & Focus Persistence (Authoritative PostgreS
       } as any);
 
       vi.spyOn(db.activityLog, 'create').mockResolvedValue(mockCreatedLog as any);
+      if ((db as any).focusSession) {
+        vi.spyOn((db as any).focusSession, 'create').mockResolvedValue(mockCreatedLog as any);
+      }
 
       const repo = new FocusRepository();
       const service = new FocusService(repo);
