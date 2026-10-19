@@ -7,16 +7,24 @@ import { AnyZodObject, ZodError } from 'zod';
 export const validate = (schema: AnyZodObject) => {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
-      const parsed = await schema.parseAsync({
-        body: req.body,
-        query: req.query,
-        params: req.params,
-      });
+      const hasHttpWrappers =
+        'body' in schema.shape || 'query' in schema.shape || 'params' in schema.shape;
 
-      // Replace with validated and sanitized inputs
-      req.body = parsed.body || req.body;
-      req.query = parsed.query || req.query;
-      req.params = parsed.params || req.params;
+      if (hasHttpWrappers) {
+        const parsed: any = await schema.parseAsync({
+          body: req.body,
+          query: req.query,
+          params: req.params,
+        });
+
+        // Replace with validated and sanitized inputs
+        req.body = parsed.body || req.body;
+        req.query = parsed.query || req.query;
+        req.params = parsed.params || req.params;
+      } else {
+        const parsed = await schema.parseAsync(req.body);
+        req.body = parsed;
+      }
 
       next();
     } catch (error) {

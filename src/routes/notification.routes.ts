@@ -18,6 +18,15 @@ router.get('/preferences', (req, res, next) =>
 router.put('/preferences', (req, res, next) =>
   notificationController.updatePreferences(req, res, next),
 );
+router.get('/vapid-public-key', (_req, res) => {
+  res.json({
+    success: true,
+    data: {
+      publicKey: process.env.VAPID_PUBLIC_KEY || '',
+    },
+    publicKey: process.env.VAPID_PUBLIC_KEY || '',
+  });
+});
 router.post('/subscribe', (req, res, next) => notificationController.subscribePush(req, res, next));
 router.get('/', (req, res, next) => notificationController.getHistory(req, res, next));
 router.patch('/:id/read', (req, res, next) => notificationController.markRead(req, res, next));
